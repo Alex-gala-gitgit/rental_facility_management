@@ -10,7 +10,7 @@ This first version uses local in-memory sample data so you can test the app flow
 ## Run
 
 ```powershell
-cd C:\Users\User\Documents\Codex\2026-06-16\i-m-new-to-github\rental_facility_manager
+cd "C:\Users\User\Documents\Codex\2026-06-16\rental management\rental_facility_management"
 flutter pub get
 flutter run
 ```
