@@ -206,7 +206,7 @@ void main() {
   });
 
   test('one-off monthly income increases facility collection', () {
-    final store = RentalStore();
+    final store = RentalStore(now: DateTime(2026, 6, 18));
     store.loginAs(UserRole.owner);
     final facility = store.ownerFacilities.first;
     final before = store.facilityInflow(facility.id);
@@ -221,6 +221,86 @@ void main() {
 
     expect(store.facilityInflow(facility.id), before + 300);
     expect(store.additionalIncomes.single.month.month, 6);
+  });
+
+  test('financial totals and chart stop at the current month', () {
+    final store = RentalStore(now: DateTime(2026, 6, 18));
+    store.loginAs(UserRole.owner);
+    final facility = store.ownerFacilities.first;
+    final monthlyExpenses = store.monthlyFacilityOutflow(facility);
+
+    store.addAdditionalIncome(
+      facility: facility,
+      month: DateTime(2026, 7),
+      category: 'Future income',
+      amount: 500,
+      note: 'Must not be counted before July',
+    );
+
+    final summaries = store.yearlyFinancialSummary(2026);
+
+    expect(summaries, hasLength(12));
+    expect(store.totalOutflow, monthlyExpenses * 6);
+    expect(store.facilityOutflow(facility), monthlyExpenses * 6);
+    expect(summaries[5].expenses, monthlyExpenses);
+    expect(summaries[6].collection, 0);
+    expect(summaries[6].expenses, 0);
+    expect(summaries.last.collection, 0);
+    expect(summaries.last.expenses, 0);
+    expect(store.totalInflow, isNot(500));
+  });
+
+  test('sample rental collection is populated through the current month', () {
+    final store = RentalStore(now: DateTime(2026, 6, 18));
+    store.loginAs(UserRole.owner);
+
+    final summaries = store.yearlyFinancialSummary(2026);
+
+    expect(
+        summaries.take(6).every((summary) => summary.collection > 0), isTrue);
+    expect(
+        summaries.skip(6).every((summary) => summary.collection == 0), isTrue);
+  });
+
+  test('monthly pie breakdowns reconcile with chart totals', () {
+    final store = RentalStore(now: DateTime(2026, 6, 18));
+    store.loginAs(UserRole.owner);
+    final june = store.yearlyFinancialSummary(2026)[5];
+    final collectionItems = store.monthlyCollectionBreakdown(2026, 6);
+    final expenseItems = store.monthlyExpenseBreakdown(2026, 6);
+
+    expect(
+      collectionItems.fold<double>(0, (sum, item) => sum + item.amount),
+      june.collection,
+    );
+    expect(
+      expenseItems.fold<double>(0, (sum, item) => sum + item.amount),
+      june.expenses,
+    );
+    expect(collectionItems.any((item) => item.label.contains('Nur Aisyah')),
+        isTrue);
+    expect(
+        expenseItems.any((item) => item.label.contains('Maintenance')), isTrue);
+  });
+
+  testWidgets('selecting a chart month shows two pie charts below the graph',
+      (tester) async {
+    await tester.pumpWidget(const RentalFacilityApp());
+    await tester.tap(find.text('Login as Owner'));
+    await tester.pumpAndSettle();
+
+    final chart = find.byKey(const Key('financial_chart_touch_area'));
+    await tester.ensureVisible(chart);
+    await tester.pumpAndSettle();
+    final rect = tester.getRect(chart);
+    final januaryX = rect.left + 8 + (rect.width - 16) / 24;
+    await tester.tapAt(Offset(januaryX, rect.center.dy));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Jan 2026 Breakdown'), findsOneWidget);
+    expect(find.textContaining('Nur Aisyah Binti Rahman'), findsOneWidget);
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.textContaining('Facility 1 • Installment'), findsOneWidget);
   });
 
   test('time greeting follows morning afternoon and evening', () {
@@ -262,7 +342,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Pending Action (2)'), findsOneWidget);
-    expect(find.text('History (3)'), findsOneWidget);
+    expect(find.text('History (9)'), findsOneWidget);
 
     await tester.tap(find.text('Review Payment'));
     await tester.pumpAndSettle();
@@ -275,6 +355,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Pending Action (1)'), findsOneWidget);
-    expect(find.text('History (4)'), findsOneWidget);
+    expect(find.text('History (10)'), findsOneWidget);
   });
 }

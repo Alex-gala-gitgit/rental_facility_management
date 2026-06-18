@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 void main() {
@@ -177,6 +179,16 @@ class MonthlyFinancialSummary {
   final double expenses;
 }
 
+class FinancialBreakdownItem {
+  const FinancialBreakdownItem({
+    required this.label,
+    required this.amount,
+  });
+
+  final String label;
+  final double amount;
+}
+
 class FacilityReport {
   FacilityReport({
     required this.facility,
@@ -264,10 +276,11 @@ class AdditionalIncome {
 class RentalStore extends ChangeNotifier {
   static const double electricityRatePerKwh = 0.516;
 
-  RentalStore() {
+  RentalStore({DateTime? now}) : _now = now ?? DateTime.now() {
     _seed();
   }
 
+  final DateTime _now;
   final List<AppUser> users = [];
   final List<Facility> facilities = [];
   final List<Tenancy> tenancies = [];
@@ -285,6 +298,13 @@ class RentalStore extends ChangeNotifier {
   bool get isManager => isOwner || isPropertyAgent;
   int get unreadNotificationCount =>
       notifications.where((notification) => !notification.isRead).length;
+  int get elapsedMonthsThisYear => _now.month;
+
+  bool isCurrentOrPastMonth(DateTime month) {
+    final normalizedMonth = DateTime(month.year, month.month);
+    final currentMonth = DateTime(_now.year, _now.month);
+    return !normalizedMonth.isAfter(currentMonth);
+  }
 
   List<Facility> get ownerFacilities {
     final user = currentUser;
@@ -336,22 +356,26 @@ class RentalStore extends ChangeNotifier {
     final rentalIncome = bills
         .where((bill) =>
             facilityIds.contains(bill.facilityId) &&
+            isCurrentOrPastMonth(bill.month) &&
             bill.status == PaymentStatus.approved)
         .fold<double>(0, (sum, bill) => sum + bill.totalAmount);
     final otherIncome = additionalIncomes
-        .where((income) => facilityIds.contains(income.facilityId))
+        .where((income) =>
+            facilityIds.contains(income.facilityId) &&
+            isCurrentOrPastMonth(income.month))
         .fold<double>(0, (sum, income) => sum + income.amount);
     return rentalIncome + otherIncome;
   }
 
+  double get monthlyTotalOutflow {
+    return ownerFacilities.fold<double>(
+      0,
+      (sum, facility) => sum + monthlyFacilityOutflow(facility),
+    );
+  }
+
   double get totalOutflow {
-    return ownerFacilities.fold<double>(0, (sum, facility) {
-      return sum +
-          facility.installmentAmount +
-          facility.extraInstallmentPayment +
-          facility.maintenanceFee +
-          facility.insuranceFee;
-    });
+    return monthlyTotalOutflow * elapsedMonthsThisYear;
   }
 
   double get netCashflow => totalInflow - totalOutflow;
@@ -359,19 +383,26 @@ class RentalStore extends ChangeNotifier {
   double facilityInflow(String facilityId) {
     final rentalIncome = bills.where((bill) {
       return bill.facilityId == facilityId &&
+          isCurrentOrPastMonth(bill.month) &&
           bill.status == PaymentStatus.approved;
     }).fold<double>(0, (sum, bill) => sum + bill.totalAmount);
     final otherIncome = additionalIncomes
-        .where((income) => income.facilityId == facilityId)
+        .where((income) =>
+            income.facilityId == facilityId &&
+            isCurrentOrPastMonth(income.month))
         .fold<double>(0, (sum, income) => sum + income.amount);
     return rentalIncome + otherIncome;
   }
 
-  double facilityOutflow(Facility facility) {
+  double monthlyFacilityOutflow(Facility facility) {
     return facility.installmentAmount +
         facility.extraInstallmentPayment +
         facility.maintenanceFee +
         facility.insuranceFee;
+  }
+
+  double facilityOutflow(Facility facility) {
+    return monthlyFacilityOutflow(facility) * elapsedMonthsThisYear;
   }
 
   List<MonthlyBill> facilityBills(String facilityId) {
@@ -408,7 +439,17 @@ class RentalStore extends ChangeNotifier {
     final facilityIds = ownerFacilities.map((facility) => facility.id).toSet();
     return List.generate(12, (index) {
       final month = index + 1;
-      final collection = bills.where((bill) {
+      final isFutureMonth = DateTime(year, month).isAfter(
+        DateTime(_now.year, _now.month),
+      );
+      if (isFutureMonth) {
+        return MonthlyFinancialSummary(
+          month: month,
+          collection: 0,
+          expenses: 0,
+        );
+      }
+      final monthlyCollection = bills.where((bill) {
         return facilityIds.contains(bill.facilityId) &&
             bill.month.year == year &&
             bill.month.month == month &&
@@ -421,10 +462,73 @@ class RentalStore extends ChangeNotifier {
       }).fold<double>(0, (sum, income) => sum + income.amount);
       return MonthlyFinancialSummary(
         month: month,
-        collection: collection + otherIncome,
-        expenses: totalOutflow,
+        collection: monthlyCollection + otherIncome,
+        expenses: monthlyTotalOutflow,
       );
     });
+  }
+
+  List<FinancialBreakdownItem> monthlyCollectionBreakdown(
+    int year,
+    int month,
+  ) {
+    if (!isCurrentOrPastMonth(DateTime(year, month))) return [];
+    final facilityIds = ownerFacilities.map((facility) => facility.id).toSet();
+    final items = <FinancialBreakdownItem>[];
+    for (final bill in bills.where((bill) {
+      return facilityIds.contains(bill.facilityId) &&
+          bill.month.year == year &&
+          bill.month.month == month &&
+          bill.status == PaymentStatus.approved;
+    })) {
+      final tenancy = tenancies.firstWhere(
+        (item) =>
+            item.tenantId == bill.tenantId &&
+            item.facilityId == bill.facilityId,
+      );
+      items.add(
+        FinancialBreakdownItem(
+          label:
+              '${userFor(bill.tenantId).name} • ${tenancy.unitName} • ${facilityFor(bill.facilityId).name}',
+          amount: bill.totalAmount,
+        ),
+      );
+    }
+    for (final income in additionalIncomes.where((income) {
+      return facilityIds.contains(income.facilityId) &&
+          income.month.year == year &&
+          income.month.month == month;
+    })) {
+      items.add(
+        FinancialBreakdownItem(
+          label: '${income.category} • ${facilityFor(income.facilityId).name}',
+          amount: income.amount,
+        ),
+      );
+    }
+    return items;
+  }
+
+  List<FinancialBreakdownItem> monthlyExpenseBreakdown(int year, int month) {
+    if (!isCurrentOrPastMonth(DateTime(year, month))) return [];
+    final items = <FinancialBreakdownItem>[];
+    for (final facility in ownerFacilities) {
+      final costs = <(String, double)>[
+        ('Installment', facility.installmentAmount),
+        ('Extra installment', facility.extraInstallmentPayment),
+        ('Maintenance', facility.maintenanceFee),
+        ('Fire insurance', facility.insuranceFee),
+      ];
+      for (final cost in costs.where((cost) => cost.$2 > 0)) {
+        items.add(
+          FinancialBreakdownItem(
+            label: '${facility.name} • ${cost.$1}',
+            amount: cost.$2,
+          ),
+        );
+      }
+    }
+    return items;
   }
 
   void loginAs(UserRole role) {
@@ -826,11 +930,16 @@ class RentalStore extends ChangeNotifier {
       ),
     ]);
 
-    final months = [
-      DateTime(2026, 1),
-      DateTime(2026, 2),
-      DateTime(2026, 3),
-    ];
+    const seedYear = 2026;
+    final lastSeedMonth = _now.year > seedYear
+        ? 12
+        : _now.year == seedYear
+            ? _now.month
+            : 0;
+    final months = List.generate(
+      lastSeedMonth,
+      (index) => DateTime(seedYear, index + 1),
+    );
     for (final month in months) {
       for (final tenancy in tenancies) {
         bills.add(
@@ -882,6 +991,15 @@ class RentalStore extends ChangeNotifier {
       ..slipFileName = 'mar_room_a_slip.jpg'
       ..submittedAt = DateTime(2026, 3, 3)
       ..reviewedAt = DateTime(2026, 3, 4);
+    for (final bill in bills.where((bill) => bill.month.month >= 4)) {
+      bill
+        ..status = PaymentStatus.approved
+        ..amountPaid = bill.totalAmount
+        ..slipFileName =
+            '${FinancialChartPainter.monthNames[bill.month.month - 1].toLowerCase()}_${bill.tenantId}_slip.jpg'
+        ..submittedAt = DateTime(seedYear, bill.month.month, 3)
+        ..reviewedAt = DateTime(seedYear, bill.month.month, 4);
+    }
 
     for (final bill in bills.where((bill) {
       return bill.status == PaymentStatus.approved && bill.reviewedAt != null;
@@ -1595,11 +1713,15 @@ class _CollectionFacilitySection extends StatelessWidget {
     final store = RentalStoreScope.of(context);
     final approvedBills = store
         .facilityBills(facility.id)
-        .where((bill) => bill.status == PaymentStatus.approved)
+        .where((bill) =>
+            bill.status == PaymentStatus.approved &&
+            store.isCurrentOrPastMonth(bill.month))
         .toList();
     final tenantIds = approvedBills.map((bill) => bill.tenantId).toSet();
     final otherIncome = store.additionalIncomes
-        .where((income) => income.facilityId == facility.id)
+        .where((income) =>
+            income.facilityId == facility.id &&
+            store.isCurrentOrPastMonth(income.month))
         .toList()
       ..sort((a, b) => b.month.compareTo(a.month));
 
@@ -1699,21 +1821,26 @@ class _ExpenseFacilitySection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
+    final elapsedMonths = store.elapsedMonthsThisYear;
     final items = <(String, double, IconData)>[
       (
         'Installment',
-        facility.installmentAmount,
+        facility.installmentAmount * elapsedMonths,
         Icons.account_balance_rounded
       ),
       (
         'Extra installment',
-        facility.extraInstallmentPayment,
+        facility.extraInstallmentPayment * elapsedMonths,
         Icons.add_card_rounded,
       ),
-      ('Maintenance', facility.maintenanceFee, Icons.handyman_rounded),
+      (
+        'Maintenance',
+        facility.maintenanceFee * elapsedMonths,
+        Icons.handyman_rounded
+      ),
       (
         'Fire Insurance',
-        facility.insuranceFee,
+        facility.insuranceFee * elapsedMonths,
         Icons.local_fire_department_rounded
       ),
     ];
@@ -1723,7 +1850,9 @@ class _ExpenseFacilitySection extends StatelessWidget {
         initiallyExpanded: true,
         leading: const CircleAvatar(child: Icon(Icons.apartment_rounded)),
         title: Text(facility.name),
-        subtitle: Text(facility.address),
+        subtitle: Text(
+          '${facility.address} • January to ${FinancialChartPainter.monthNames[elapsedMonths - 1]}',
+        ),
         trailing: Text(
           money(store.facilityOutflow(facility)),
           style: const TextStyle(
@@ -3133,9 +3262,14 @@ class YearlyFinancialChart extends StatefulWidget {
 
 class _YearlyFinancialChartState extends State<YearlyFinancialChart> {
   int? hoveredMonthIndex;
+  int? selectedMonthIndex;
 
   @override
   Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    final selectedSummary = selectedMonthIndex == null
+        ? null
+        : widget.summaries[selectedMonthIndex!];
     return Align(
       alignment: Alignment.centerLeft,
       child: ConstrainedBox(
@@ -3162,7 +3296,7 @@ class _YearlyFinancialChartState extends State<YearlyFinancialChart> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Monthly comparison across the full year',
+                  'Monthly amounts; select a month to see its breakdown',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: const Color(0xFF667085),
                       ),
@@ -3202,7 +3336,7 @@ class _YearlyFinancialChartState extends State<YearlyFinancialChart> {
                               .clamp(0.0, width - tooltipWidth);
 
                       return MouseRegion(
-                        cursor: SystemMouseCursors.basic,
+                        cursor: SystemMouseCursors.click,
                         onHover: (event) {
                           final index = financialChartMonthIndex(
                             event.localPosition.dx,
@@ -3218,35 +3352,117 @@ class _YearlyFinancialChartState extends State<YearlyFinancialChart> {
                             setState(() => hoveredMonthIndex = null);
                           }
                         },
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Positioned.fill(
-                              child: CustomPaint(
-                                painter: FinancialChartPainter(
-                                  widget.summaries,
-                                  highlightedIndex: hoveredMonthIndex,
-                                ),
-                              ),
-                            ),
-                            if (hovered != null)
-                              Positioned(
-                                left: tooltipLeft,
-                                top: 2,
-                                width: tooltipWidth,
-                                child: IgnorePointer(
-                                  child: _FinancialChartTooltip(
-                                    year: widget.year,
-                                    summary: hovered,
+                        child: GestureDetector(
+                          key: const Key('financial_chart_touch_area'),
+                          behavior: HitTestBehavior.opaque,
+                          onTapDown: (details) {
+                            final index = financialChartMonthIndex(
+                              details.localPosition.dx,
+                              width,
+                              widget.summaries.length,
+                            );
+                            setState(() => selectedMonthIndex = index);
+                          },
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Positioned.fill(
+                                child: CustomPaint(
+                                  painter: FinancialChartPainter(
+                                    widget.summaries,
+                                    highlightedIndex:
+                                        hoveredMonthIndex ?? selectedMonthIndex,
                                   ),
                                 ),
                               ),
-                          ],
+                              if (hovered != null)
+                                Positioned(
+                                  left: tooltipLeft,
+                                  top: 2,
+                                  width: tooltipWidth,
+                                  child: IgnorePointer(
+                                    child: _FinancialChartTooltip(
+                                      year: widget.year,
+                                      summary: hovered,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       );
                     },
                   ),
                 ),
+                const SizedBox(height: 16),
+                if (selectedSummary == null)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF4F7FB),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'Select a month above to view its collection and expense charts.',
+                      style: TextStyle(color: Color(0xFF667085)),
+                    ),
+                  )
+                else ...[
+                  Text(
+                    '${monthLabel(DateTime(widget.year, selectedSummary.month))} Breakdown',
+                    key: const Key('inline_month_breakdown_title'),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'See who contributed to collection and where expenses went.',
+                    style: TextStyle(color: Color(0xFF667085)),
+                  ),
+                  const SizedBox(height: 14),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final cardWidth = constraints.maxWidth < 680
+                          ? constraints.maxWidth
+                          : (constraints.maxWidth - 16) / 2;
+                      final month = selectedSummary.month;
+                      return Wrap(
+                        spacing: 16,
+                        runSpacing: 16,
+                        children: [
+                          SizedBox(
+                            width: cardWidth,
+                            child: FinancialBreakdownPieCard(
+                              key: ValueKey('collection_${widget.year}_$month'),
+                              title: 'Total Rental Collection',
+                              icon: Icons.payments_rounded,
+                              accentColor: const Color(0xFF16856B),
+                              items: store.monthlyCollectionBreakdown(
+                                widget.year,
+                                month,
+                              ),
+                            ),
+                          ),
+                          SizedBox(
+                            width: cardWidth,
+                            child: FinancialBreakdownPieCard(
+                              key: ValueKey('expenses_${widget.year}_$month'),
+                              title: 'Total Expenses',
+                              icon: Icons.receipt_long_rounded,
+                              accentColor: const Color(0xFFD16432),
+                              items: store.monthlyExpenseBreakdown(
+                                widget.year,
+                                month,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
               ],
             ),
           ),
@@ -3303,6 +3519,212 @@ class _FinancialChartTooltip extends StatelessWidget {
       ),
     );
   }
+}
+
+class FinancialBreakdownPieCard extends StatelessWidget {
+  const FinancialBreakdownPieCard({
+    required this.title,
+    required this.icon,
+    required this.accentColor,
+    required this.items,
+    super.key,
+  });
+
+  final String title;
+  final IconData icon;
+  final Color accentColor;
+  final List<FinancialBreakdownItem> items;
+
+  static const colors = [
+    Color(0xFF16856B),
+    Color(0xFF3156A3),
+    Color(0xFFD16432),
+    Color(0xFF8A4FA3),
+    Color(0xFFDAA520),
+    Color(0xFF2D8BA8),
+    Color(0xFFB04A6F),
+    Color(0xFF6A7B3F),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final total = items.fold<double>(0, (sum, item) => sum + item.amount);
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: accentColor),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              money(total),
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: accentColor,
+                    fontWeight: FontWeight.w900,
+                  ),
+            ),
+            const SizedBox(height: 14),
+            Center(
+              child: SizedBox(
+                width: 180,
+                height: 180,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: 1),
+                  duration: const Duration(milliseconds: 750),
+                  curve: Curves.easeOutBack,
+                  builder: (context, progress, child) {
+                    final visibleProgress = progress.clamp(0.0, 1.0);
+                    return CustomPaint(
+                      painter: FinancialPieChartPainter(
+                        items: items,
+                        colors: colors,
+                        progress: visibleProgress,
+                      ),
+                      child: Opacity(
+                        opacity: visibleProgress,
+                        child: Transform.scale(
+                          scale: 0.8 + visibleProgress * 0.2,
+                          child: child,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Center(
+                    child: Text(
+                      items.isEmpty ? 'No data' : money(total),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            if (items.isEmpty)
+              const Text(
+                'No collection or expense recorded for this month.',
+                style: TextStyle(color: Color(0xFF667085)),
+              )
+            else
+              ...List.generate(items.length, (index) {
+                final item = items[index];
+                final percentage = total == 0 ? 0 : item.amount / total * 100;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 9),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        margin: const EdgeInsets.only(top: 4),
+                        decoration: BoxDecoration(
+                          color: colors[index % colors.length],
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          item.label,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            money(item.amount),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          Text(
+                            '${percentage.toStringAsFixed(1)}%',
+                            style: const TextStyle(
+                              color: Color(0xFF667085),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class FinancialPieChartPainter extends CustomPainter {
+  FinancialPieChartPainter({
+    required this.items,
+    required this.colors,
+    required this.progress,
+  });
+
+  final List<FinancialBreakdownItem> items;
+  final List<Color> colors;
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) / 2 * progress;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    final total = items.fold<double>(0, (sum, item) => sum + item.amount);
+    if (total <= 0) {
+      canvas.drawCircle(
+          center, radius, Paint()..color = const Color(0xFFE8EDF5));
+    } else {
+      var startAngle = -math.pi / 2;
+      for (var index = 0; index < items.length; index++) {
+        final sweepAngle = items[index].amount / total * math.pi * 2 * progress;
+        canvas.drawArc(
+          rect,
+          startAngle,
+          sweepAngle,
+          true,
+          Paint()..color = colors[index % colors.length],
+        );
+        startAngle += sweepAngle;
+      }
+    }
+    canvas.drawCircle(
+      center,
+      radius * 0.52,
+      Paint()..color = ThemeData.light().cardColor,
+    );
+  }
+
+  @override
+  bool shouldRepaint(FinancialPieChartPainter oldDelegate) =>
+      oldDelegate.items != items ||
+      oldDelegate.colors != colors ||
+      oldDelegate.progress != progress;
 }
 
 int financialChartMonthIndex(double dx, double width, int monthCount) {
