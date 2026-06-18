@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' show Size;
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rental_facility_management/main.dart';
 
@@ -117,11 +117,13 @@ void main() {
 
     final facility = store.addFacility(
       name: 'Facility 2',
-      address: 'Kuala Lumpur',
+      addressLine: '10 Jalan Test',
+      postcode: '50000',
+      city: 'Kuala Lumpur',
+      state: 'Wilayah Persekutuan',
       installmentAmount: 2000,
       maintenanceFee: 200,
       insuranceFee: 100,
-      otherFee: 50,
     );
 
     expect(facility, isNotNull);
@@ -164,8 +166,115 @@ void main() {
     expect(tenant.profileComplete, isTrue);
     expect(tenant.accountCreatedAt, isNotNull);
     expect(
-      store.notifications.first,
+      store.notifications.first.message,
       contains('accepted the invitation and created a tenant account'),
     );
+  });
+
+  test('currency uses Malaysian ringgit', () {
+    expect(money(1250), 'RM 1,250');
+    expect(money(-80), '-RM 80');
+  });
+
+  test('rejected payment creates history and can be resubmitted', () {
+    final store = RentalStore();
+    final bill = store.bills.firstWhere(
+      (bill) => bill.status == PaymentStatus.pendingApproval,
+    );
+
+    store.rejectBill(bill, 'Image is unclear');
+    expect(bill.status, PaymentStatus.rejected);
+    expect(store.paymentReviewHistory.last.status, PaymentStatus.rejected);
+    expect(store.notifications.first.message, contains('Please resubmit'));
+
+    store.submitPaymentSlip(bill, 'clear_slip.jpg', bill.totalAmount);
+    expect(bill.status, PaymentStatus.pendingApproval);
+    expect(bill.rejectReason, isNull);
+  });
+
+  test('owner can configure reminders and mark notification read', () {
+    final store = RentalStore();
+    store.loginAs(UserRole.owner);
+    store.updateReminderSettings(afterDays: 5, frequencyDays: 3);
+
+    expect(store.currentUser!.paymentReminderAfterDays, 5);
+    expect(store.currentUser!.paymentReminderFrequencyDays, 3);
+    final notification = store.notifications.first;
+    expect(notification.isRead, isFalse);
+    store.markNotificationRead(notification);
+    expect(notification.isRead, isTrue);
+  });
+
+  test('one-off monthly income increases facility collection', () {
+    final store = RentalStore();
+    store.loginAs(UserRole.owner);
+    final facility = store.ownerFacilities.first;
+    final before = store.facilityInflow(facility.id);
+
+    store.addAdditionalIncome(
+      facility: facility,
+      month: DateTime(2026, 6),
+      category: 'Key deposit forfeiture',
+      amount: 300,
+      note: 'One-time collection',
+    );
+
+    expect(store.facilityInflow(facility.id), before + 300);
+    expect(store.additionalIncomes.single.month.month, 6);
+  });
+
+  test('time greeting follows morning afternoon and evening', () {
+    expect(timeGreeting(DateTime(2026, 1, 1, 8)), 'Good morning');
+    expect(timeGreeting(DateTime(2026, 1, 1, 14)), 'Good afternoon');
+    expect(timeGreeting(DateTime(2026, 1, 1, 20)), 'Good evening');
+    expect(firstName('Alex Tan'), 'Alex');
+  });
+
+  test('approved payment leaves pending and appears in history', () {
+    final store = RentalStore();
+    final bill = store.pendingBills.first;
+
+    store.approveBill(bill);
+
+    expect(store.pendingBills, isNot(contains(bill)));
+    expect(bill.status, PaymentStatus.approved);
+    expect(
+      store.paymentReviewHistory.any(
+        (event) =>
+            event.billId == bill.id && event.status == PaymentStatus.approved,
+      ),
+      isTrue,
+    );
+  });
+
+  test('financial chart hover maps cursor to the correct month', () {
+    expect(financialChartMonthIndex(8, 728, 12), 0);
+    expect(financialChartMonthIndex(368, 728, 12), 6);
+    expect(financialChartMonthIndex(720, 728, 12), 11);
+  });
+
+  testWidgets('review action immediately updates pending and history tabs',
+      (tester) async {
+    await tester.pumpWidget(const RentalFacilityApp());
+    await tester.tap(find.text('Login as Owner'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Review'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pending Action (2)'), findsOneWidget);
+    expect(find.text('History (3)'), findsOneWidget);
+
+    await tester.tap(find.text('Review Payment'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Approve'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pending Action (1)'), findsOneWidget);
+    expect(find.text('History (4)'), findsOneWidget);
   });
 }
