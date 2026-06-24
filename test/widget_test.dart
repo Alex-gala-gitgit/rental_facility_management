@@ -238,16 +238,236 @@ void main() {
     );
 
     final summaries = store.yearlyFinancialSummary(2026);
+    final scheduledJanuaryExpenses = facility.insuranceFee +
+        facility.extraCommitments.fold<double>(
+          0,
+          (sum, commitment) => sum + commitment.amount,
+        );
 
     expect(summaries, hasLength(12));
-    expect(store.totalOutflow, monthlyExpenses * 6);
-    expect(store.facilityOutflow(facility), monthlyExpenses * 6);
+    expect(store.totalOutflow, monthlyExpenses * 6 + scheduledJanuaryExpenses);
+    expect(
+      store.facilityOutflow(facility),
+      monthlyExpenses * 6 + scheduledJanuaryExpenses,
+    );
     expect(summaries[5].expenses, monthlyExpenses);
     expect(summaries[6].collection, 0);
     expect(summaries[6].expenses, 0);
     expect(summaries.last.collection, 0);
     expect(summaries.last.expenses, 0);
     expect(store.totalInflow, isNot(500));
+  });
+
+  test('fire insurance follows yearly or half-yearly payment schedule', () {
+    final store = RentalStore(now: DateTime(2026, 12, 18));
+    store.loginAs(UserRole.owner);
+    final facility = store.ownerFacilities.first;
+
+    expect(store.isInsuranceDue(facility, 1), isTrue);
+    expect(store.isInsuranceDue(facility, 6), isFalse);
+    expect(
+      store.monthlyExpenseBreakdown(2026, 6).any(
+            (item) => item.label.contains('Fire insurance'),
+          ),
+      isFalse,
+    );
+
+    facility.insuranceFrequency = InsuranceFrequency.halfYearly;
+    expect(store.isInsuranceDue(facility, 7), isTrue);
+    expect(
+      store.monthlyExpenseBreakdown(2026, 7).any(
+            (item) => item.label.contains('Fire insurance'),
+          ),
+      isTrue,
+    );
+  });
+
+  test('generic recurring commitments follow flexible schedules', () {
+    final store = RentalStore(now: DateTime(2026, 12, 18));
+    store.loginAs(UserRole.owner);
+    final facility = store.ownerFacilities.first;
+    final indahWater = facility.extraCommitments.firstWhere(
+      (commitment) => commitment.name == 'Indah Water',
+    );
+
+    expect(store.isHalfYearlyDue(indahWater.firstDueMonth, 1), isTrue);
+    expect(store.isHalfYearlyDue(indahWater.firstDueMonth, 7), isTrue);
+    expect(
+      store.monthlyExpenseBreakdown(2026, 7).any(
+            (item) => item.label.contains('Indah Water'),
+          ),
+      isTrue,
+    );
+    expect(
+      store.monthlyExpenseBreakdown(2026, 7).any(
+            (item) => item.label.contains('DBKL'),
+          ),
+      isTrue,
+    );
+
+    indahWater.frequency = CommitmentFrequency.quarterly;
+    indahWater.firstDueMonth = 2;
+    expect(store.isCommitmentDue(indahWater.frequency, 2, 2), isTrue);
+    expect(store.isCommitmentDue(indahWater.frequency, 2, 5), isTrue);
+    expect(store.isCommitmentDue(indahWater.frequency, 2, 6), isFalse);
+    expect(
+      store.monthlyExpenseBreakdown(2026, 5).any(
+            (item) => item.label.contains('Indah Water (Quarterly)'),
+          ),
+      isTrue,
+    );
+  });
+
+  test('extra recurring commitments are included by schedule', () {
+    final store = RentalStore(now: DateTime(2026, 6, 18));
+    store.loginAs(UserRole.owner);
+    final facility = store.ownerFacilities.first;
+
+    store.addRecurringCommitment(
+      facility: facility,
+      name: 'Lift Service',
+      amount: 80,
+      frequency: CommitmentFrequency.quarterly,
+      firstDueMonth: 3,
+    );
+
+    expect(
+      store.monthlyExpenseBreakdown(2026, 3).any(
+            (item) => item.label.contains('Lift Service') && item.amount == 80,
+          ),
+      isTrue,
+    );
+    expect(
+      store.monthlyExpenseBreakdown(2026, 4).any(
+            (item) => item.label.contains('Lift Service'),
+          ),
+      isFalse,
+    );
+    expect(store.facilityExpenseForMonth(facility, 2026, 3),
+        store.monthlyFacilityOutflow(facility) + 80);
+  });
+
+  testWidgets('utility evidence starts empty and requires upload',
+      (tester) async {
+    await tester.pumpWidget(const RentalFacilityApp());
+    await tester.tap(find.text('Login as Owner'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Utilities').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Daniel Lim Wei Jian'));
+    await tester.pumpAndSettle();
+    final enterButton = find.text('Enter & Upload').first;
+    await tester.ensureVisible(enterButton);
+    await tester.pumpAndSettle();
+    await tester.tap(enterButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('No file uploaded'), findsOneWidget);
+    final saveButton = tester.widget<FilledButton>(
+      find.byKey(const Key('save_utility_charges_button')),
+    );
+    expect(saveButton.onPressed, isNull);
+
+    await tester.tap(find.byKey(const Key('upload_meter_reading_button')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('meter_'), findsOneWidget);
+  });
+
+  test('included utilities automatically await tenant payment', () {
+    final store = RentalStore(now: DateTime(2026, 6, 20));
+    final includedTenancy =
+        store.tenancies.firstWhere((tenancy) => tenancy.utilitiesFullyIncluded);
+    final automaticBill = store.bills.firstWhere(
+      (bill) =>
+          bill.tenantId == includedTenancy.tenantId &&
+          bill.status == PaymentStatus.pendingTenantPayment,
+    );
+
+    expect(automaticBill.utilityEvidenceFileName, isNull);
+    store.loginAs(UserRole.tenant);
+    expect(store.tenantPayableBills, contains(automaticBill));
+  });
+
+  test('owner utility entry moves excluded bill to tenant payment', () {
+    final store = RentalStore(now: DateTime(2026, 6, 20));
+    final bill = store.bills.firstWhere(
+      (item) => item.status == PaymentStatus.notSubmitted,
+    );
+
+    store.updateBillUtilities(
+      bill,
+      electricityUsageKwh: 120,
+      waterAmount: 25,
+      internetAmount: 0,
+      utilityEvidenceFileName: 'reading.jpg',
+    );
+
+    expect(bill.status, PaymentStatus.pendingTenantPayment);
+  });
+
+  testWidgets('utilities use facility-left breakdown-right layout',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const RentalFacilityApp());
+    await tester.tap(find.text('Login as Owner'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Utilities').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('UTILITY FACILITIES'), findsOneWidget);
+    expect(find.text('Utility Breakdown'), findsOneWidget);
+  });
+
+  testWidgets('utility facility sidebar narrows after using detail page',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const RentalFacilityApp());
+    await tester.tap(find.text('Login as Owner'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Utilities').last);
+    await tester.pumpAndSettle();
+
+    final sidebar = find.byKey(const Key('utility_facility_sidebar'));
+    expect(tester.getSize(sidebar).width, 290);
+    await tester.tap(find.text('Nur Aisyah Binti Rahman'));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(sidebar).width, 76);
+  });
+
+  testWidgets('facility detail shows tenants left and bills right',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final store = RentalStore(now: DateTime(2026, 6, 20));
+    store.loginAs(UserRole.owner);
+
+    await tester.pumpWidget(
+      RentalStoreScope(
+        store: store,
+        child: MaterialApp(
+          home: FacilityMasterDetailScreen(
+            facility: store.ownerFacilities.first,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final tenantPosition =
+        tester.getTopLeft(find.byKey(const Key('all_tenants_filter')));
+    final billPosition =
+        tester.getTopLeft(find.byKey(const Key('bill_performance_detail')));
+    expect(tenantPosition.dx, lessThan(billPosition.dx));
   });
 
   test('sample rental collection is populated through the current month', () {
@@ -301,6 +521,9 @@ void main() {
     expect(find.textContaining('Nur Aisyah Binti Rahman'), findsOneWidget);
     expect(find.byType(Dialog), findsNothing);
     expect(find.textContaining('Facility 1 • Installment'), findsOneWidget);
+    await tester.tapAt(Offset(januaryX, rect.center.dy));
+    await tester.pumpAndSettle();
+    expect(find.text('Jan 2026 Breakdown'), findsNothing);
   });
 
   test('time greeting follows morning afternoon and evening', () {

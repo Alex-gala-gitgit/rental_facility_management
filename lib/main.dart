@@ -10,9 +10,47 @@ enum UserRole { owner, propertyAgent, tenant }
 
 enum UtilityPackage { included, excluded }
 
-enum PaymentStatus { notSubmitted, pendingApproval, approved, rejected }
+enum PaymentStatus {
+  notSubmitted,
+  pendingTenantPayment,
+  pendingApproval,
+  approved,
+  rejected,
+}
 
 enum FacilityStatus { active, sold }
+
+enum InsuranceFrequency { halfYearly, yearly }
+
+enum CommitmentFrequency { monthly, quarterly, halfYearly, yearly }
+
+const customCommitmentType = 'Custom Commitment';
+
+const commitmentTypeOptions = [
+  'Indah Water',
+  'DBKL Assessment',
+  'Security Service',
+  'Cleaning Service',
+  'Lift Service',
+  'Pest Control',
+  customCommitmentType,
+];
+
+class RecurringCommitment {
+  RecurringCommitment({
+    required this.id,
+    required this.name,
+    required this.amount,
+    required this.frequency,
+    required this.firstDueMonth,
+  });
+
+  final String id;
+  String name;
+  double amount;
+  CommitmentFrequency frequency;
+  int firstDueMonth;
+}
 
 class AppUser {
   AppUser({
@@ -63,10 +101,13 @@ class Facility {
     required this.installmentAmount,
     required this.maintenanceFee,
     required this.insuranceFee,
+    this.insuranceFrequency = InsuranceFrequency.yearly,
+    this.insuranceDueMonth = 1,
+    List<RecurringCommitment>? extraCommitments,
     this.extraInstallmentPayment = 0,
     this.status = FacilityStatus.active,
     this.soldAt,
-  });
+  }) : extraCommitments = extraCommitments ?? <RecurringCommitment>[];
 
   final String id;
   final String ownerId;
@@ -78,6 +119,9 @@ class Facility {
   double installmentAmount;
   double maintenanceFee;
   double insuranceFee;
+  InsuranceFrequency insuranceFrequency;
+  int insuranceDueMonth;
+  final List<RecurringCommitment> extraCommitments;
   double extraInstallmentPayment;
   FacilityStatus status;
   DateTime? soldAt;
@@ -121,6 +165,11 @@ class Tenancy {
   bool carParkIncluded;
   String carParkDetails;
   bool active;
+
+  bool get utilitiesFullyIncluded =>
+      electricityPackage == UtilityPackage.included &&
+      waterPackage == UtilityPackage.included &&
+      internetPackage == UtilityPackage.included;
 }
 
 class MonthlyBill {
@@ -330,14 +379,19 @@ class RentalStore extends ChangeNotifier {
 
   List<MonthlyBill> get tenantPaymentHistory {
     return tenantBills
-        .where((bill) => bill.status != PaymentStatus.notSubmitted)
+        .where((bill) =>
+            bill.status == PaymentStatus.pendingApproval ||
+            bill.status == PaymentStatus.approved ||
+            bill.status == PaymentStatus.rejected)
         .toList()
       ..sort((a, b) => b.month.compareTo(a.month));
   }
 
   List<MonthlyBill> get tenantPayableBills {
     return tenantBills
-        .where((bill) => bill.status != PaymentStatus.approved)
+        .where((bill) =>
+            bill.status == PaymentStatus.pendingTenantPayment ||
+            bill.status == PaymentStatus.rejected)
         .toList()
       ..sort((a, b) => a.month.compareTo(b.month));
   }
@@ -367,7 +421,7 @@ class RentalStore extends ChangeNotifier {
     return rentalIncome + otherIncome;
   }
 
-  double get monthlyTotalOutflow {
+  double get monthlyRecurringOutflow {
     return ownerFacilities.fold<double>(
       0,
       (sum, facility) => sum + monthlyFacilityOutflow(facility),
@@ -375,7 +429,10 @@ class RentalStore extends ChangeNotifier {
   }
 
   double get totalOutflow {
-    return monthlyTotalOutflow * elapsedMonthsThisYear;
+    return ownerFacilities.fold<double>(
+      0,
+      (sum, facility) => sum + facilityOutflow(facility),
+    );
   }
 
   double get netCashflow => totalInflow - totalOutflow;
@@ -397,12 +454,72 @@ class RentalStore extends ChangeNotifier {
   double monthlyFacilityOutflow(Facility facility) {
     return facility.installmentAmount +
         facility.extraInstallmentPayment +
-        facility.maintenanceFee +
-        facility.insuranceFee;
+        facility.maintenanceFee;
+  }
+
+  bool isInsuranceDue(Facility facility, int month) {
+    if (month == facility.insuranceDueMonth) return true;
+    if (facility.insuranceFrequency == InsuranceFrequency.halfYearly) {
+      return month == ((facility.insuranceDueMonth + 5) % 12) + 1;
+    }
+    return false;
+  }
+
+  bool isHalfYearlyDue(int firstDueMonth, int month) {
+    return isCommitmentDue(
+      CommitmentFrequency.halfYearly,
+      firstDueMonth,
+      month,
+    );
+  }
+
+  bool isCommitmentDue(
+    CommitmentFrequency frequency,
+    int firstDueMonth,
+    int month,
+  ) {
+    final normalizedFirstMonth = ((firstDueMonth - 1) % 12) + 1;
+    final offset = (month - normalizedFirstMonth) % 12;
+    return switch (frequency) {
+      CommitmentFrequency.monthly => true,
+      CommitmentFrequency.quarterly => offset % 3 == 0,
+      CommitmentFrequency.halfYearly => offset % 6 == 0,
+      CommitmentFrequency.yearly => offset == 0,
+    };
+  }
+
+  double scheduledCommitmentAmount(
+    double amount,
+    CommitmentFrequency frequency,
+    int firstDueMonth,
+    int month,
+  ) {
+    return isCommitmentDue(frequency, firstDueMonth, month) ? amount : 0;
+  }
+
+  double facilityExpenseForMonth(Facility facility, int year, int month) {
+    if (!isCurrentOrPastMonth(DateTime(year, month))) return 0;
+    return monthlyFacilityOutflow(facility) +
+        (isInsuranceDue(facility, month) ? facility.insuranceFee : 0) +
+        facility.extraCommitments.fold<double>(
+          0,
+          (sum, commitment) =>
+              sum +
+              scheduledCommitmentAmount(
+                commitment.amount,
+                commitment.frequency,
+                commitment.firstDueMonth,
+                month,
+              ),
+        );
   }
 
   double facilityOutflow(Facility facility) {
-    return monthlyFacilityOutflow(facility) * elapsedMonthsThisYear;
+    return List.generate(elapsedMonthsThisYear, (index) => index + 1)
+        .fold<double>(
+      0,
+      (sum, month) => sum + facilityExpenseForMonth(facility, _now.year, month),
+    );
   }
 
   List<MonthlyBill> facilityBills(String facilityId) {
@@ -463,7 +580,11 @@ class RentalStore extends ChangeNotifier {
       return MonthlyFinancialSummary(
         month: month,
         collection: monthlyCollection + otherIncome,
-        expenses: monthlyTotalOutflow,
+        expenses: ownerFacilities.fold<double>(
+          0,
+          (sum, facility) =>
+              sum + facilityExpenseForMonth(facility, year, month),
+        ),
       );
     });
   }
@@ -517,7 +638,21 @@ class RentalStore extends ChangeNotifier {
         ('Installment', facility.installmentAmount),
         ('Extra installment', facility.extraInstallmentPayment),
         ('Maintenance', facility.maintenanceFee),
-        ('Fire insurance', facility.insuranceFee),
+        if (isInsuranceDue(facility, month))
+          (
+            'Fire insurance (${insuranceFrequencyText(facility.insuranceFrequency)})',
+            facility.insuranceFee,
+          ),
+        for (final commitment in facility.extraCommitments)
+          if (isCommitmentDue(
+            commitment.frequency,
+            commitment.firstDueMonth,
+            month,
+          ))
+            (
+              '${commitment.name} (${commitmentFrequencyText(commitment.frequency)})',
+              commitment.amount,
+            ),
       ];
       for (final cost in costs.where((cost) => cost.$2 > 0)) {
         items.add(
@@ -619,6 +754,9 @@ class RentalStore extends ChangeNotifier {
     required double installmentAmount,
     required double maintenanceFee,
     required double insuranceFee,
+    InsuranceFrequency insuranceFrequency = InsuranceFrequency.yearly,
+    int insuranceDueMonth = 1,
+    List<RecurringCommitment>? extraCommitments,
   }) {
     final owner = currentUser;
     if (owner == null) return null;
@@ -633,6 +771,9 @@ class RentalStore extends ChangeNotifier {
       installmentAmount: installmentAmount,
       maintenanceFee: maintenanceFee,
       insuranceFee: insuranceFee,
+      insuranceFrequency: insuranceFrequency,
+      insuranceDueMonth: insuranceDueMonth,
+      extraCommitments: extraCommitments,
     );
     facilities.add(facility);
     _notify('Owner created a new facility: $name.');
@@ -646,12 +787,53 @@ class RentalStore extends ChangeNotifier {
     required double extraInstallmentPayment,
     required double maintenanceFee,
     required double insuranceFee,
+    required InsuranceFrequency insuranceFrequency,
+    required int insuranceDueMonth,
   }) {
     facility.installmentAmount = installmentAmount;
     facility.extraInstallmentPayment = extraInstallmentPayment;
     facility.maintenanceFee = maintenanceFee;
     facility.insuranceFee = insuranceFee;
+    facility.insuranceFrequency = insuranceFrequency;
+    facility.insuranceDueMonth = insuranceDueMonth;
     _notify('${facility.name} costs were updated.');
+    notifyListeners();
+  }
+
+  void addRecurringCommitment({
+    required Facility facility,
+    required String name,
+    required double amount,
+    required CommitmentFrequency frequency,
+    required int firstDueMonth,
+  }) {
+    if (name.trim().isEmpty || amount <= 0) return;
+    facility.extraCommitments.add(
+      RecurringCommitment(
+        id: 'commitment_${facility.id}_${facility.extraCommitments.length + 1}',
+        name: name.trim(),
+        amount: amount,
+        frequency: frequency,
+        firstDueMonth: firstDueMonth,
+      ),
+    );
+    _notify('${name.trim()} commitment was added to ${facility.name}.');
+    notifyListeners();
+  }
+
+  void updateRecurringCommitment(
+    RecurringCommitment commitment, {
+    required String name,
+    required double amount,
+    required CommitmentFrequency frequency,
+    required int firstDueMonth,
+  }) {
+    if (name.trim().isEmpty || amount <= 0) return;
+    commitment.name = name.trim();
+    commitment.amount = amount;
+    commitment.frequency = frequency;
+    commitment.firstDueMonth = firstDueMonth;
+    _notify('${commitment.name} commitment was updated.');
     notifyListeners();
   }
 
@@ -693,9 +875,10 @@ class RentalStore extends ChangeNotifier {
     bill.utilityEvidenceFileName = utilityEvidenceFileName.trim().isEmpty
         ? null
         : utilityEvidenceFileName.trim();
+    bill.status = PaymentStatus.pendingTenantPayment;
     final tenant = users.firstWhere((user) => user.id == bill.tenantId);
     _notify(
-      '${tenant.name} bill updated: utilities are now ${money(bill.totalAmount)} total.',
+      '${tenant.name} bill is ready and pending tenant payment: ${money(bill.totalAmount)}.',
     );
     notifyListeners();
   }
@@ -890,6 +1073,22 @@ class RentalStore extends ChangeNotifier {
         installmentAmount: 3700,
         maintenanceFee: 450,
         insuranceFee: 230,
+        extraCommitments: [
+          RecurringCommitment(
+            id: 'commitment_facility_1_1',
+            name: 'Indah Water',
+            amount: 120,
+            frequency: CommitmentFrequency.halfYearly,
+            firstDueMonth: 1,
+          ),
+          RecurringCommitment(
+            id: 'commitment_facility_1_2',
+            name: 'DBKL Assessment',
+            amount: 300,
+            frequency: CommitmentFrequency.halfYearly,
+            firstDueMonth: 1,
+          ),
+        ],
       ),
     );
 
@@ -963,6 +1162,9 @@ class RentalStore extends ChangeNotifier {
             internetAmount: tenancy.internetPackage == UtilityPackage.excluded
                 ? tenancy.internetCharge
                 : 0,
+            status: tenancy.utilitiesFullyIncluded
+                ? PaymentStatus.pendingTenantPayment
+                : PaymentStatus.notSubmitted,
           ),
         );
       }
@@ -1162,56 +1364,215 @@ class LoginScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
+    final width = MediaQuery.of(context).size.width;
+    final compact = width < 760;
+    final roleButtons = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilledButton.icon(
+          onPressed: () => store.loginAs(UserRole.owner),
+          icon: const Icon(Icons.admin_panel_settings_rounded),
+          label: const Text('Login as Owner'),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () => store.loginAs(UserRole.propertyAgent),
+          icon: const Icon(Icons.real_estate_agent_rounded),
+          label: const Text('Login as Property Agent'),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () => store.loginAs(UserRole.tenant),
+          icon: const Icon(Icons.person_rounded),
+          label: const Text('Login as Tenant'),
+        ),
+      ],
+    );
+
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
-          child: Card(
-            elevation: 0,
-            margin: const EdgeInsets.all(24),
-            child: Padding(
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFEFF4FF), Color(0xFFF8FAFC)],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Icon(Icons.apartment, size: 52),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Rental Facility Manager',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Prototype login. Choose a role to preview the app flow.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: () => store.loginAs(UserRole.owner),
-                    icon: const Icon(Icons.admin_panel_settings_rounded),
-                    label: const Text('Login as Owner'),
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: () => store.loginAs(UserRole.propertyAgent),
-                    icon: const Icon(Icons.real_estate_agent_rounded),
-                    label: const Text('Login as Property Agent'),
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: () => store.loginAs(UserRole.tenant),
-                    icon: const Icon(Icons.person_rounded),
-                    label: const Text('Login as Tenant'),
-                  ),
-                ],
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 980),
+                child: compact
+                    ? Column(
+                        children: [
+                          _LoginRolePanel(roleButtons: roleButtons),
+                          const SizedBox(height: 18),
+                          const _LoginHeroPanel(),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          const Expanded(flex: 6, child: _LoginHeroPanel()),
+                          const SizedBox(width: 24),
+                          Expanded(
+                            flex: 4,
+                            child: _LoginRolePanel(roleButtons: roleButtons),
+                          ),
+                        ],
+                      ),
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LoginHeroPanel extends StatelessWidget {
+  const _LoginHeroPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(30),
+      decoration: BoxDecoration(
+        color: const Color(0xFF17233C),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF17233C).withOpacity(0.18),
+            blurRadius: 28,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(
+              Icons.apartment_rounded,
+              color: Colors.white,
+              size: 38,
+            ),
+          ),
+          const SizedBox(height: 28),
+          Text(
+            'Rental Facility Manager',
+            style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Track rental collection, facility costs, utilities, and tenant payment status from one workspace.',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: Colors.white.withOpacity(0.82),
+                  height: 1.35,
+                ),
+          ),
+          const SizedBox(height: 30),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: const [
+              _LoginFeatureChip(
+                icon: Icons.payments_rounded,
+                label: 'Collections',
+              ),
+              _LoginFeatureChip(
+                icon: Icons.receipt_long_rounded,
+                label: 'Expenses',
+              ),
+              _LoginFeatureChip(
+                icon: Icons.water_drop_rounded,
+                label: 'Utilities',
+              ),
+              _LoginFeatureChip(
+                icon: Icons.people_alt_rounded,
+                label: 'Tenants',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoginFeatureChip extends StatelessWidget {
+  const _LoginFeatureChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 18),
+          const SizedBox(width: 7),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoginRolePanel extends StatelessWidget {
+  const _LoginRolePanel({required this.roleButtons});
+
+  final Widget roleButtons;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(26),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Welcome back',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Choose a role to preview the prototype flow.',
+              style: TextStyle(color: Color(0xFF667085)),
+            ),
+            const SizedBox(height: 22),
+            roleButtons,
+          ],
         ),
       ),
     );
@@ -1390,15 +1751,6 @@ class OwnerReportTab extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 10),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: FilledButton.tonalIcon(
-            onPressed: () => showAddIncomeDialog(context),
-            icon: const Icon(Icons.add_circle_outline_rounded),
-            label: const Text('Add Other Monthly Income'),
-          ),
-        ),
         const SizedBox(height: 16),
         YearlyFinancialChart(
           year: reportYear,
@@ -1418,7 +1770,7 @@ class OwnerReportTab extends StatelessWidget {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) =>
-                        FacilityDetailScreen(facility: report.facility),
+                        FacilityMasterDetailScreen(facility: report.facility),
                   ),
                 );
               },
@@ -1497,8 +1849,6 @@ class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           Text(facility.address, style: Theme.of(context).textTheme.bodyLarge),
-          const SizedBox(height: 6),
-          StatusChipText(label: facilityStatusText(facility)),
           const SizedBox(height: 16),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 960),
@@ -1609,6 +1959,194 @@ class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
                 ),
               );
             }),
+        ],
+      ),
+    );
+  }
+}
+
+class FacilityMasterDetailScreen extends StatefulWidget {
+  const FacilityMasterDetailScreen({required this.facility, super.key});
+
+  final Facility facility;
+
+  @override
+  State<FacilityMasterDetailScreen> createState() =>
+      _FacilityMasterDetailScreenState();
+}
+
+class _FacilityMasterDetailScreenState
+    extends State<FacilityMasterDetailScreen> {
+  String? selectedTenantId;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    final facility = widget.facility;
+    final tenants = store.tenancies
+        .where((tenancy) => tenancy.facilityId == facility.id)
+        .toList();
+    final bills = store
+        .facilityBills(facility.id)
+        .where((bill) =>
+            selectedTenantId == null || bill.tenantId == selectedTenantId)
+        .toList();
+    final selectedTenant =
+        selectedTenantId == null ? null : store.userFor(selectedTenantId!);
+    final inflow = store.facilityInflow(facility.id);
+    final outflow = store.facilityOutflow(facility);
+
+    return Scaffold(
+      appBar: AppBar(title: Text(facility.name)),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(facility.address, style: Theme.of(context).textTheme.bodyLarge),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: MetricCard(
+                  title: 'Rental Collection',
+                  value: money(inflow),
+                  icon: Icons.payments_rounded,
+                  color: const Color(0xFF16856B),
+                  fullWidth: true,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: MetricCard(
+                  title: 'Facility Expenses',
+                  value: money(outflow),
+                  icon: Icons.receipt_long_rounded,
+                  color: const Color(0xFFD16432),
+                  fullWidth: true,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: MetricCard(
+                  title: 'Net Rental Income',
+                  value: money(inflow - outflow),
+                  icon: Icons.savings_rounded,
+                  positive: inflow - outflow >= 0,
+                  fullWidth: true,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final tenantPanel = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Tenants',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  Card(
+                    color: selectedTenantId == null
+                        ? const Color(0xFFE8EEFC)
+                        : null,
+                    child: ListTile(
+                      key: const Key('all_tenants_filter'),
+                      onTap: () => setState(() => selectedTenantId = null),
+                      leading: const Icon(Icons.groups_rounded),
+                      title: const Text('All Tenants'),
+                      subtitle: Text('${tenants.length} tenant(s)'),
+                    ),
+                  ),
+                  ...tenants.map((tenancy) {
+                    final tenant = store.userFor(tenancy.tenantId);
+                    final selected = tenant.id == selectedTenantId;
+                    return Card(
+                      color: selected ? const Color(0xFFE8EEFC) : null,
+                      child: ListTile(
+                        onTap: () =>
+                            setState(() => selectedTenantId = tenant.id),
+                        leading: Icon(
+                          selected
+                              ? Icons.check_circle_rounded
+                              : Icons.meeting_room_rounded,
+                          color: selected ? const Color(0xFF3156A3) : null,
+                        ),
+                        title: Text(tenant.name),
+                        subtitle: Text(
+                          '${tenancy.unitName} • Rent ${money(tenancy.monthlyRent)}',
+                        ),
+                        trailing: IconButton(
+                          tooltip: 'View tenant profile',
+                          onPressed: () => showTenantProfileDialog(
+                            context,
+                            tenant: tenant,
+                            tenancy: tenancy,
+                          ),
+                          icon: const Icon(Icons.account_circle_outlined),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              );
+              final billPanel = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    selectedTenant == null
+                        ? 'Bill Performance • All Tenants'
+                        : 'Bill Performance • ${selectedTenant.name}',
+                    key: const Key('bill_performance_detail'),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (bills.isEmpty)
+                    const EmptyState(
+                      icon: Icons.receipt_long_outlined,
+                      title: 'No bill records',
+                      message:
+                          'This tenant does not have any bill records yet.',
+                    )
+                  else
+                    ...bills.map((bill) {
+                      final tenant = store.userFor(bill.tenantId);
+                      return Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.receipt_long_rounded),
+                          title: Text(
+                              '${tenant.name} • ${monthLabel(bill.month)}'),
+                          subtitle: Text('Due ${money(bill.totalAmount)}'),
+                          trailing: StatusChip(status: bill.status),
+                        ),
+                      );
+                    }),
+                ],
+              );
+              if (constraints.maxWidth < 760) {
+                return Column(
+                  children: [
+                    tenantPanel,
+                    const SizedBox(height: 18),
+                    billPanel,
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: 300, child: tenantPanel),
+                  const SizedBox(width: 18),
+                  Expanded(child: billPanel),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
@@ -1839,10 +2377,28 @@ class _ExpenseFacilitySection extends StatelessWidget {
         Icons.handyman_rounded
       ),
       (
-        'Fire Insurance',
-        facility.insuranceFee * elapsedMonths,
+        'Fire Insurance (${insuranceFrequencyText(facility.insuranceFrequency)})',
+        List.generate(elapsedMonths, (index) => index + 1)
+                .where((month) => store.isInsuranceDue(facility, month))
+                .length *
+            facility.insuranceFee,
         Icons.local_fire_department_rounded
       ),
+      for (final commitment in facility.extraCommitments)
+        (
+          '${commitment.name} (${commitmentFrequencyText(commitment.frequency)})',
+          List.generate(elapsedMonths, (index) => index + 1)
+                  .where(
+                    (month) => store.isCommitmentDue(
+                      commitment.frequency,
+                      commitment.firstDueMonth,
+                      month,
+                    ),
+                  )
+                  .length *
+              commitment.amount,
+          Icons.receipt_long_rounded,
+        ),
     ];
 
     return Card(
@@ -2304,13 +2860,6 @@ class _FacilityWorkspace extends StatelessWidget {
                 ),
                 SizedBox(height: compact ? 6 : 10),
                 CostSummary(facility: facility),
-                SizedBox(height: compact ? 6 : 12),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    StatusChipText(label: facilityStatusText(facility)),
-                  ],
-                ),
               ],
             ),
           ),
@@ -2744,8 +3293,368 @@ class ReviewTypeBadge extends StatelessWidget {
   }
 }
 
-class UtilitiesTab extends StatelessWidget {
+class UtilitiesTab extends StatefulWidget {
   const UtilitiesTab({super.key});
+
+  @override
+  State<UtilitiesTab> createState() => _UtilitiesTabState();
+}
+
+class _UtilitiesTabState extends State<UtilitiesTab> {
+  String? selectedFacilityId;
+  String? selectedTenantId;
+  bool sidebarCollapsed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    final facilities = store.ownerFacilities;
+    if (facilities.isEmpty) {
+      return const EmptyState(
+        icon: Icons.apartment_rounded,
+        title: 'No facilities',
+        message: 'Create a facility before entering utilities.',
+      );
+    }
+    final facility = facilities.firstWhere(
+      (item) => item.id == selectedFacilityId,
+      orElse: () => facilities.first,
+    );
+    final tenancies = store.tenancies
+        .where((item) => item.facilityId == facility.id)
+        .toList();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final detail = _UtilityFacilityDetail(
+          facility: facility,
+          tenancies: tenancies,
+          selectedTenantId: selectedTenantId,
+          onTenantSelected: (tenancy) {
+            setState(() {
+              selectedTenantId = tenancy.tenantId;
+              sidebarCollapsed = true;
+            });
+          },
+        );
+        if (constraints.maxWidth < 760) {
+          return Column(
+            children: [
+              _CompactFacilitySelector(
+                facilities: facilities,
+                selectedFacilityId: facility.id,
+                onSelected: (value) {
+                  setState(() {
+                    selectedFacilityId = value.id;
+                    selectedTenantId = null;
+                  });
+                },
+                onCreateFacility: () async {},
+              ),
+              const Divider(height: 1),
+              Expanded(child: detail),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            AnimatedContainer(
+              key: const Key('utility_facility_sidebar'),
+              duration: const Duration(milliseconds: 220),
+              width: sidebarCollapsed ? 76 : 290,
+              child: _UtilityFacilitySidebar(
+                facilities: facilities,
+                selectedFacilityId: facility.id,
+                collapsed: sidebarCollapsed,
+                onToggleCollapsed: () {
+                  setState(() => sidebarCollapsed = !sidebarCollapsed);
+                },
+                onSelected: (value) {
+                  setState(() {
+                    selectedFacilityId = value.id;
+                    selectedTenantId = null;
+                    sidebarCollapsed = false;
+                  });
+                },
+              ),
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: Listener(
+                behavior: HitTestBehavior.translucent,
+                onPointerDown: (_) {
+                  if (!sidebarCollapsed) {
+                    setState(() => sidebarCollapsed = true);
+                  }
+                },
+                child: detail,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _UtilityFacilitySidebar extends StatelessWidget {
+  const _UtilityFacilitySidebar({
+    required this.facilities,
+    required this.selectedFacilityId,
+    required this.onSelected,
+    required this.collapsed,
+    required this.onToggleCollapsed,
+  });
+
+  final List<Facility> facilities;
+  final String selectedFacilityId;
+  final ValueChanged<Facility> onSelected;
+  final bool collapsed;
+  final VoidCallback onToggleCollapsed;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment:
+              collapsed ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+          children: [
+            if (collapsed)
+              IconButton(
+                key: const Key('toggle_utility_sidebar_button'),
+                tooltip: 'Expand facilities',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(
+                  width: 36,
+                  height: 36,
+                ),
+                onPressed: onToggleCollapsed,
+                icon: const Icon(Icons.chevron_right_rounded),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'UTILITY FACILITIES',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: const Color(0xFF667085),
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
+                          ),
+                    ),
+                  ),
+                  IconButton(
+                    key: const Key('toggle_utility_sidebar_button'),
+                    tooltip: 'Collapse facilities',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 36,
+                      height: 36,
+                    ),
+                    onPressed: onToggleCollapsed,
+                    icon: const Icon(Icons.chevron_left_rounded),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.separated(
+                itemCount: facilities.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 6),
+                itemBuilder: (context, index) {
+                  final facility = facilities[index];
+                  final selected = facility.id == selectedFacilityId;
+                  return Material(
+                    color:
+                        selected ? const Color(0xFFE8EEFC) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    child: ListTile(
+                      contentPadding: collapsed
+                          ? const EdgeInsets.symmetric(horizontal: 10)
+                          : null,
+                      onTap: () => onSelected(facility),
+                      leading: Icon(
+                        Icons.apartment_rounded,
+                        color: selected ? const Color(0xFF3156A3) : null,
+                      ),
+                      title: collapsed ? null : Text(facility.name),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UtilityFacilityDetail extends StatelessWidget {
+  const _UtilityFacilityDetail({
+    required this.facility,
+    required this.tenancies,
+    required this.selectedTenantId,
+    required this.onTenantSelected,
+  });
+
+  final Facility facility;
+  final List<Tenancy> tenancies;
+  final String? selectedTenantId;
+  final ValueChanged<Tenancy> onTenantSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    Tenancy? selectedTenancy;
+    if (selectedTenantId != null) {
+      for (final tenancy in tenancies) {
+        if (tenancy.tenantId == selectedTenantId) {
+          selectedTenancy = tenancy;
+          break;
+        }
+      }
+    }
+    final activeTenantId = selectedTenancy?.tenantId;
+    final bills = activeTenantId == null
+        ? <MonthlyBill>[]
+        : store.bills
+            .where((bill) =>
+                bill.tenantId == activeTenantId &&
+                bill.facilityId == facility.id &&
+                bill.status == PaymentStatus.notSubmitted)
+            .toList()
+      ..sort((a, b) => a.month.compareTo(b.month));
+
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Text(
+          facility.name,
+          style: Theme.of(context)
+              .textTheme
+              .headlineSmall
+              ?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        Text(facility.address,
+            style: const TextStyle(color: Color(0xFF667085))),
+        const SizedBox(height: 4),
+        const Text(
+          'Electricity is calculated automatically at RM 0.516 per kWh.',
+          style: TextStyle(color: Color(0xFF667085)),
+        ),
+        const SizedBox(height: 18),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final tenantList = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Tenants',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 8),
+                ...tenancies.map((tenancy) {
+                  final tenant = store.userFor(tenancy.tenantId);
+                  final selected = tenancy.tenantId == selectedTenantId;
+                  return Card(
+                    color: selected ? const Color(0xFFE8EEFC) : null,
+                    child: ListTile(
+                      onTap: () => onTenantSelected(tenancy),
+                      leading: Icon(
+                        selected
+                            ? Icons.check_circle_rounded
+                            : Icons.person_rounded,
+                        color: selected ? const Color(0xFF3156A3) : null,
+                      ),
+                      title: Text(tenant.name),
+                      subtitle: Text(tenancy.unitName),
+                    ),
+                  );
+                }),
+              ],
+            );
+            final breakdown = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  selectedTenancy == null
+                      ? 'Utility Breakdown'
+                      : '${store.userFor(selectedTenancy.tenantId).name} • Utility Breakdown',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 8),
+                if (selectedTenancy == null)
+                  const EmptyState(
+                    icon: Icons.touch_app_rounded,
+                    title: 'Select a tenant',
+                    message:
+                        'Choose a tenant on the left to view utility bills.',
+                  )
+                else if (bills.isEmpty)
+                  const EmptyState(
+                    icon: Icons.task_alt_rounded,
+                    title: 'No open utility bills',
+                    message: 'All utility entries are complete.',
+                  )
+                else
+                  ...bills.map(
+                    (bill) => Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.electric_meter_rounded),
+                        title: Text(monthLabel(bill.month)),
+                        subtitle: Text(
+                          '${bill.electricityUsageKwh.toStringAsFixed(1)} kWh • Utilities ${money(bill.totalUtilityAmount)}',
+                        ),
+                        trailing: OutlinedButton.icon(
+                          onPressed: () => showUtilityDialog(context, bill),
+                          icon: const Icon(Icons.upload_file_rounded),
+                          label: Text(
+                            bill.utilityEvidenceFileName == null
+                                ? 'Enter & Upload'
+                                : 'Edit',
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+            if (constraints.maxWidth < 700) {
+              return Column(
+                children: [
+                  tenantList,
+                  const SizedBox(height: 18),
+                  breakdown,
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(width: 260, child: tenantList),
+                const SizedBox(width: 18),
+                Expanded(child: breakdown),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+// ignore: unused_element
+class _LegacyUtilitiesTab extends StatelessWidget {
+  const _LegacyUtilitiesTab();
 
   @override
   Widget build(BuildContext context) {
@@ -3361,7 +4270,10 @@ class _YearlyFinancialChartState extends State<YearlyFinancialChart> {
                               width,
                               widget.summaries.length,
                             );
-                            setState(() => selectedMonthIndex = index);
+                            setState(() {
+                              selectedMonthIndex =
+                                  selectedMonthIndex == index ? null : index;
+                            });
                           },
                           child: Stack(
                             clipBehavior: Clip.none,
@@ -3409,12 +4321,26 @@ class _YearlyFinancialChartState extends State<YearlyFinancialChart> {
                     ),
                   )
                 else ...[
-                  Text(
-                    '${monthLabel(DateTime(widget.year, selectedSummary.month))} Breakdown',
-                    key: const Key('inline_month_breakdown_title'),
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${monthLabel(DateTime(widget.year, selectedSummary.month))} Breakdown',
+                          key: const Key('inline_month_breakdown_title'),
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                  ),
                         ),
+                      ),
+                      IconButton(
+                        key: const Key('hide_month_breakdown_button'),
+                        tooltip: 'Hide breakdown',
+                        onPressed: () =>
+                            setState(() => selectedMonthIndex = null),
+                        icon: const Icon(Icons.expand_less_rounded),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   const Text(
@@ -3552,7 +4478,7 @@ class FinancialBreakdownPieCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -3578,100 +4504,113 @@ class FinancialBreakdownPieCard extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                   ),
             ),
-            const SizedBox(height: 14),
-            Center(
-              child: SizedBox(
-                width: 180,
-                height: 180,
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0, end: 1),
-                  duration: const Duration(milliseconds: 750),
-                  curve: Curves.easeOutBack,
-                  builder: (context, progress, child) {
-                    final visibleProgress = progress.clamp(0.0, 1.0);
-                    return CustomPaint(
-                      painter: FinancialPieChartPainter(
-                        items: items,
-                        colors: colors,
-                        progress: visibleProgress,
-                      ),
-                      child: Opacity(
-                        opacity: visibleProgress,
-                        child: Transform.scale(
-                          scale: 0.8 + visibleProgress * 0.2,
-                          child: child,
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 116,
+                  height: 116,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: 1),
+                    duration: const Duration(milliseconds: 750),
+                    curve: Curves.easeOutBack,
+                    builder: (context, progress, child) {
+                      final visibleProgress = progress.clamp(0.0, 1.0);
+                      return CustomPaint(
+                        painter: FinancialPieChartPainter(
+                          items: items,
+                          colors: colors,
+                          progress: visibleProgress,
                         ),
-                      ),
-                    );
-                  },
-                  child: Center(
-                    child: Text(
-                      items.isEmpty ? 'No data' : money(total),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
+                        child: Opacity(
+                          opacity: visibleProgress,
+                          child: Transform.scale(
+                            scale: 0.8 + visibleProgress * 0.2,
+                            child: child,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Center(
+                      child: Text(
+                        items.isEmpty ? 'No data' : money(total),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            if (items.isEmpty)
-              const Text(
-                'No collection or expense recorded for this month.',
-                style: TextStyle(color: Color(0xFF667085)),
-              )
-            else
-              ...List.generate(items.length, (index) {
-                final item = items[index];
-                final percentage = total == 0 ? 0 : item.amount / total * 100;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 9),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 10,
-                        height: 10,
-                        margin: const EdgeInsets.only(top: 4),
-                        decoration: BoxDecoration(
-                          color: colors[index % colors.length],
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          item.label,
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            money(item.amount),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          Text(
-                            '${percentage.toStringAsFixed(1)}%',
-                            style: const TextStyle(
+                const SizedBox(width: 12),
+                Expanded(
+                  child: items.isEmpty
+                      ? const Padding(
+                          padding: EdgeInsets.only(top: 12),
+                          child: Text(
+                            'No collection or expense recorded for this month.',
+                            style: TextStyle(
                               color: Color(0xFF667085),
                               fontSize: 11,
                             ),
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
-                );
-              }),
+                        )
+                      : Column(
+                          children: List.generate(items.length, (index) {
+                            final item = items[index];
+                            final percentage =
+                                total == 0 ? 0 : item.amount / total * 100;
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    margin: const EdgeInsets.only(top: 3),
+                                    decoration: BoxDecoration(
+                                      color: colors[index % colors.length],
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      item.label,
+                                      style: const TextStyle(fontSize: 10),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        money(item.amount),
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${percentage.toStringAsFixed(1)}%',
+                                        style: const TextStyle(
+                                          color: Color(0xFF667085),
+                                          fontSize: 9,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                        ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -4013,33 +4952,44 @@ class CostSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final total = facility.installmentAmount +
         facility.extraInstallmentPayment +
-        facility.maintenanceFee +
-        facility.insuranceFee;
+        facility.maintenanceFee;
     final items = [
       (
         'Installment',
         facility.installmentAmount,
         Icons.account_balance_rounded,
-        const Color(0xFF3156A3)
+        const Color(0xFF3156A3),
+        '',
       ),
       (
         'Extra Payment',
         facility.extraInstallmentPayment,
         Icons.add_card_rounded,
-        const Color(0xFF6B5CB8)
+        const Color(0xFF6B5CB8),
+        '',
       ),
       (
         'Maintenance',
         facility.maintenanceFee,
         Icons.handyman_rounded,
-        const Color(0xFFD16432)
+        const Color(0xFFD16432),
+        '',
       ),
       (
-        'Fire Insurance',
+        'Fire Insurance • ${insuranceFrequencyText(facility.insuranceFrequency)}',
         facility.insuranceFee,
         Icons.local_fire_department_rounded,
-        const Color(0xFFC43D4B)
+        const Color(0xFFC43D4B),
+        FinancialChartPainter.monthNames[facility.insuranceDueMonth - 1],
       ),
+      for (final commitment in facility.extraCommitments)
+        (
+          '${commitment.name} • ${commitmentFrequencyText(commitment.frequency)}',
+          commitment.amount,
+          Icons.receipt_long_rounded,
+          const Color(0xFF4F6B7A),
+          FinancialChartPainter.monthNames[commitment.firstDueMonth - 1],
+        ),
     ];
     return Column(
       children: [
@@ -4055,7 +5005,7 @@ class CostSummary extends StatelessWidget {
               const SizedBox(width: 10),
               const Expanded(
                 child: Text(
-                  'Monthly Facility Commitment',
+                  'Monthly Recurring Commitment',
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
@@ -4112,7 +5062,9 @@ class CostSummary extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          money(item.$2),
+                          item.$5.isEmpty
+                              ? money(item.$2)
+                              : '${money(item.$2)} • ${item.$5}',
                           style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
                       ],
@@ -4187,7 +5139,11 @@ class StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (status) {
-      PaymentStatus.notSubmitted => ('Not Submitted', Colors.grey),
+      PaymentStatus.notSubmitted => ('Pending Owner Utilities', Colors.grey),
+      PaymentStatus.pendingTenantPayment => (
+          'Pending Tenant Payment',
+          Colors.blue
+        ),
       PaymentStatus.pendingApproval => ('Pending', Colors.orange),
       PaymentStatus.approved => ('Approved', Colors.green),
       PaymentStatus.rejected => ('Rejected', Colors.red),
@@ -4283,6 +5239,8 @@ Future<Facility?> showAddFacilityDialog(BuildContext context) {
   final installment = TextEditingController(text: '3700');
   final maintenance = TextEditingController(text: '450');
   final insurance = TextEditingController(text: '230');
+  var insuranceFrequency = InsuranceFrequency.yearly;
+  var insuranceDueMonth = 1;
   String? validationMessage;
 
   return showDialog<Facility>(
@@ -4338,9 +5296,64 @@ Future<Facility?> showAddFacilityDialog(BuildContext context) {
                   ),
                   AppTextField(
                     controller: insurance,
-                    label: 'Fire Insurance',
+                    label: 'Fire Insurance Premium',
                     prefixText: 'RM ',
                   ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<InsuranceFrequency>(
+                          value: insuranceFrequency,
+                          decoration: const InputDecoration(
+                            labelText: 'Insurance Frequency',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: InsuranceFrequency.values
+                              .map(
+                                (frequency) => DropdownMenuItem(
+                                  value: frequency,
+                                  child: Text(
+                                    insuranceFrequencyText(frequency),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setDialogState(
+                                () => insuranceFrequency = value,
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: DropdownButtonFormField<int>(
+                          value: insuranceDueMonth,
+                          decoration: const InputDecoration(
+                            labelText: 'First Payment Month',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: List.generate(
+                            12,
+                            (index) => DropdownMenuItem(
+                              value: index + 1,
+                              child: Text(
+                                FinancialChartPainter.monthNames[index],
+                              ),
+                            ),
+                          ),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setDialogState(() => insuranceDueMonth = value);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
                   if (validationMessage != null)
                     Text(
                       validationMessage!,
@@ -4377,6 +5390,8 @@ Future<Facility?> showAddFacilityDialog(BuildContext context) {
                   installmentAmount: parseMoney(installment.text),
                   maintenanceFee: parseMoney(maintenance.text),
                   insuranceFee: parseMoney(insurance.text),
+                  insuranceFrequency: insuranceFrequency,
+                  insuranceDueMonth: insuranceDueMonth,
                 );
                 Navigator.pop(dialogContext, facility);
               },
@@ -4702,41 +5717,93 @@ void showEditCostsDialog(BuildContext context, Facility facility) {
       TextEditingController(text: facility.maintenanceFee.toStringAsFixed(0));
   final insurance =
       TextEditingController(text: facility.insuranceFee.toStringAsFixed(0));
+  var insuranceFrequency = facility.insuranceFrequency;
+  var insuranceDueMonth = facility.insuranceDueMonth;
 
   showDialog<void>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text('Edit ${facility.name} Costs'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AppTextField(controller: installment, label: 'Installment'),
-            AppTextField(controller: extra, label: 'Extra Installment Payment'),
-            AppTextField(controller: maintenance, label: 'Maintenance'),
-            AppTextField(controller: insurance, label: 'Fire Insurance'),
-          ],
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: Text('Edit ${facility.name} Costs'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppTextField(controller: installment, label: 'Installment'),
+              AppTextField(
+                controller: extra,
+                label: 'Extra Installment Payment',
+              ),
+              AppTextField(controller: maintenance, label: 'Maintenance'),
+              AppTextField(
+                controller: insurance,
+                label: 'Fire Insurance Premium',
+              ),
+              DropdownButtonFormField<InsuranceFrequency>(
+                value: insuranceFrequency,
+                decoration: const InputDecoration(
+                  labelText: 'Insurance Frequency',
+                  border: OutlineInputBorder(),
+                ),
+                items: InsuranceFrequency.values
+                    .map(
+                      (frequency) => DropdownMenuItem(
+                        value: frequency,
+                        child: Text(insuranceFrequencyText(frequency)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setDialogState(() => insuranceFrequency = value);
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<int>(
+                value: insuranceDueMonth,
+                decoration: const InputDecoration(
+                  labelText: 'First Payment Month',
+                  border: OutlineInputBorder(),
+                ),
+                items: List.generate(
+                  12,
+                  (index) => DropdownMenuItem(
+                    value: index + 1,
+                    child: Text(FinancialChartPainter.monthNames[index]),
+                  ),
+                ),
+                onChanged: (value) {
+                  if (value != null) {
+                    setDialogState(() => insuranceDueMonth = value);
+                  }
+                },
+              ),
+            ],
+          ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              store.updateFacilityCosts(
+                facility,
+                installmentAmount: parseMoney(installment.text),
+                extraInstallmentPayment: parseMoney(extra.text),
+                maintenanceFee: parseMoney(maintenance.text),
+                insuranceFee: parseMoney(insurance.text),
+                insuranceFrequency: insuranceFrequency,
+                insuranceDueMonth: insuranceDueMonth,
+              );
+              Navigator.pop(dialogContext);
+            },
+            child: const Text('Save'),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () {
-            store.updateFacilityCosts(
-              facility,
-              installmentAmount: parseMoney(installment.text),
-              extraInstallmentPayment: parseMoney(extra.text),
-              maintenanceFee: parseMoney(maintenance.text),
-              insuranceFee: parseMoney(insurance.text),
-            );
-            Navigator.pop(context);
-          },
-          child: const Text('Save'),
-        ),
-      ],
     ),
   );
 }
@@ -5003,10 +6070,7 @@ void showUtilityDialog(BuildContext context, MonthlyBill bill) {
       TextEditingController(text: bill.waterAmount.toStringAsFixed(0));
   final internet =
       TextEditingController(text: bill.internetAmount.toStringAsFixed(0));
-  final evidence = TextEditingController(
-    text: bill.utilityEvidenceFileName ??
-        'meter_${monthLabel(bill.month).replaceAll(' ', '_')}.jpg',
-  );
+  var evidenceFileName = bill.utilityEvidenceFileName;
   double electricityAmount =
       bill.electricityUsageKwh * RentalStore.electricityRatePerKwh;
   double totalUtilities =
@@ -5060,11 +6124,52 @@ void showUtilityDialog(BuildContext context, MonthlyBill bill) {
                         const TextInputType.numberWithOptions(decimal: true),
                     onChanged: (_) => recalculate(),
                   ),
-                  AppTextField(
-                    controller: evidence,
-                    label: 'Meter Reading Picture',
-                    helperText:
-                        'Prototype file reference for tenant bill evidence',
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF4F7FC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFD6DEEB)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.image_outlined),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Meter Reading Attachment',
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                              Text(
+                                evidenceFileName ?? 'No file uploaded',
+                                style: const TextStyle(
+                                  color: Color(0xFF667085),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          key: const Key('upload_meter_reading_button'),
+                          onPressed: () {
+                            setDialogState(() {
+                              evidenceFileName =
+                                  'meter_${monthLabel(bill.month).replaceAll(' ', '_')}.jpg';
+                            });
+                          },
+                          icon: const Icon(Icons.upload_file_rounded),
+                          label: Text(
+                            evidenceFileName == null ? 'Upload' : 'Replace',
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   Container(
                     width: double.infinity,
@@ -5120,16 +6225,19 @@ void showUtilityDialog(BuildContext context, MonthlyBill bill) {
               child: const Text('Cancel'),
             ),
             FilledButton.icon(
-              onPressed: () {
-                store.updateBillUtilities(
-                  bill,
-                  electricityUsageKwh: parseMoney(electricityUsage.text),
-                  waterAmount: parseMoney(water.text),
-                  internetAmount: parseMoney(internet.text),
-                  utilityEvidenceFileName: evidence.text,
-                );
-                Navigator.pop(dialogContext);
-              },
+              key: const Key('save_utility_charges_button'),
+              onPressed: evidenceFileName == null
+                  ? null
+                  : () {
+                      store.updateBillUtilities(
+                        bill,
+                        electricityUsageKwh: parseMoney(electricityUsage.text),
+                        waterAmount: parseMoney(water.text),
+                        internetAmount: parseMoney(internet.text),
+                        utilityEvidenceFileName: evidenceFileName!,
+                      );
+                      Navigator.pop(dialogContext);
+                    },
               icon: const Icon(Icons.save_rounded),
               label: const Text('Save Charges'),
             ),
@@ -5149,7 +6257,10 @@ void showTenantProfileDialog(
   final facility = store.facilityFor(tenancy.facilityId);
   final paymentHistory = store
       .billsForTenant(tenant.id)
-      .where((bill) => bill.status != PaymentStatus.notSubmitted)
+      .where((bill) =>
+          bill.status == PaymentStatus.pendingApproval ||
+          bill.status == PaymentStatus.approved ||
+          bill.status == PaymentStatus.rejected)
       .toList();
 
   showDialog<void>(
@@ -5544,6 +6655,46 @@ void showAccountSettingsDialog(BuildContext context) {
               icon: const Icon(Icons.tune_rounded),
               label: const Text('Edit Reminder Schedule'),
             ),
+            const SizedBox(height: 18),
+            Text(
+              'Facility Recurring Commitments',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Select, add, or edit any recurring facility commitment.',
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                showRecurringCommitmentsSettingsDialog(context);
+              },
+              icon: const Icon(Icons.receipt_long_rounded),
+              label: const Text('Manage Facility Commitments'),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Other Monthly Income',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Record extra monthly collections such as parking, deposits, or other income.',
+            ),
+            const SizedBox(height: 12),
+            FilledButton.tonalIcon(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                showAddIncomeDialog(context);
+              },
+              icon: const Icon(Icons.add_circle_outline_rounded),
+              label: const Text('Add Other Monthly Income'),
+            ),
           ],
         ),
       ),
@@ -5553,6 +6704,331 @@ void showAccountSettingsDialog(BuildContext context) {
           child: const Text('Close'),
         ),
       ],
+    ),
+  );
+}
+
+void showRecurringCommitmentsSettingsDialog(BuildContext context) {
+  final store = RentalStoreScope.of(context);
+  final facilities = store.ownerFacilities;
+  if (facilities.isEmpty) return;
+  var selectedFacility = facilities.first;
+  RecurringCommitment? selectedCommitment =
+      selectedFacility.extraCommitments.isEmpty
+          ? null
+          : selectedFacility.extraCommitments.first;
+
+  void loadFacility(Facility facility) {
+    selectedFacility = facility;
+    selectedCommitment = facility.extraCommitments.isEmpty
+        ? null
+        : facility.extraCommitments.first;
+  }
+
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: const Text('Facility Commitments'),
+        content: SizedBox(
+          width: 560,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DropdownButtonFormField<Facility>(
+                  value: selectedFacility,
+                  decoration: const InputDecoration(
+                    labelText: 'Facility',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: facilities
+                      .map(
+                        (facility) => DropdownMenuItem(
+                          value: facility,
+                          child: Text(facility.name),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (facility) {
+                    if (facility != null) {
+                      setDialogState(() => loadFacility(facility));
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Commitments',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () async {
+                        final added = await showAddRecurringCommitmentDialog(
+                          context,
+                          selectedFacility,
+                        );
+                        if (added == true) setDialogState(() {});
+                      },
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Add New'),
+                    ),
+                  ],
+                ),
+                if (selectedFacility.extraCommitments.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 6),
+                    child: Text('No recurring commitments yet.'),
+                  )
+                else ...[
+                  DropdownButtonFormField<RecurringCommitment>(
+                    value: selectedCommitment,
+                    decoration: const InputDecoration(
+                      labelText: 'Select commitment to edit',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: selectedFacility.extraCommitments
+                        .map(
+                          (commitment) => DropdownMenuItem(
+                            value: commitment,
+                            child: Text(commitment.name),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (commitment) {
+                      setDialogState(() => selectedCommitment = commitment);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  if (selectedCommitment != null)
+                    FilledButton.icon(
+                      onPressed: () async {
+                        final edited = await showEditRecurringCommitmentDialog(
+                          context,
+                          selectedCommitment!,
+                        );
+                        if (edited == true) setDialogState(() {});
+                      },
+                      icon: const Icon(Icons.edit_rounded),
+                      label: Text('Edit ${selectedCommitment!.name}'),
+                    ),
+                  const SizedBox(height: 8),
+                  ...selectedFacility.extraCommitments.map(
+                    (commitment) => ListTile(
+                      selected: commitment == selectedCommitment,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.receipt_long_rounded),
+                      title: Text(commitment.name),
+                      subtitle: Text(
+                        '${commitmentFrequencyText(commitment.frequency)} • starts ${FinancialChartPainter.monthNames[commitment.firstDueMonth - 1]}',
+                      ),
+                      trailing: Text(
+                        money(commitment.amount),
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      onTap: () {
+                        setDialogState(() => selectedCommitment = commitment);
+                      },
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Future<bool?> showAddRecurringCommitmentDialog(
+  BuildContext context,
+  Facility facility,
+) {
+  final store = RentalStoreScope.of(context);
+  final name = TextEditingController(text: commitmentTypeOptions.first);
+  final amount = TextEditingController(text: '0');
+  var frequency = CommitmentFrequency.monthly;
+  var dueMonth = 1;
+  var selectedType = commitmentTypeOptions.first;
+
+  return showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: Text('Add Commitment to ${facility.name}'),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                value: selectedType,
+                decoration: const InputDecoration(
+                  labelText: 'Commitment Type',
+                  border: OutlineInputBorder(),
+                ),
+                items: commitmentTypeOptions
+                    .map(
+                      (type) => DropdownMenuItem(
+                        value: type,
+                        child: Text(type),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  setDialogState(() {
+                    selectedType = value;
+                    name.text = value == customCommitmentType ? '' : value;
+                  });
+                },
+              ),
+              const SizedBox(height: 10),
+              AppTextField(controller: name, label: 'Commitment Name'),
+              AppTextField(
+                controller: amount,
+                label: 'Amount',
+                prefixText: 'RM ',
+              ),
+              CommitmentScheduleFields(
+                frequency: frequency,
+                dueMonth: dueMonth,
+                onFrequencyChanged: (value) {
+                  setDialogState(() => frequency = value);
+                },
+                onDueMonthChanged: (value) {
+                  setDialogState(() => dueMonth = value);
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              store.addRecurringCommitment(
+                facility: facility,
+                name: name.text,
+                amount: parseMoney(amount.text),
+                frequency: frequency,
+                firstDueMonth: dueMonth,
+              );
+              Navigator.pop(dialogContext, true);
+            },
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Add Commitment'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Future<bool?> showEditRecurringCommitmentDialog(
+  BuildContext context,
+  RecurringCommitment commitment,
+) {
+  final store = RentalStoreScope.of(context);
+  final name = TextEditingController(text: commitment.name);
+  final amount =
+      TextEditingController(text: commitment.amount.toStringAsFixed(0));
+  var frequency = commitment.frequency;
+  var dueMonth = commitment.firstDueMonth;
+  var selectedType = commitmentTypeOptions.contains(commitment.name)
+      ? commitment.name
+      : customCommitmentType;
+
+  return showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: Text('Edit ${commitment.name}'),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                value: selectedType,
+                decoration: const InputDecoration(
+                  labelText: 'Commitment Type',
+                  border: OutlineInputBorder(),
+                ),
+                items: commitmentTypeOptions
+                    .map(
+                      (type) => DropdownMenuItem(
+                        value: type,
+                        child: Text(type),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  setDialogState(() {
+                    selectedType = value;
+                    name.text = value == customCommitmentType ? '' : value;
+                  });
+                },
+              ),
+              const SizedBox(height: 10),
+              AppTextField(controller: name, label: 'Commitment Name'),
+              AppTextField(
+                controller: amount,
+                label: 'Amount',
+                prefixText: 'RM ',
+              ),
+              CommitmentScheduleFields(
+                frequency: frequency,
+                dueMonth: dueMonth,
+                onFrequencyChanged: (value) {
+                  setDialogState(() => frequency = value);
+                },
+                onDueMonthChanged: (value) {
+                  setDialogState(() => dueMonth = value);
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              store.updateRecurringCommitment(
+                commitment,
+                name: name.text,
+                amount: parseMoney(amount.text),
+                frequency: frequency,
+                firstDueMonth: dueMonth,
+              );
+              Navigator.pop(dialogContext, true);
+            },
+            icon: const Icon(Icons.save_rounded),
+            label: const Text('Save Commitment'),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -5848,6 +7324,93 @@ class AppTextField extends StatelessWidget {
   }
 }
 
+class MonthDropdownField extends StatelessWidget {
+  const MonthDropdownField({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    super.key,
+  });
+
+  final String label;
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<int>(
+      value: value,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+      ),
+      items: List.generate(
+        12,
+        (index) => DropdownMenuItem(
+          value: index + 1,
+          child: Text(FinancialChartPainter.monthNames[index]),
+        ),
+      ),
+      onChanged: (month) {
+        if (month != null) onChanged(month);
+      },
+    );
+  }
+}
+
+class CommitmentScheduleFields extends StatelessWidget {
+  const CommitmentScheduleFields({
+    required this.frequency,
+    required this.dueMonth,
+    required this.onFrequencyChanged,
+    required this.onDueMonthChanged,
+    super.key,
+  });
+
+  final CommitmentFrequency frequency;
+  final int dueMonth;
+  final ValueChanged<CommitmentFrequency> onFrequencyChanged;
+  final ValueChanged<int> onDueMonthChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<CommitmentFrequency>(
+            value: frequency,
+            decoration: const InputDecoration(
+              labelText: 'Frequency',
+              border: OutlineInputBorder(),
+            ),
+            items: CommitmentFrequency.values
+                .map(
+                  (item) => DropdownMenuItem(
+                    value: item,
+                    child: Text(commitmentFrequencyText(item)),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value != null) onFrequencyChanged(value);
+            },
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: MonthDropdownField(
+            label: frequency == CommitmentFrequency.monthly
+                ? 'Start Month'
+                : 'First Payment Month',
+            value: dueMonth,
+            onChanged: onDueMonthChanged,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 String money(double value) {
   final sign = value < 0 ? '-' : '';
   final abs = value.abs();
@@ -5881,6 +7444,22 @@ String monthLabel(DateTime date) {
 
 String packageText(UtilityPackage package) {
   return package == UtilityPackage.included ? 'Included' : 'Excluded';
+}
+
+String insuranceFrequencyText(InsuranceFrequency frequency) {
+  return switch (frequency) {
+    InsuranceFrequency.halfYearly => 'Half-yearly',
+    InsuranceFrequency.yearly => 'Yearly',
+  };
+}
+
+String commitmentFrequencyText(CommitmentFrequency frequency) {
+  return switch (frequency) {
+    CommitmentFrequency.monthly => 'Monthly',
+    CommitmentFrequency.quarterly => 'Quarterly',
+    CommitmentFrequency.halfYearly => 'Half-yearly',
+    CommitmentFrequency.yearly => 'Yearly',
+  };
 }
 
 String firstName(String fullName) {
