@@ -1,15 +1,84 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rental_facility_management/main.dart';
+import 'package:rental_facility_management/persistence/persistence_contract.dart';
+
+class TestPersistence implements AppPersistence {
+  String? snapshot;
+
+  @override
+  String get storageDescription => 'test storage';
+
+  @override
+  Future<void> clear() async => snapshot = null;
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<String?> readSnapshot() async => snapshot;
+
+  @override
+  Future<void> writeSnapshot(String value) async => snapshot = value;
+}
 
 void main() {
+  test('production workspace starts without demo business records', () {
+    final store = RentalStore(seedDemoData: false);
+
+    expect(store.facilities, isEmpty);
+    expect(store.tenancies, isEmpty);
+    expect(store.bills, isEmpty);
+  });
+
+  test('business state is restored after an application restart', () async {
+    final persistence = TestPersistence();
+    final now = DateTime(2026, 6, 29);
+    final firstStore = RentalStore(now: now, persistence: persistence);
+    await firstStore.initializePersistence();
+    firstStore.loginAs(UserRole.owner);
+    firstStore.addAdditionalIncome(
+      facility: firstStore.facilityFor('facility_1'),
+      month: DateTime(2026, 6),
+      category: 'Parking',
+      amount: 180,
+      note: 'Persistent record',
+    );
+    firstStore.updateReminderSettings(afterDays: 5, frequencyDays: 4);
+    await firstStore.flushPersistence();
+
+    final restoredStore = RentalStore(now: now, persistence: persistence);
+    await restoredStore.initializePersistence();
+
+    expect(restoredStore.additionalIncomes.single.note, 'Persistent record');
+    expect(restoredStore.additionalIncomes.single.amount, 180);
+    expect(restoredStore.users.first.paymentReminderAfterDays, 5);
+    expect(restoredStore.currentUser, isNull);
+  });
+
   testWidgets('shows role login actions', (tester) async {
     await tester.pumpWidget(const RentalFacilityApp());
 
-    expect(find.text('Rental Facility Manager'), findsOneWidget);
+    expect(find.text('Rental Facility Manager'), findsWidgets);
+    expect(find.text('Property management, simplified.'), findsWidgets);
+    expect(find.text('HABITAT'), findsNothing);
     expect(find.text('Login as Owner'), findsOneWidget);
     expect(find.text('Login as Property Agent'), findsOneWidget);
     expect(find.text('Login as Tenant'), findsOneWidget);
+  });
+
+  testWidgets('login content stays centered on compact screens',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const RentalFacilityApp());
+    final panel = find.byKey(const Key('login_access_panel'));
+    expect(panel, findsOneWidget);
+    expect(tester.getCenter(panel).dx, closeTo(195, 1));
+    expect(tester.getSize(panel).width, lessThanOrEqualTo(350));
   });
 
   testWidgets('owner report uses rental business labels', (tester) async {
@@ -30,7 +99,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Rental Collection Details'), findsOneWidget);
-    expect(find.text('Facility 1'), findsOneWidget);
+    expect(find.text('Facility 1'), findsWidgets);
     expect(find.textContaining('approved payment'), findsWidgets);
   });
 
@@ -60,9 +129,72 @@ void main() {
     await tester.tap(find.text('Facilities').last);
     await tester.pumpAndSettle();
 
-    expect(find.text('Add'), findsOneWidget);
+    expect(find.text('Add'), findsWidgets);
     expect(find.text('MY FACILITIES'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('facility workspace uses compact read-only sidebar and controls',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const RentalFacilityApp());
+    await tester.tap(find.text('Login as Owner'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Facilities').last);
+    await tester.pumpAndSettle();
+
+    final sidebar = find.byKey(const Key('facility_sidebar'));
+    expect(tester.getSize(sidebar).width, 220);
+    expect(
+      find.descendant(
+        of: sidebar,
+        matching: find.textContaining('12 Jalan Harmoni'),
+      ),
+      findsNothing,
+    );
+    expect(find.byKey(const Key('add_tenant_button')), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Edit'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Settings'), findsNothing);
+
+    await tester.tap(find.text('Facility Costs'));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(sidebar).width, 76);
+    await tester.tap(find.byKey(const Key('toggle_facility_sidebar_button')));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(sidebar).width, 220);
+  });
+
+  testWidgets('facility configuration is centralized in account settings',
+      (tester) async {
+    await tester.pumpWidget(const RentalFacilityApp());
+    await tester.tap(find.text('Login as Owner'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Account').last);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(Dialog),
+        matching: find.text('Facilities'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Manage Facility Configuration'), findsOneWidget);
+    await tester.ensureVisible(find.text('Manage Facility Configuration'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Manage Facility Configuration'));
+    await tester.pumpAndSettle();
+    expect(find.text('Facility Configuration'), findsOneWidget);
+    expect(find.text('Facility Costs'), findsOneWidget);
+    expect(find.text('Recurring Commitments'), findsOneWidget);
   });
 
   test('electricity usage is converted at RM 0.516 per kWh', () {
@@ -171,6 +303,27 @@ void main() {
     );
   });
 
+  test('tenant statuses use active inactive and pending verification', () {
+    final store = RentalStore();
+    final activeTenancy = store.tenancies.first;
+    final activeTenant = store.userFor(activeTenancy.tenantId);
+    expect(tenantStatusText(activeTenant, activeTenancy), 'Active');
+
+    activeTenancy.active = false;
+    expect(tenantStatusText(activeTenant, activeTenancy), 'Inactive');
+
+    final pendingTenant = AppUser(
+      id: 'pending',
+      name: 'Pending Tenant',
+      email: 'pending@example.com',
+      role: UserRole.tenant,
+      profileComplete: false,
+    );
+    final pendingTenancy = store.tenancies[1];
+    expect(tenantStatusText(pendingTenant, pendingTenancy),
+        'Pending verification');
+  });
+
   test('currency uses Malaysian ringgit', () {
     expect(money(1250), 'RM 1,250');
     expect(money(-80), '-RM 80');
@@ -273,6 +426,21 @@ void main() {
     );
 
     facility.insuranceFrequency = InsuranceFrequency.halfYearly;
+    facility.costHistory
+      ..clear()
+      ..add(
+        FacilityCostVersion(
+          id: 'half_yearly_test',
+          effectiveMonth: DateTime(2026, 1),
+          recordedAt: DateTime(2026, 1),
+          installmentAmount: facility.installmentAmount,
+          extraInstallmentPayment: facility.extraInstallmentPayment,
+          maintenanceFee: facility.maintenanceFee,
+          insuranceFee: facility.insuranceFee,
+          insuranceFrequency: InsuranceFrequency.halfYearly,
+          insuranceDueMonth: facility.insuranceDueMonth,
+        ),
+      );
     expect(store.isInsuranceDue(facility, 7), isTrue);
     expect(
       store.monthlyExpenseBreakdown(2026, 7).any(
@@ -347,14 +515,44 @@ void main() {
         store.monthlyFacilityOutflow(facility) + 80);
   });
 
+  test('facility cost changes start next month and preserve history', () {
+    final store = RentalStore(now: DateTime(2026, 6, 20));
+    store.loginAs(UserRole.owner);
+    final facility = store.ownerFacilities.first;
+    final juneVersion = store.costVersionForMonth(facility, DateTime(2026, 6));
+    final totalBefore = store.totalOutflow;
+
+    store.updateFacilityCosts(
+      facility,
+      installmentAmount: 4200,
+      extraInstallmentPayment: 100,
+      maintenanceFee: 600,
+      insuranceFee: 300,
+      insuranceFrequency: InsuranceFrequency.halfYearly,
+      insuranceDueMonth: 2,
+    );
+
+    final preservedJune =
+        store.costVersionForMonth(facility, DateTime(2026, 6));
+    final effectiveJuly =
+        store.costVersionForMonth(facility, DateTime(2026, 7));
+    expect(preservedJune.installmentAmount, juneVersion.installmentAmount);
+    expect(effectiveJuly.installmentAmount, 4200);
+    expect(effectiveJuly.effectiveMonth, DateTime(2026, 7));
+    expect(facility.costHistory, hasLength(2));
+    expect(store.totalOutflow, totalBefore);
+    expect(
+      facilityCostChanges(juneVersion, effectiveJuly),
+      contains('Installment: RM 3,700 → RM 4,200'),
+    );
+  });
+
   testWidgets('utility evidence starts empty and requires upload',
       (tester) async {
     await tester.pumpWidget(const RentalFacilityApp());
     await tester.tap(find.text('Login as Owner'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Utilities').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Daniel Lim Wei Jian'));
     await tester.pumpAndSettle();
     final enterButton = find.text('Enter & Upload').first;
     await tester.ensureVisible(enterButton);
@@ -371,6 +569,10 @@ void main() {
     await tester.tap(find.byKey(const Key('upload_meter_reading_button')));
     await tester.pumpAndSettle();
     expect(find.textContaining('meter_'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('save_utility_charges_button')));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
   });
 
   test('included utilities automatically await tenant payment', () {
@@ -405,7 +607,7 @@ void main() {
     expect(bill.status, PaymentStatus.pendingTenantPayment);
   });
 
-  testWidgets('utilities use facility-left breakdown-right layout',
+  testWidgets('utilities use facility-left pending-and-history layout',
       (tester) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1;
@@ -419,7 +621,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('UTILITY FACILITIES'), findsOneWidget);
-    expect(find.text('Utility Breakdown'), findsOneWidget);
+    expect(find.textContaining('Pending Action ('), findsOneWidget);
+    expect(find.textContaining('History ('), findsOneWidget);
+    await tester.tap(find.textContaining('History ('));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Utilities included in package'), findsWidgets);
   });
 
   testWidgets('utility facility sidebar narrows after using detail page',
@@ -436,8 +642,8 @@ void main() {
     await tester.pumpAndSettle();
 
     final sidebar = find.byKey(const Key('utility_facility_sidebar'));
-    expect(tester.getSize(sidebar).width, 290);
-    await tester.tap(find.text('Nur Aisyah Binti Rahman'));
+    expect(tester.getSize(sidebar).width, 220);
+    await tester.tap(find.textContaining('Pending Action ('));
     await tester.pumpAndSettle();
     expect(tester.getSize(sidebar).width, 76);
   });
@@ -457,6 +663,7 @@ void main() {
         child: MaterialApp(
           home: FacilityMasterDetailScreen(
             facility: store.ownerFacilities.first,
+            year: 2026,
           ),
         ),
       ),
@@ -468,6 +675,16 @@ void main() {
     final billPosition =
         tester.getTopLeft(find.byKey(const Key('bill_performance_detail')));
     expect(tenantPosition.dx, lessThan(billPosition.dx));
+
+    final sidebar = find.byKey(const Key('facility_performance_sidebar'));
+    expect(tester.getSize(sidebar).width, 320);
+    await tester.tap(find.byKey(const Key('bill_performance_detail')));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(sidebar).width, 76);
+    await tester
+        .tap(find.byKey(const Key('toggle_performance_sidebar_button')));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(sidebar).width, 320);
   });
 
   test('sample rental collection is populated through the current month', () {
@@ -579,5 +796,70 @@ void main() {
 
     expect(find.text('Pending Action (1)'), findsOneWidget);
     expect(find.text('History (10)'), findsOneWidget);
+  });
+
+  testWidgets('review tab segregates activity with a facility sidebar',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final store = RentalStore();
+    store.loginAs(UserRole.owner);
+    final secondFacility = store.addFacility(
+      name: 'Review Property',
+      addressLine: '10 Jalan Review',
+      postcode: '50000',
+      city: 'Kuala Lumpur',
+      state: 'Wilayah Persekutuan',
+      installmentAmount: 2000,
+      maintenanceFee: 200,
+      insuranceFee: 100,
+    )!;
+    store.tenantRequests.add(
+      TenantRequest(
+        id: 'request_facility_2',
+        tenantId: store.tenancies.first.tenantId,
+        facilityId: secondFacility.id,
+        title: 'Facility 2 maintenance request',
+        message: 'Review only under Facility 2.',
+        createdAt: DateTime(2026, 6, 20),
+      ),
+    );
+
+    await tester.pumpWidget(
+      RentalStoreScope(
+        store: store,
+        child: const MaterialApp(home: OwnerHomeScreen()),
+      ),
+    );
+    await tester.tap(find.text('Review'));
+    await tester.pumpAndSettle();
+
+    final sidebar = find.byKey(const Key('review_facility_sidebar'));
+    expect(tester.getSize(sidebar).width, 220);
+    expect(find.text('REVIEW FACILITIES'), findsOneWidget);
+    expect(find.text('Facility 2 maintenance request'), findsNothing);
+
+    await tester.tap(find.textContaining('12 Jalan Harmoni'));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(sidebar).width, 76);
+    await tester.tap(find.byKey(const Key('toggle_review_sidebar_button')));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(sidebar).width, 220);
+
+    await tester.tap(
+      find.descendant(of: sidebar, matching: find.text('Review Property')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Facility 2 maintenance request'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: sidebar,
+        matching: find.textContaining('10 Jalan Review'),
+      ),
+      findsNothing,
+    );
   });
 }

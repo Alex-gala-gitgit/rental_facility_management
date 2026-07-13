@@ -1,12 +1,297 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image/image.dart' as image_tools;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-void main() {
-  runApp(const RentalFacilityApp());
+import 'cloud/supabase_config.dart';
+import 'rentflow/rentflow_app.dart';
+
+import 'cloud/supabase_auth_service.dart';
+import 'cloud/meter_reading_service.dart';
+import 'cloud/supabase_workspace_service.dart';
+import 'file_upload/image_file_picker.dart';
+import 'file_upload/document_file_picker.dart';
+import 'file_upload/payment_proof_picker.dart';
+import 'file_download/file_downloader.dart';
+import 'local_ocr/local_meter_ocr.dart';
+import 'persistence/persistence_contract.dart';
+
+const oceanSky = Color(0xFF4EA8EC);
+const oceanBlue = Color(0xFF2E86E0);
+const oceanDeep = Color(0xFF1C67CF);
+const oceanCanvas = Color(0xFFF3F6FA);
+const oceanSoft = Color(0xFFE8F2FF);
+const oceanText = Color(0xFF0F172A);
+const oceanMuted = Color(0xFF64748B);
+
+(Color, Color) facilityCardColors(int index) {
+  const palettes = [
+    (Color(0xFFEAF4FF), Color(0xFF2563EB)),
+    (Color(0xFFEFFAF6), Color(0xFF0F9F7A)),
+    (Color(0xFFFFF4E8), Color(0xFFEA7A1A)),
+    (Color(0xFFF3ECFF), Color(0xFF7C3AED)),
+    (Color(0xFFFFEEF3), Color(0xFFE11D48)),
+  ];
+  return palettes[index % palettes.length];
+}
+
+class MalaysiaAddressOption {
+  const MalaysiaAddressOption({
+    required this.state,
+    required this.city,
+    required this.postcode,
+  });
+
+  final String state;
+  final String city;
+  final String postcode;
+}
+
+const malaysiaAddressOptions = <MalaysiaAddressOption>[
+  MalaysiaAddressOption(state: 'Johor', city: 'Batu Pahat', postcode: '83000'),
+  MalaysiaAddressOption(state: 'Johor', city: 'Johor Bahru', postcode: '80000'),
+  MalaysiaAddressOption(state: 'Johor', city: 'Johor Bahru', postcode: '81100'),
+  MalaysiaAddressOption(state: 'Johor', city: 'Kluang', postcode: '86000'),
+  MalaysiaAddressOption(state: 'Johor', city: 'Kota Tinggi', postcode: '81900'),
+  MalaysiaAddressOption(state: 'Johor', city: 'Kulai', postcode: '81000'),
+  MalaysiaAddressOption(state: 'Johor', city: 'Muar', postcode: '84000'),
+  MalaysiaAddressOption(state: 'Johor', city: 'Pontian', postcode: '82000'),
+  MalaysiaAddressOption(state: 'Johor', city: 'Segamat', postcode: '85000'),
+  MalaysiaAddressOption(state: 'Johor', city: 'Skudai', postcode: '81300'),
+  MalaysiaAddressOption(state: 'Kedah', city: 'Alor Setar', postcode: '05000'),
+  MalaysiaAddressOption(state: 'Kedah', city: 'Kulim', postcode: '09000'),
+  MalaysiaAddressOption(state: 'Kedah', city: 'Langkawi', postcode: '07000'),
+  MalaysiaAddressOption(
+      state: 'Kedah', city: 'Sungai Petani', postcode: '08000'),
+  MalaysiaAddressOption(
+      state: 'Kelantan', city: 'Gua Musang', postcode: '18300'),
+  MalaysiaAddressOption(
+      state: 'Kelantan', city: 'Kota Bharu', postcode: '15000'),
+  MalaysiaAddressOption(
+      state: 'Kelantan', city: 'Pasir Mas', postcode: '17000'),
+  MalaysiaAddressOption(state: 'Kelantan', city: 'Tumpat', postcode: '16200'),
+  MalaysiaAddressOption(state: 'Melaka', city: 'Ayer Keroh', postcode: '75450'),
+  MalaysiaAddressOption(state: 'Melaka', city: 'Melaka', postcode: '75000'),
+  MalaysiaAddressOption(state: 'Melaka', city: 'Melaka', postcode: '75200'),
+  MalaysiaAddressOption(
+      state: 'Negeri Sembilan', city: 'Nilai', postcode: '71800'),
+  MalaysiaAddressOption(
+      state: 'Negeri Sembilan', city: 'Port Dickson', postcode: '71000'),
+  MalaysiaAddressOption(
+      state: 'Negeri Sembilan', city: 'Seremban', postcode: '70000'),
+  MalaysiaAddressOption(
+      state: 'Negeri Sembilan', city: 'Seremban', postcode: '70300'),
+  MalaysiaAddressOption(state: 'Pahang', city: 'Bentong', postcode: '28700'),
+  MalaysiaAddressOption(
+      state: 'Pahang', city: 'Cameron Highlands', postcode: '39000'),
+  MalaysiaAddressOption(state: 'Pahang', city: 'Kuantan', postcode: '25000'),
+  MalaysiaAddressOption(state: 'Pahang', city: 'Temerloh', postcode: '28000'),
+  MalaysiaAddressOption(state: 'Perak', city: 'Ipoh', postcode: '30000'),
+  MalaysiaAddressOption(state: 'Perak', city: 'Ipoh', postcode: '31400'),
+  MalaysiaAddressOption(state: 'Perak', city: 'Kampar', postcode: '31900'),
+  MalaysiaAddressOption(state: 'Perak', city: 'Lumut', postcode: '32200'),
+  MalaysiaAddressOption(state: 'Perak', city: 'Taiping', postcode: '34000'),
+  MalaysiaAddressOption(state: 'Perak', city: 'Teluk Intan', postcode: '36000'),
+  MalaysiaAddressOption(state: 'Perlis', city: 'Arau', postcode: '02600'),
+  MalaysiaAddressOption(state: 'Perlis', city: 'Kangar', postcode: '01000'),
+  MalaysiaAddressOption(
+      state: 'Pulau Pinang', city: 'Bayan Lepas', postcode: '11900'),
+  MalaysiaAddressOption(
+      state: 'Pulau Pinang', city: 'Bukit Mertajam', postcode: '14000'),
+  MalaysiaAddressOption(
+      state: 'Pulau Pinang', city: 'Butterworth', postcode: '12000'),
+  MalaysiaAddressOption(
+      state: 'Pulau Pinang', city: 'George Town', postcode: '10300'),
+  MalaysiaAddressOption(
+      state: 'Pulau Pinang', city: 'George Town', postcode: '10450'),
+  MalaysiaAddressOption(
+      state: 'Pulau Pinang', city: 'Tanjung Bungah', postcode: '11200'),
+  MalaysiaAddressOption(state: 'Sabah', city: 'Keningau', postcode: '89000'),
+  MalaysiaAddressOption(
+      state: 'Sabah', city: 'Kota Kinabalu', postcode: '88000'),
+  MalaysiaAddressOption(state: 'Sabah', city: 'Lahad Datu', postcode: '91100'),
+  MalaysiaAddressOption(state: 'Sabah', city: 'Sandakan', postcode: '90000'),
+  MalaysiaAddressOption(state: 'Sabah', city: 'Tawau', postcode: '91000'),
+  MalaysiaAddressOption(state: 'Sarawak', city: 'Bintulu', postcode: '97000'),
+  MalaysiaAddressOption(state: 'Sarawak', city: 'Kuching', postcode: '93000'),
+  MalaysiaAddressOption(state: 'Sarawak', city: 'Miri', postcode: '98000'),
+  MalaysiaAddressOption(state: 'Sarawak', city: 'Sibu', postcode: '96000'),
+  MalaysiaAddressOption(state: 'Selangor', city: 'Ampang', postcode: '68000'),
+  MalaysiaAddressOption(state: 'Selangor', city: 'Bangi', postcode: '43650'),
+  MalaysiaAddressOption(
+      state: 'Selangor', city: 'Cyberjaya', postcode: '63000'),
+  MalaysiaAddressOption(state: 'Selangor', city: 'Kajang', postcode: '43000'),
+  MalaysiaAddressOption(state: 'Selangor', city: 'Klang', postcode: '41000'),
+  MalaysiaAddressOption(
+      state: 'Selangor', city: 'Kota Damansara', postcode: '47810'),
+  MalaysiaAddressOption(state: 'Selangor', city: 'Puchong', postcode: '47100'),
+  MalaysiaAddressOption(
+      state: 'Selangor', city: 'Petaling Jaya', postcode: '46000'),
+  MalaysiaAddressOption(
+      state: 'Selangor', city: 'Petaling Jaya', postcode: '47301'),
+  MalaysiaAddressOption(
+      state: 'Selangor', city: 'Petaling Jaya', postcode: '47800'),
+  MalaysiaAddressOption(state: 'Selangor', city: 'Rawang', postcode: '48000'),
+  MalaysiaAddressOption(state: 'Selangor', city: 'Sepang', postcode: '43900'),
+  MalaysiaAddressOption(
+      state: 'Selangor', city: 'Shah Alam', postcode: '40100'),
+  MalaysiaAddressOption(
+      state: 'Selangor', city: 'Shah Alam', postcode: '40400'),
+  MalaysiaAddressOption(
+      state: 'Selangor', city: 'Subang Jaya', postcode: '47500'),
+  MalaysiaAddressOption(
+      state: 'Selangor', city: 'Sungai Buloh', postcode: '47000'),
+  MalaysiaAddressOption(state: 'Terengganu', city: 'Dungun', postcode: '23000'),
+  MalaysiaAddressOption(
+      state: 'Terengganu', city: 'Kemaman', postcode: '24000'),
+  MalaysiaAddressOption(
+      state: 'Terengganu', city: 'Kuala Terengganu', postcode: '20000'),
+  MalaysiaAddressOption(
+      state: 'Wilayah Persekutuan Kuala Lumpur',
+      city: 'Bukit Bintang',
+      postcode: '55100'),
+  MalaysiaAddressOption(
+      state: 'Wilayah Persekutuan Kuala Lumpur',
+      city: 'Cheras',
+      postcode: '56000'),
+  MalaysiaAddressOption(
+      state: 'Wilayah Persekutuan Kuala Lumpur',
+      city: 'Kepong',
+      postcode: '52100'),
+  MalaysiaAddressOption(
+      state: 'Wilayah Persekutuan Kuala Lumpur',
+      city: 'Kuala Lumpur',
+      postcode: '50000'),
+  MalaysiaAddressOption(
+      state: 'Wilayah Persekutuan Kuala Lumpur',
+      city: 'Kuala Lumpur',
+      postcode: '50450'),
+  MalaysiaAddressOption(
+      state: 'Wilayah Persekutuan Kuala Lumpur',
+      city: 'Kuala Lumpur',
+      postcode: '50480'),
+  MalaysiaAddressOption(
+      state: 'Wilayah Persekutuan Kuala Lumpur',
+      city: 'Mont Kiara',
+      postcode: '50480'),
+  MalaysiaAddressOption(
+      state: 'Wilayah Persekutuan Kuala Lumpur',
+      city: 'Setapak',
+      postcode: '53300'),
+  MalaysiaAddressOption(
+      state: 'Wilayah Persekutuan Kuala Lumpur',
+      city: 'Wangsa Maju',
+      postcode: '53300'),
+  MalaysiaAddressOption(
+      state: 'Wilayah Persekutuan Labuan', city: 'Labuan', postcode: '87000'),
+  MalaysiaAddressOption(
+      state: 'Wilayah Persekutuan Putrajaya',
+      city: 'Putrajaya',
+      postcode: '62000'),
+  MalaysiaAddressOption(
+      state: 'Wilayah Persekutuan Putrajaya',
+      city: 'Putrajaya',
+      postcode: '62502'),
+];
+
+List<String> malaysiaStates() =>
+    malaysiaAddressOptions.map((item) => item.state).toSet().toList()..sort();
+
+List<String> malaysiaCitiesForState(String? state) => malaysiaAddressOptions
+    .where((item) => state == null || item.state == state)
+    .map((item) => item.city)
+    .toSet()
+    .toList()
+  ..sort();
+
+List<String> malaysiaPostcodesFor(String? state, String? city) =>
+    malaysiaAddressOptions
+        .where((item) =>
+            (state == null || item.state == state) &&
+            (city == null || item.city == city))
+        .map((item) => item.postcode)
+        .toSet()
+        .toList()
+      ..sort();
+
+bool isValidMalaysiaLocation({
+  required String state,
+  required String city,
+  required String postcode,
+}) =>
+    malaysiaAddressOptions.any((item) =>
+        item.state == state && item.city == city && item.postcode == postcode);
+
+String combineAddress({
+  required String line1,
+  String line2 = '',
+  required String postcode,
+  required String city,
+  required String state,
+}) {
+  return [
+    line1.trim(),
+    if (line2.trim().isNotEmpty) line2.trim(),
+    postcode.trim(),
+    city.trim(),
+    state.trim(),
+  ].where((part) => part.isNotEmpty).join(', ');
+}
+
+String _xml(Object? value) {
+  return (value?.toString() ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&apos;');
+}
+
+String _excelCell(Object? value) {
+  if (value == null) {
+    return '<Cell><Data ss:Type="String"></Data></Cell>';
+  }
+  if (value is num) {
+    final number = value.isFinite ? value.toString() : '0';
+    return '<Cell><Data ss:Type="Number">$number</Data></Cell>';
+  }
+  return '<Cell><Data ss:Type="String">${_xml(value)}</Data></Cell>';
+}
+
+String insuranceFrequencyLabel(InsuranceFrequency frequency) {
+  return switch (frequency) {
+    InsuranceFrequency.yearly => 'Yearly',
+    InsuranceFrequency.halfYearly => 'Half-yearly',
+  };
+}
+
+String commitmentFrequencyLabel(CommitmentFrequency frequency) {
+  return switch (frequency) {
+    CommitmentFrequency.monthly => 'Monthly',
+    CommitmentFrequency.quarterly => 'Quarterly',
+    CommitmentFrequency.halfYearly => 'Half-yearly',
+    CommitmentFrequency.yearly => 'Yearly',
+  };
+}
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    anonKey: SupabaseConfig.publishableKey,
+  );
+  runApp(Uri.base.queryParameters.containsKey('invoice')
+      ? const RentFlowApp()
+      : const RentalFacilityApp());
 }
 
 enum UserRole { owner, propertyAgent, tenant }
+
+enum AppLanguage { english, chinese, malay }
 
 enum UtilityPackage { included, excluded }
 
@@ -52,12 +337,42 @@ class RecurringCommitment {
   int firstDueMonth;
 }
 
+class FacilityCostVersion {
+  FacilityCostVersion({
+    required this.id,
+    required this.effectiveMonth,
+    required this.recordedAt,
+    required this.installmentAmount,
+    required this.extraInstallmentPayment,
+    required this.maintenanceFee,
+    required this.insuranceFee,
+    required this.insuranceFrequency,
+    required this.insuranceDueMonth,
+    this.initial = false,
+  });
+
+  final String id;
+  final DateTime effectiveMonth;
+  final DateTime recordedAt;
+  final double installmentAmount;
+  final double extraInstallmentPayment;
+  final double maintenanceFee;
+  final double insuranceFee;
+  final InsuranceFrequency insuranceFrequency;
+  final int insuranceDueMonth;
+  final bool initial;
+
+  double get monthlyRecurringTotal =>
+      installmentAmount + extraInstallmentPayment + maintenanceFee;
+}
+
 class AppUser {
   AppUser({
     required this.id,
     required this.name,
     required this.email,
     required this.role,
+    this.phoneNumber = '',
     this.originAddress,
     this.dateOfBirth,
     this.sex,
@@ -65,22 +380,25 @@ class AppUser {
     this.profileComplete = true,
     this.invitationSentAt,
     this.accountCreatedAt,
+    this.lastLoginAt,
     this.avatarStyle = 0,
     this.paymentReminderAfterDays = 3,
     this.paymentReminderFrequencyDays = 2,
   });
 
   final String id;
-  final String name;
-  final String email;
+  String name;
+  String email;
+  String phoneNumber;
   final UserRole role;
-  final String? originAddress;
-  final DateTime? dateOfBirth;
-  final String? sex;
-  final String accountStatus;
+  String? originAddress;
+  DateTime? dateOfBirth;
+  String? sex;
+  String accountStatus;
   bool profileComplete;
   DateTime? invitationSentAt;
   DateTime? accountCreatedAt;
+  DateTime? lastLoginAt;
   int avatarStyle;
   int paymentReminderAfterDays;
   int paymentReminderFrequencyDays;
@@ -107,11 +425,27 @@ class Facility {
     this.extraInstallmentPayment = 0,
     this.status = FacilityStatus.active,
     this.soldAt,
-  }) : extraCommitments = extraCommitments ?? <RecurringCommitment>[];
+    DateTime? initialCostEffectiveMonth,
+  }) : extraCommitments = extraCommitments ?? <RecurringCommitment>[] {
+    costHistory.add(
+      FacilityCostVersion(
+        id: 'cost_${id}_initial',
+        effectiveMonth: initialCostEffectiveMonth ?? DateTime(2026, 1),
+        recordedAt: initialCostEffectiveMonth ?? DateTime(2026, 1),
+        installmentAmount: installmentAmount,
+        extraInstallmentPayment: extraInstallmentPayment,
+        maintenanceFee: maintenanceFee,
+        insuranceFee: insuranceFee,
+        insuranceFrequency: insuranceFrequency,
+        insuranceDueMonth: insuranceDueMonth,
+        initial: true,
+      ),
+    );
+  }
 
   final String id;
   final String ownerId;
-  final String name;
+  String name;
   final String addressLine;
   final String postcode;
   final String city;
@@ -122,6 +456,7 @@ class Facility {
   InsuranceFrequency insuranceFrequency;
   int insuranceDueMonth;
   final List<RecurringCommitment> extraCommitments;
+  final List<FacilityCostVersion> costHistory = [];
   double extraInstallmentPayment;
   FacilityStatus status;
   DateTime? soldAt;
@@ -146,13 +481,15 @@ class Tenancy {
     required this.leaseEnd,
     this.carParkIncluded = false,
     this.carParkDetails = 'Not included',
+    this.agreementFileName,
+    this.agreementUploadedAt,
     this.active = true,
   });
 
   final String id;
   final String facilityId;
   final String tenantId;
-  final String unitName;
+  String unitName;
   double monthlyRent;
   UtilityPackage electricityPackage;
   double electricityCharge;
@@ -164,6 +501,8 @@ class Tenancy {
   DateTime leaseEnd;
   bool carParkIncluded;
   String carParkDetails;
+  String? agreementFileName;
+  DateTime? agreementUploadedAt;
   bool active;
 
   bool get utilitiesFullyIncluded =>
@@ -183,9 +522,13 @@ class MonthlyBill {
     required this.waterAmount,
     required this.internetAmount,
     this.electricityUsageKwh = 0,
+    this.generalElectricAmount = 0,
+    this.parkingRentalAmount = 0,
     this.utilityEvidenceFileName,
+    this.utilityEvidenceBytes,
     this.status = PaymentStatus.notSubmitted,
     this.slipFileName,
+    this.slipBytes,
     this.amountPaid = 0,
     this.submittedAt,
     this.rejectReason,
@@ -201,19 +544,28 @@ class MonthlyBill {
   double electricityAmount;
   double waterAmount;
   double internetAmount;
+  double generalElectricAmount;
+  double parkingRentalAmount;
   String? utilityEvidenceFileName;
+  Uint8List? utilityEvidenceBytes;
   PaymentStatus status;
   String? slipFileName;
+  Uint8List? slipBytes;
   double amountPaid;
   DateTime? submittedAt;
   String? rejectReason;
   DateTime? reviewedAt;
 
   double get totalAmount =>
-      rentAmount + electricityAmount + waterAmount + internetAmount;
+      rentAmount +
+      electricityAmount +
+      generalElectricAmount +
+      waterAmount +
+      internetAmount +
+      parkingRentalAmount;
 
   double get totalUtilityAmount =>
-      electricityAmount + waterAmount + internetAmount;
+      electricityAmount + generalElectricAmount + waterAmount + internetAmount;
 }
 
 class MonthlyFinancialSummary {
@@ -260,6 +612,10 @@ class TenantRequest {
     required this.title,
     required this.message,
     required this.createdAt,
+    this.requestType = 'General Enquiry',
+    this.attachmentFileName,
+    this.attachmentBase64,
+    this.attachmentSizeBytes,
     this.status = 'Open',
     this.reviewedAt,
   });
@@ -270,8 +626,16 @@ class TenantRequest {
   final String title;
   final String message;
   final DateTime createdAt;
+  final String requestType;
+  final String? attachmentFileName;
+  final String? attachmentBase64;
+  final int? attachmentSizeBytes;
   String status;
   DateTime? reviewedAt;
+
+  bool get hasAttachment =>
+      (attachmentFileName ?? '').trim().isNotEmpty ||
+      (attachmentBase64 ?? '').trim().isNotEmpty;
 }
 
 class AppNotification {
@@ -279,13 +643,43 @@ class AppNotification {
     required this.id,
     required this.message,
     required this.createdAt,
+    String? category,
     this.isRead = false,
-  });
+  }) : category = category ?? notificationCategoryFor(message);
 
   final String id;
   final String message;
   final DateTime createdAt;
+  final String category;
   bool isRead;
+}
+
+class LocalAuthAccount {
+  LocalAuthAccount({
+    required this.userId,
+    required this.email,
+    required this.password,
+    required this.role,
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now();
+
+  final String userId;
+  String email;
+  String password;
+  UserRole role;
+  DateTime createdAt;
+}
+
+class ActivityHistoryEvent {
+  ActivityHistoryEvent({
+    required this.id,
+    required this.action,
+    required this.timestamp,
+  });
+
+  final String id;
+  final String action;
+  final DateTime timestamp;
 }
 
 class PaymentReviewEvent {
@@ -322,22 +716,64 @@ class AdditionalIncome {
   final String note;
 }
 
+class AdditionalExpense {
+  AdditionalExpense({
+    required this.id,
+    required this.facilityId,
+    required this.month,
+    required this.category,
+    required this.amount,
+    required this.note,
+  });
+
+  final String id;
+  final String facilityId;
+  final DateTime month;
+  final String category;
+  final double amount;
+  final String note;
+}
+
 class RentalStore extends ChangeNotifier {
   static const double electricityRatePerKwh = 0.516;
 
-  RentalStore({DateTime? now}) : _now = now ?? DateTime.now() {
-    _seed();
+  RentalStore({
+    DateTime? now,
+    AppPersistence? persistence,
+    SupabaseAuthService? cloudAuth,
+    SupabaseWorkspaceService? cloudWorkspace,
+    bool seedDemoData = true,
+  })  : _now = now ?? DateTime.now(),
+        _persistence = persistence,
+        cloudAuth = cloudAuth,
+        cloudWorkspace = cloudWorkspace {
+    if (seedDemoData) _seed();
   }
 
   final DateTime _now;
+  final AppPersistence? _persistence;
+  final SupabaseAuthService? cloudAuth;
+  final SupabaseWorkspaceService? cloudWorkspace;
+  Timer? _saveTimer;
+  Timer? _cloudSaveTimer;
+  bool _restoring = false;
+  bool _cloudRestoring = false;
+  String? _tenantSnapshotOwnerId;
+  bool _persistenceReady = false;
+  String? persistenceError;
+  CloudProfile? cloudProfile;
   final List<AppUser> users = [];
   final List<Facility> facilities = [];
   final List<Tenancy> tenancies = [];
   final List<MonthlyBill> bills = [];
   final List<TenantRequest> tenantRequests = [];
   final List<AppNotification> notifications = [];
+  final List<ActivityHistoryEvent> activityHistory = [];
   final List<PaymentReviewEvent> paymentReviewHistory = [];
   final List<AdditionalIncome> additionalIncomes = [];
+  final List<AdditionalExpense> additionalExpenses = [];
+  final List<LocalAuthAccount> localAuthAccounts = [];
+  AppLanguage appLanguage = AppLanguage.english;
 
   AppUser? currentUser;
 
@@ -348,6 +784,17 @@ class RentalStore extends ChangeNotifier {
   int get unreadNotificationCount =>
       notifications.where((notification) => !notification.isRead).length;
   int get elapsedMonthsThisYear => _now.month;
+  DateTime get currentMonth => DateTime(_now.year, _now.month);
+  bool get persistenceReady => _persistenceReady || _persistence == null;
+  bool get cloudAuthEnabled => cloudAuth != null;
+  String get storageDescription =>
+      _persistence?.storageDescription ?? 'in-memory test store';
+
+  void updateLanguage(AppLanguage language) {
+    appLanguage = language;
+    _recordActivity('Application language changed to ${language.name}.');
+    notifyListeners();
+  }
 
   bool isCurrentOrPastMonth(DateTime month) {
     final normalizedMonth = DateTime(month.year, month.month);
@@ -451,10 +898,57 @@ class RentalStore extends ChangeNotifier {
     return rentalIncome + otherIncome;
   }
 
-  double monthlyFacilityOutflow(Facility facility) {
-    return facility.installmentAmount +
-        facility.extraInstallmentPayment +
-        facility.maintenanceFee;
+  double facilityInflowForYear(String facilityId, int year) {
+    final rentalIncome = bills.where((bill) {
+      return bill.facilityId == facilityId &&
+          bill.month.year == year &&
+          isCurrentOrPastMonth(bill.month) &&
+          bill.status == PaymentStatus.approved;
+    }).fold<double>(0, (sum, bill) => sum + bill.totalAmount);
+    final otherIncome = additionalIncomes
+        .where((income) =>
+            income.facilityId == facilityId &&
+            income.month.year == year &&
+            isCurrentOrPastMonth(income.month))
+        .fold<double>(0, (sum, income) => sum + income.amount);
+    return rentalIncome + otherIncome;
+  }
+
+  DateTime get nextCostEffectiveMonth => DateTime(_now.year, _now.month + 1);
+
+  FacilityCostVersion costVersionForMonth(
+    Facility facility,
+    DateTime month,
+  ) {
+    final normalized = DateTime(month.year, month.month);
+    final eligible = facility.costHistory.where(
+      (version) => !DateTime(
+        version.effectiveMonth.year,
+        version.effectiveMonth.month,
+      ).isAfter(normalized),
+    );
+    if (eligible.isEmpty) return facility.costHistory.first;
+    return eligible.reduce(
+      (current, next) =>
+          next.effectiveMonth.isAfter(current.effectiveMonth) ? next : current,
+    );
+  }
+
+  double monthlyFacilityOutflow(Facility facility, {DateTime? month}) {
+    final targetMonth = month ?? _now;
+    final version = costVersionForMonth(facility, targetMonth);
+    final extraRecurring = facility.extraCommitments.fold<double>(
+      0,
+      (sum, commitment) =>
+          sum +
+          scheduledCommitmentAmount(
+            commitment.amount,
+            commitment.frequency,
+            commitment.firstDueMonth,
+            targetMonth.month,
+          ),
+    );
+    return version.monthlyRecurringTotal + extraRecurring;
   }
 
   bool isInsuranceDue(Facility facility, int month) {
@@ -499,19 +993,19 @@ class RentalStore extends ChangeNotifier {
 
   double facilityExpenseForMonth(Facility facility, int year, int month) {
     if (!isCurrentOrPastMonth(DateTime(year, month))) return 0;
-    return monthlyFacilityOutflow(facility) +
-        (isInsuranceDue(facility, month) ? facility.insuranceFee : 0) +
-        facility.extraCommitments.fold<double>(
-          0,
-          (sum, commitment) =>
-              sum +
-              scheduledCommitmentAmount(
-                commitment.amount,
-                commitment.frequency,
-                commitment.firstDueMonth,
-                month,
-              ),
-        );
+    final version = costVersionForMonth(facility, DateTime(year, month));
+    final insuranceDue = month == version.insuranceDueMonth ||
+        (version.insuranceFrequency == InsuranceFrequency.halfYearly &&
+            month == ((version.insuranceDueMonth + 5) % 12) + 1);
+    final oneTimeExpenses = additionalExpenses
+        .where((expense) =>
+            expense.facilityId == facility.id &&
+            expense.month.year == year &&
+            expense.month.month == month)
+        .fold<double>(0, (sum, expense) => sum + expense.amount);
+    return monthlyFacilityOutflow(facility, month: DateTime(year, month)) +
+        (insuranceDue ? version.insuranceFee : 0) +
+        oneTimeExpenses;
   }
 
   double facilityOutflow(Facility facility) {
@@ -519,6 +1013,14 @@ class RentalStore extends ChangeNotifier {
         .fold<double>(
       0,
       (sum, month) => sum + facilityExpenseForMonth(facility, _now.year, month),
+    );
+  }
+
+  double facilityOutflowForYear(Facility facility, int year) {
+    final monthsToInclude = year == _now.year ? elapsedMonthsThisYear : 12;
+    return List.generate(monthsToInclude, (index) => index + 1).fold<double>(
+      0,
+      (sum, month) => sum + facilityExpenseForMonth(facility, year, month),
     );
   }
 
@@ -540,11 +1042,548 @@ class RentalStore extends ChangeNotifier {
     }).toList();
   }
 
+  List<FacilityReport> facilityReportsForYear(int year) {
+    return ownerFacilities.map((facility) {
+      final inflow = facilityInflowForYear(facility.id, year);
+      final outflow = facilityOutflowForYear(facility, year);
+      return FacilityReport(
+        facility: facility,
+        inflow: inflow,
+        outflow: outflow,
+        netCashflow: inflow - outflow,
+      );
+    }).toList();
+  }
+
+  Map<String, dynamic> exportSnapshot() => _snapshotMap();
+
+  String exportCsv() {
+    String cell(Object? value) {
+      final raw = value?.toString() ?? '';
+      final escaped = raw.replaceAll('"', '""');
+      return '"$escaped"';
+    }
+
+    final rows = <List<Object?>>[
+      [
+        'section',
+        'id',
+        'facility',
+        'tenant',
+        'month',
+        'type',
+        'amount',
+        'status'
+      ],
+      ...bills.map((bill) {
+        final facility = facilityFor(bill.facilityId);
+        final tenant = userFor(bill.tenantId);
+        return [
+          'payment',
+          bill.id,
+          facility.name,
+          tenant.name,
+          monthLabel(bill.month),
+          'bill',
+          bill.totalAmount.toStringAsFixed(2),
+          paymentStatusLabel(bill.status),
+        ];
+      }),
+      ...additionalIncomes.map((income) {
+        final facility = facilityFor(income.facilityId);
+        return [
+          'income',
+          income.id,
+          facility.name,
+          '',
+          monthLabel(income.month),
+          income.category,
+          income.amount.toStringAsFixed(2),
+          income.note,
+        ];
+      }),
+      ...additionalExpenses.map((expense) {
+        final facility = facilityFor(expense.facilityId);
+        return [
+          'expense',
+          expense.id,
+          facility.name,
+          '',
+          monthLabel(expense.month),
+          expense.category,
+          expense.amount.toStringAsFixed(2),
+          expense.note,
+        ];
+      }),
+      ...tenancies.map((tenancy) {
+        final facility = facilityFor(tenancy.facilityId);
+        final tenant = userFor(tenancy.tenantId);
+        return [
+          'tenant',
+          tenancy.id,
+          facility.name,
+          tenant.name,
+          '',
+          tenancy.unitName,
+          tenancy.monthlyRent.toStringAsFixed(2),
+          tenant.accountStatus,
+        ];
+      }),
+    ];
+    return rows.map((row) => row.map(cell).join(',')).join('\n');
+  }
+
+  String exportExcelWorkbookXml() {
+    final years = <int>{
+      _now.year,
+      ...bills.map((bill) => bill.month.year),
+      ...additionalIncomes.map((income) => income.month.year),
+      ...additionalExpenses.map((expense) => expense.month.year),
+    }.toList()
+      ..sort();
+
+    String row(List<Object?> cells) =>
+        '<Row>${cells.map(_excelCell).join()}</Row>';
+
+    String worksheet(String name, List<List<Object?>> rows) {
+      return '''
+ <Worksheet ss:Name="${_xml(name)}">
+  <Table>
+   ${rows.map(row).join('\n   ')}
+  </Table>
+ </Worksheet>''';
+    }
+
+    final totalIn = facilityReports.fold<double>(0, (sum, r) => sum + r.inflow);
+    final totalOut =
+        facilityReports.fold<double>(0, (sum, r) => sum + r.outflow);
+    final dashboardRows = <List<Object?>>[
+      ['Rental Facility Management Export'],
+      ['Generated', dateTimeLabel(DateTime.now())],
+      [],
+      ['Metric', 'Total'],
+      ['Total Rental Collection', totalIn],
+      ['Total Expenses', totalOut],
+      ['Net Rental Income', totalIn - totalOut],
+      ['Properties', ownerFacilities.length],
+      ['Active Units', tenancies.where((item) => item.active).length],
+      [],
+      ['Facility', 'Tenants', 'Inflow', 'Outflow', 'Net Cashflow', 'Margin %'],
+      ...facilityReports.map((report) => [
+            report.facility.name,
+            tenancies
+                .where((tenancy) => tenancy.facilityId == report.facility.id)
+                .length,
+            report.inflow,
+            report.outflow,
+            report.netCashflow,
+            report.inflow == 0 ? 0 : report.netCashflow / report.inflow,
+          ]),
+      [],
+      ['Year', 'Month', 'Collection', 'Expenses', 'Net Cashflow'],
+      for (final year in years)
+        for (final summary in yearlyFinancialSummary(year))
+          [
+            year,
+            FinancialChartPainter.monthNames[summary.month - 1],
+            summary.collection,
+            summary.expenses,
+            summary.collection - summary.expenses,
+          ],
+    ];
+
+    final propertyRows = <List<Object?>>[
+      [
+        'Facility',
+        'Address',
+        'Status',
+        'Installment',
+        'Extra Payment',
+        'Maintenance',
+        'Insurance',
+        'Insurance Frequency',
+        'Insurance Month',
+        'Tenant',
+        'Unit',
+        'Monthly Rent',
+        'Lease Start',
+        'Lease End',
+        'Electricity Package',
+        'Water Package',
+        'Internet Package',
+        'Car Park',
+        'Agreement File',
+      ],
+      for (final facility in ownerFacilities)
+        ...tenancies
+            .where((tenancy) => tenancy.facilityId == facility.id)
+            .map((tenancy) {
+          final tenant = userFor(tenancy.tenantId);
+          final version = costVersionForMonth(facility, _now);
+          return [
+            facility.name,
+            facility.address,
+            facilityStatusText(facility),
+            version.installmentAmount,
+            version.extraInstallmentPayment,
+            version.maintenanceFee,
+            version.insuranceFee,
+            insuranceFrequencyLabel(version.insuranceFrequency),
+            FinancialChartPainter.monthNames[version.insuranceDueMonth - 1],
+            tenant.name,
+            tenancy.unitName,
+            tenancy.monthlyRent,
+            dateLabel(tenancy.leaseStart),
+            dateLabel(tenancy.leaseEnd),
+            tenancy.electricityPackage.name,
+            tenancy.waterPackage.name,
+            tenancy.internetPackage.name,
+            tenancy.carParkIncluded ? tenancy.carParkDetails : 'Not included',
+            tenancy.agreementFileName ?? '',
+          ];
+        }),
+    ];
+
+    final billRows = <List<Object?>>[
+      [
+        'Bill ID',
+        'Facility',
+        'Tenant',
+        'Unit',
+        'Month',
+        'Rent',
+        'Air-con Electricity kWh',
+        'Air-con Electricity',
+        'General Electricity',
+        'Water',
+        'Internet',
+        'Parking Rental',
+        'Total Utilities',
+        'Total Due',
+        'Amount Paid',
+        'Status',
+        'Submitted At',
+        'Reviewed At',
+        'Slip File',
+        'Reject Reason',
+      ],
+      ...bills.map((bill) {
+        final facility = facilityFor(bill.facilityId);
+        final tenant = userFor(bill.tenantId);
+        final tenancy = tenancies.firstWhere(
+          (item) =>
+              item.facilityId == bill.facilityId &&
+              item.tenantId == bill.tenantId,
+          orElse: () => Tenancy(
+            id: '',
+            facilityId: bill.facilityId,
+            tenantId: bill.tenantId,
+            unitName: '',
+            monthlyRent: bill.rentAmount,
+            leaseStart: bill.month,
+            leaseEnd: bill.month,
+            electricityPackage: UtilityPackage.excluded,
+            electricityCharge: 0,
+            waterPackage: UtilityPackage.excluded,
+            waterCharge: 0,
+            internetPackage: UtilityPackage.excluded,
+            internetCharge: 0,
+          ),
+        );
+        return [
+          bill.id,
+          facility.name,
+          tenant.name,
+          tenancy.unitName,
+          monthLabel(bill.month),
+          bill.rentAmount,
+          bill.electricityUsageKwh,
+          bill.electricityAmount,
+          bill.generalElectricAmount,
+          bill.waterAmount,
+          bill.internetAmount,
+          bill.parkingRentalAmount,
+          bill.totalUtilityAmount,
+          bill.totalAmount,
+          bill.amountPaid,
+          paymentStatusLabel(bill.status),
+          bill.submittedAt == null ? '' : dateTimeLabel(bill.submittedAt!),
+          bill.reviewedAt == null ? '' : dateTimeLabel(bill.reviewedAt!),
+          bill.slipFileName ?? '',
+          bill.rejectReason ?? '',
+        ];
+      }),
+    ];
+
+    final cashflowRows = <List<Object?>>[
+      [
+        'Year',
+        'Month',
+        'Facility',
+        'Rent Inflow',
+        'Electricity Inflow',
+        'Water Inflow',
+        'Internet Inflow',
+        'Parking Inflow',
+        'Other Inflow',
+        'Total Inflow',
+        'Installment',
+        'Extra Payment',
+        'Maintenance',
+        'Insurance',
+        'Recurring Commitments',
+        'One-time Expenses',
+        'Total Outflow',
+        'Net Cashflow',
+      ],
+      for (final year in years)
+        for (var month = 1; month <= 12; month++)
+          for (final facility in ownerFacilities)
+            _monthlyCashflowExportRow(facility, year, month),
+    ];
+
+    final expenseRows = <List<Object?>>[
+      ['Month', 'Facility', 'Category', 'Amount', 'Type', 'Note'],
+      for (final year in years)
+        for (var month = 1; month <= 12; month++)
+          for (final facility in ownerFacilities)
+            ..._monthlyExpenseExportRows(facility, year, month),
+    ];
+
+    final requestRows = <List<Object?>>[
+      [
+        'Request ID',
+        'Facility',
+        'Tenant',
+        'Type',
+        'Title',
+        'Message',
+        'Status',
+        'Created At',
+        'Reviewed At',
+        'Attachment',
+        'Attachment Size',
+      ],
+      ...tenantRequests.map((request) {
+        final facility = facilityFor(request.facilityId);
+        final tenant = userFor(request.tenantId);
+        return [
+          request.id,
+          facility.name,
+          tenant.name,
+          request.requestType,
+          request.title,
+          request.message,
+          request.status,
+          dateTimeLabel(request.createdAt),
+          request.reviewedAt == null ? '' : dateTimeLabel(request.reviewedAt!),
+          request.attachmentFileName ?? '',
+          request.attachmentSizeBytes == null
+              ? ''
+              : fileSizeLabel(request.attachmentSizeBytes!),
+        ];
+      }),
+    ];
+
+    final reviewRows = <List<Object?>>[
+      ['Review ID', 'Bill ID', 'Status', 'Timestamp', 'Reason'],
+      ...paymentReviewHistory.map((event) => [
+            event.id,
+            event.billId,
+            paymentStatusLabel(event.status),
+            dateTimeLabel(event.timestamp),
+            event.reason ?? '',
+          ]),
+    ];
+
+    return '''<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="Default" ss:Name="Normal">
+   <Alignment ss:Vertical="Center"/>
+   <Font ss:FontName="Arial" ss:Size="10"/>
+  </Style>
+ </Styles>
+ ${worksheet('Dashboard', dashboardRows)}
+ ${worksheet('Properties & Tenants', propertyRows)}
+ ${worksheet('Tenant Rent Schedule', billRows)}
+ ${worksheet('Monthly Cashflow', cashflowRows)}
+ ${worksheet('Expense Log', expenseRows)}
+ ${worksheet('Tenant Requests', requestRows)}
+ ${worksheet('Payment Reviews', reviewRows)}
+</Workbook>''';
+  }
+
+  List<Object?> _monthlyCashflowExportRow(
+      Facility facility, int year, int month) {
+    final monthDate = DateTime(year, month);
+    final facilityBills = bills.where((bill) =>
+        bill.facilityId == facility.id &&
+        bill.month.year == year &&
+        bill.month.month == month &&
+        bill.status == PaymentStatus.approved);
+    final rent =
+        facilityBills.fold<double>(0, (sum, bill) => sum + bill.rentAmount);
+    final electricity = facilityBills.fold<double>(
+      0,
+      (sum, bill) => sum + bill.electricityAmount + bill.generalElectricAmount,
+    );
+    final water =
+        facilityBills.fold<double>(0, (sum, bill) => sum + bill.waterAmount);
+    final internet =
+        facilityBills.fold<double>(0, (sum, bill) => sum + bill.internetAmount);
+    final parking = facilityBills.fold<double>(
+        0, (sum, bill) => sum + bill.parkingRentalAmount);
+    final otherIncome = additionalIncomes
+        .where((income) =>
+            income.facilityId == facility.id &&
+            income.month.year == year &&
+            income.month.month == month)
+        .fold<double>(0, (sum, income) => sum + income.amount);
+    final version = costVersionForMonth(facility, monthDate);
+    final insuranceDue = month == version.insuranceDueMonth ||
+        (version.insuranceFrequency == InsuranceFrequency.halfYearly &&
+            month == ((version.insuranceDueMonth + 5) % 12) + 1);
+    final recurringCommitments = facility.extraCommitments.fold<double>(
+      0,
+      (sum, commitment) =>
+          sum +
+          scheduledCommitmentAmount(
+            commitment.amount,
+            commitment.frequency,
+            commitment.firstDueMonth,
+            month,
+          ),
+    );
+    final oneTimeExpenses = additionalExpenses
+        .where((expense) =>
+            expense.facilityId == facility.id &&
+            expense.month.year == year &&
+            expense.month.month == month)
+        .fold<double>(0, (sum, expense) => sum + expense.amount);
+    final totalInflow =
+        rent + electricity + water + internet + parking + otherIncome;
+    final totalOutflow = version.installmentAmount +
+        version.extraInstallmentPayment +
+        version.maintenanceFee +
+        (insuranceDue ? version.insuranceFee : 0) +
+        recurringCommitments +
+        oneTimeExpenses;
+    return [
+      year,
+      FinancialChartPainter.monthNames[month - 1],
+      facility.name,
+      rent,
+      electricity,
+      water,
+      internet,
+      parking,
+      otherIncome,
+      totalInflow,
+      version.installmentAmount,
+      version.extraInstallmentPayment,
+      version.maintenanceFee,
+      insuranceDue ? version.insuranceFee : 0,
+      recurringCommitments,
+      oneTimeExpenses,
+      totalOutflow,
+      totalInflow - totalOutflow,
+    ];
+  }
+
+  List<List<Object?>> _monthlyExpenseExportRows(
+    Facility facility,
+    int year,
+    int month,
+  ) {
+    final monthDate = DateTime(year, month);
+    final version = costVersionForMonth(facility, monthDate);
+    final insuranceDue = month == version.insuranceDueMonth ||
+        (version.insuranceFrequency == InsuranceFrequency.halfYearly &&
+            month == ((version.insuranceDueMonth + 5) % 12) + 1);
+    final rows = <List<Object?>>[
+      [
+        monthLabel(monthDate),
+        facility.name,
+        'Installment',
+        version.installmentAmount,
+        'Recurring',
+        ''
+      ],
+      [
+        monthLabel(monthDate),
+        facility.name,
+        'Extra Payment',
+        version.extraInstallmentPayment,
+        'Recurring',
+        ''
+      ],
+      [
+        monthLabel(monthDate),
+        facility.name,
+        'Maintenance',
+        version.maintenanceFee,
+        'Recurring',
+        ''
+      ],
+      if (insuranceDue)
+        [
+          monthLabel(monthDate),
+          facility.name,
+          'Insurance',
+          version.insuranceFee,
+          insuranceFrequencyLabel(version.insuranceFrequency),
+          ''
+        ],
+      ...facility.extraCommitments.where((commitment) {
+        return isCommitmentDue(
+            commitment.frequency, commitment.firstDueMonth, month);
+      }).map((commitment) => [
+            monthLabel(monthDate),
+            facility.name,
+            commitment.name,
+            commitment.amount,
+            commitmentFrequencyLabel(commitment.frequency),
+            '',
+          ]),
+      ...additionalExpenses
+          .where((expense) =>
+              expense.facilityId == facility.id &&
+              expense.month.year == year &&
+              expense.month.month == month)
+          .map((expense) => [
+                monthLabel(expense.month),
+                facility.name,
+                expense.category,
+                expense.amount,
+                'One-time',
+                expense.note,
+              ]),
+    ];
+    return rows.where((row) => (row[3] as num).toDouble() != 0).toList();
+  }
+
   List<MonthlyBill> get pendingBills {
     return bills
         .where((bill) => bill.status == PaymentStatus.pendingApproval)
         .toList()
       ..sort((a, b) => b.submittedAt?.compareTo(a.submittedAt ?? b.month) ?? 0);
+  }
+
+  List<MonthlyBill> get pendingUtilityBillsThisMonth {
+    final facilityIds = ownerFacilities.map((item) => item.id).toSet();
+    return bills.where((bill) {
+      return facilityIds.contains(bill.facilityId) &&
+          bill.month.year == currentMonth.year &&
+          bill.month.month == currentMonth.month &&
+          (bill.status == PaymentStatus.notSubmitted ||
+              bill.status == PaymentStatus.rejected);
+    }).toList()
+      ..sort((a, b) => a.facilityId.compareTo(b.facilityId));
   }
 
   List<MonthlyBill> billsForTenant(String tenantId) {
@@ -634,14 +1673,18 @@ class RentalStore extends ChangeNotifier {
     if (!isCurrentOrPastMonth(DateTime(year, month))) return [];
     final items = <FinancialBreakdownItem>[];
     for (final facility in ownerFacilities) {
+      final version = costVersionForMonth(facility, DateTime(year, month));
+      final insuranceDue = month == version.insuranceDueMonth ||
+          (version.insuranceFrequency == InsuranceFrequency.halfYearly &&
+              month == ((version.insuranceDueMonth + 5) % 12) + 1);
       final costs = <(String, double)>[
-        ('Installment', facility.installmentAmount),
-        ('Extra installment', facility.extraInstallmentPayment),
-        ('Maintenance', facility.maintenanceFee),
-        if (isInsuranceDue(facility, month))
+        ('Installment', version.installmentAmount),
+        ('Extra installment', version.extraInstallmentPayment),
+        ('Maintenance', version.maintenanceFee),
+        if (insuranceDue)
           (
-            'Fire insurance (${insuranceFrequencyText(facility.insuranceFrequency)})',
-            facility.insuranceFee,
+            'Fire insurance (${insuranceFrequencyText(version.insuranceFrequency)})',
+            version.insuranceFee,
           ),
         for (final commitment in facility.extraCommitments)
           if (isCommitmentDue(
@@ -653,6 +1696,11 @@ class RentalStore extends ChangeNotifier {
               '${commitment.name} (${commitmentFrequencyText(commitment.frequency)})',
               commitment.amount,
             ),
+        for (final expense in additionalExpenses.where((expense) =>
+            expense.facilityId == facility.id &&
+            expense.month.year == year &&
+            expense.month.month == month))
+          ('${expense.category} (one-time)', expense.amount),
       ];
       for (final cost in costs.where((cost) => cost.$2 > 0)) {
         items.add(
@@ -668,6 +1716,216 @@ class RentalStore extends ChangeNotifier {
 
   void loginAs(UserRole role) {
     currentUser = users.firstWhere((user) => user.role == role);
+    currentUser!.lastLoginAt = DateTime.now();
+    notifyListeners();
+  }
+
+  bool signInLocalAccount({
+    required String email,
+    required String password,
+    required UserRole role,
+  }) {
+    final normalizedEmail = email.trim().toLowerCase();
+    final matches = localAuthAccounts.where(
+      (account) =>
+          account.email.toLowerCase() == normalizedEmail &&
+          account.role == role,
+    );
+    if (matches.isEmpty) {
+      throw StateError(
+          'Account not found. Please create an owner account first.');
+    }
+    final account = matches.first;
+    if (account.password != password) {
+      throw StateError('Incorrect password.');
+    }
+    final userMatches = users.where((user) => user.id == account.userId);
+    if (userMatches.isEmpty) {
+      throw StateError('Account profile is missing.');
+    }
+    currentUser = userMatches.first;
+    currentUser!.lastLoginAt = DateTime.now();
+    _recordActivity('${currentUser!.name} signed in.');
+    notifyListeners();
+    return true;
+  }
+
+  void createLocalOwnerAccount({
+    required String fullName,
+    required String email,
+    required String password,
+  }) {
+    final normalizedEmail = email.trim().toLowerCase();
+    if (localAuthAccounts.any(
+      (account) => account.email.toLowerCase() == normalizedEmail,
+    )) {
+      throw StateError('This email already has an account.');
+    }
+    final owner = users.firstWhere(
+      (user) => user.role == UserRole.owner,
+      orElse: () {
+        final created = AppUser(
+          id: 'owner_${users.length + 1}',
+          name: fullName.trim(),
+          email: normalizedEmail,
+          role: UserRole.owner,
+        );
+        users.add(created);
+        return created;
+      },
+    );
+    owner.name = fullName.trim();
+    owner.email = normalizedEmail;
+    localAuthAccounts.add(
+      LocalAuthAccount(
+        userId: owner.id,
+        email: normalizedEmail,
+        password: password,
+        role: UserRole.owner,
+      ),
+    );
+    currentUser = owner;
+    currentUser!.lastLoginAt = DateTime.now();
+    _notify('Owner account was created for ${owner.email}.');
+    notifyListeners();
+  }
+
+  void changeLocalAccountPassword({
+    required String email,
+    required UserRole role,
+    required String currentPassword,
+    required String newPassword,
+  }) {
+    final normalizedEmail = email.trim().toLowerCase();
+    final matches = localAuthAccounts.where(
+      (account) =>
+          account.email.toLowerCase() == normalizedEmail &&
+          account.role == role,
+    );
+    if (matches.isEmpty) {
+      throw StateError('Account not found.');
+    }
+    final account = matches.first;
+    if (account.password != currentPassword) {
+      throw StateError('Current password is incorrect.');
+    }
+    if (newPassword.length < 8) {
+      throw StateError('New password must be at least 8 characters.');
+    }
+    if (newPassword == currentPassword) {
+      throw StateError('New password must be different from current password.');
+    }
+    account.password = newPassword;
+    _notify('Owner account password was changed.');
+    notifyListeners();
+  }
+
+  bool hasLocalAccount(String email, UserRole role) {
+    final normalizedEmail = email.trim().toLowerCase();
+    return localAuthAccounts.any(
+      (account) =>
+          account.email.toLowerCase() == normalizedEmail &&
+          account.role == role,
+    );
+  }
+
+  Future<void> restoreCloudSession() async {
+    final auth = cloudAuth;
+    if (auth == null || auth.currentSession == null) return;
+    try {
+      final profile = await auth.currentProfile();
+      if (profile != null) {
+        _applyCloudProfile(profile);
+        await restoreCloudWorkspace(profile);
+      }
+    } catch (_) {
+      await auth.signOut();
+      currentUser = null;
+      cloudProfile = null;
+    }
+  }
+
+  Future<void> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    final auth = cloudAuth;
+    if (auth == null) throw StateError('Cloud authentication is unavailable.');
+    final profile = await auth.signIn(email: email, password: password);
+    _applyCloudProfile(profile);
+    await restoreCloudWorkspace(profile);
+  }
+
+  Future<bool> registerCloudAccount({
+    required String fullName,
+    required String email,
+    required String password,
+    required String role,
+  }) async {
+    final auth = cloudAuth;
+    if (auth == null) throw StateError('Cloud authentication is unavailable.');
+    final signedIn = await auth.registerAccount(
+      fullName: fullName,
+      email: email,
+      password: password,
+      role: role,
+    );
+    if (signedIn) {
+      final profile = await auth.currentProfile();
+      if (profile != null) {
+        _applyCloudProfile(profile);
+        await restoreCloudWorkspace(profile);
+      }
+    }
+    return signedIn;
+  }
+
+  Future<void> sendPasswordReset(String email) async {
+    final auth = cloudAuth;
+    if (auth == null) throw StateError('Cloud authentication is unavailable.');
+    await auth.sendPasswordReset(email);
+  }
+
+  Future<void> cloudLogout() async {
+    await cloudAuth?.signOut();
+    logout();
+  }
+
+  void _applyCloudProfile(CloudProfile profile) {
+    cloudProfile = profile;
+    final role = switch (profile.role) {
+      'owner' => UserRole.owner,
+      'property_agent' => UserRole.propertyAgent,
+      _ => UserRole.tenant,
+    };
+    if (role == UserRole.tenant) {
+      final matches = users.where(
+        (user) =>
+            user.role == role &&
+            user.email.toLowerCase() == profile.email.toLowerCase(),
+      );
+      currentUser = matches.isNotEmpty
+          ? matches.first
+          : AppUser(
+              id: profile.id,
+              name: profile.fullName,
+              email: profile.email,
+              role: role,
+            );
+    } else {
+      final templates = users.where((user) => user.role == role);
+      final template = templates.isEmpty ? null : templates.first;
+      currentUser = AppUser(
+        id: template?.id ?? profile.id,
+        name: profile.fullName,
+        email: profile.email,
+        role: role,
+        avatarStyle: template?.avatarStyle ?? 0,
+        paymentReminderAfterDays: template?.paymentReminderAfterDays ?? 3,
+        paymentReminderFrequencyDays:
+            template?.paymentReminderFrequencyDays ?? 2,
+      );
+    }
     notifyListeners();
   }
 
@@ -675,6 +1933,7 @@ class RentalStore extends ChangeNotifier {
     required Facility facility,
     required String fullName,
     required String email,
+    String phoneNumber = '',
     required String originAddress,
     required DateTime dateOfBirth,
     required String sex,
@@ -693,6 +1952,7 @@ class RentalStore extends ChangeNotifier {
       id: tenantId,
       name: fullName,
       email: email,
+      phoneNumber: phoneNumber,
       role: UserRole.tenant,
       originAddress: originAddress,
       dateOfBirth: dateOfBirth,
@@ -731,6 +1991,17 @@ class RentalStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> sendSecureTenantInvitation(AppUser tenant) async {
+    final auth = cloudAuth;
+    if (auth == null) {
+      sendTenantInvitation(tenant);
+      return;
+    }
+    await flushCloudPersistence();
+    await auth.inviteTenant(email: tenant.email, fullName: tenant.name);
+    sendTenantInvitation(tenant);
+  }
+
   void acceptTenantInvitation(AppUser tenant) {
     if (!tenant.invitationSent) return;
     tenant.accountCreatedAt = DateTime.now();
@@ -742,6 +2013,7 @@ class RentalStore extends ChangeNotifier {
 
   void logout() {
     currentUser = null;
+    cloudProfile = null;
     notifyListeners();
   }
 
@@ -774,6 +2046,7 @@ class RentalStore extends ChangeNotifier {
       insuranceFrequency: insuranceFrequency,
       insuranceDueMonth: insuranceDueMonth,
       extraCommitments: extraCommitments,
+      initialCostEffectiveMonth: DateTime(_now.year, _now.month),
     );
     facilities.add(facility);
     _notify('Owner created a new facility: $name.');
@@ -790,13 +2063,35 @@ class RentalStore extends ChangeNotifier {
     required InsuranceFrequency insuranceFrequency,
     required int insuranceDueMonth,
   }) {
+    final effectiveMonth = currentMonth;
+    facility.costHistory.removeWhere(
+      (version) =>
+          !version.initial &&
+          version.effectiveMonth.year == effectiveMonth.year &&
+          version.effectiveMonth.month == effectiveMonth.month,
+    );
+    facility.costHistory.add(
+      FacilityCostVersion(
+        id: 'cost_${facility.id}_${facility.costHistory.length + 1}',
+        effectiveMonth: effectiveMonth,
+        recordedAt: _now,
+        installmentAmount: installmentAmount,
+        extraInstallmentPayment: extraInstallmentPayment,
+        maintenanceFee: maintenanceFee,
+        insuranceFee: insuranceFee,
+        insuranceFrequency: insuranceFrequency,
+        insuranceDueMonth: insuranceDueMonth,
+      ),
+    );
     facility.installmentAmount = installmentAmount;
     facility.extraInstallmentPayment = extraInstallmentPayment;
     facility.maintenanceFee = maintenanceFee;
     facility.insuranceFee = insuranceFee;
     facility.insuranceFrequency = insuranceFrequency;
     facility.insuranceDueMonth = insuranceDueMonth;
-    _notify('${facility.name} costs were updated.');
+    _notify(
+      '${facility.name} cost changes were applied from ${monthLabel(effectiveMonth)}.',
+    );
     notifyListeners();
   }
 
@@ -855,6 +2150,8 @@ class RentalStore extends ChangeNotifier {
     tenancies.removeWhere((tenancy) => tenancy.facilityId == facility.id);
     tenantRequests.removeWhere((request) => request.facilityId == facility.id);
     additionalIncomes.removeWhere((income) => income.facilityId == facility.id);
+    additionalExpenses
+        .removeWhere((expense) => expense.facilityId == facility.id);
     facilities.removeWhere((item) => item.id == facility.id);
     _notify('${facility.name} was removed after confirmation.');
     notifyListeners();
@@ -865,16 +2162,24 @@ class RentalStore extends ChangeNotifier {
     required double electricityUsageKwh,
     required double waterAmount,
     required double internetAmount,
+    double generalElectricAmount = 0,
+    double parkingRentalAmount = 0,
     required String utilityEvidenceFileName,
+    Uint8List? utilityEvidenceBytes,
   }) {
     bill.electricityUsageKwh = electricityUsageKwh;
     bill.electricityAmount =
-        electricityUsageKwh * RentalStore.electricityRatePerKwh;
+        (electricityUsageKwh * RentalStore.electricityRatePerKwh * 100)
+                .round() /
+            100;
     bill.waterAmount = waterAmount;
     bill.internetAmount = internetAmount;
+    bill.generalElectricAmount = generalElectricAmount;
+    bill.parkingRentalAmount = parkingRentalAmount;
     bill.utilityEvidenceFileName = utilityEvidenceFileName.trim().isEmpty
         ? null
         : utilityEvidenceFileName.trim();
+    bill.utilityEvidenceBytes = utilityEvidenceBytes;
     bill.status = PaymentStatus.pendingTenantPayment;
     final tenant = users.firstWhere((user) => user.id == bill.tenantId);
     _notify(
@@ -883,8 +2188,61 @@ class RentalStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  void submitPaymentSlip(MonthlyBill bill, String fileName, double amountPaid) {
+  void updateTenantProfile(
+    AppUser tenant, {
+    required String name,
+    required String email,
+    required String phoneNumber,
+    required String originAddress,
+    required DateTime? dateOfBirth,
+    required String sex,
+    required String accountStatus,
+  }) {
+    tenant.name = name.trim();
+    tenant.email = email.trim().toLowerCase();
+    tenant.phoneNumber = phoneNumber.trim();
+    tenant.originAddress = originAddress.trim();
+    tenant.dateOfBirth = dateOfBirth;
+    tenant.sex = sex.trim();
+    tenant.accountStatus = accountStatus;
+    _notify('${tenant.name} profile was updated.');
+    notifyListeners();
+  }
+
+  void updateTenantContract(
+    Tenancy tenancy, {
+    required String unitName,
+    required double monthlyRent,
+    required DateTime leaseStart,
+    required DateTime leaseEnd,
+    required UtilityPackage electricityPackage,
+    required UtilityPackage waterPackage,
+    required UtilityPackage internetPackage,
+    required bool carParkIncluded,
+    required String carParkDetails,
+  }) {
+    tenancy.unitName = unitName.trim();
+    tenancy.monthlyRent = monthlyRent;
+    tenancy.leaseStart = leaseStart;
+    tenancy.leaseEnd = leaseEnd;
+    tenancy.electricityPackage = electricityPackage;
+    tenancy.waterPackage = waterPackage;
+    tenancy.internetPackage = internetPackage;
+    tenancy.carParkIncluded = carParkIncluded;
+    tenancy.carParkDetails = carParkDetails.trim();
+    _notify(
+        'Contract and package updated for ${userFor(tenancy.tenantId).name}.');
+    notifyListeners();
+  }
+
+  void submitPaymentSlip(
+    MonthlyBill bill,
+    String fileName,
+    double amountPaid, {
+    Uint8List? slipBytes,
+  }) {
     bill.slipFileName = fileName;
+    bill.slipBytes = slipBytes;
     bill.amountPaid = amountPaid;
     bill.submittedAt = DateTime.now();
     bill.status = PaymentStatus.pendingApproval;
@@ -933,8 +2291,12 @@ class RentalStore extends ChangeNotifier {
   }
 
   void addTenantRequest({
+    required String requestType,
     required String title,
     required String message,
+    String? attachmentFileName,
+    String? attachmentBase64,
+    int? attachmentSizeBytes,
   }) {
     final user = currentUser;
     final tenancy = tenantTenancies.isEmpty ? null : tenantTenancies.first;
@@ -947,6 +2309,10 @@ class RentalStore extends ChangeNotifier {
         title: title,
         message: message,
         createdAt: DateTime.now(),
+        requestType: requestType,
+        attachmentFileName: attachmentFileName,
+        attachmentBase64: attachmentBase64,
+        attachmentSizeBytes: attachmentSizeBytes,
       ),
     );
     _notify('${user.name} submitted a request: $title.');
@@ -984,6 +2350,29 @@ class RentalStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  void addAdditionalExpense({
+    required Facility facility,
+    required String category,
+    required double amount,
+    required String note,
+  }) {
+    if (category.trim().isEmpty || amount <= 0) return;
+    additionalExpenses.add(
+      AdditionalExpense(
+        id: 'expense_${additionalExpenses.length + 1}',
+        facilityId: facility.id,
+        month: currentMonth,
+        category: category.trim(),
+        amount: amount,
+        note: note.trim(),
+      ),
+    );
+    _notify(
+      '${money(amount)} ${category.trim()} expense added to ${facility.name} for ${monthLabel(currentMonth)}.',
+    );
+    notifyListeners();
+  }
+
   void updateReminderSettings({
     required int afterDays,
     required int frequencyDays,
@@ -996,10 +2385,51 @@ class RentalStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateOwnerAccount({
+    required String name,
+    required String email,
+    required String phoneNumber,
+    required String originAddress,
+    required int avatarStyle,
+    required int paymentReminderAfterDays,
+    required int paymentReminderFrequencyDays,
+  }) {
+    final user = currentUser;
+    if (user == null) return;
+    final previousEmail = user.email.trim().toLowerCase();
+    user.name = name.trim();
+    user.email = email.trim();
+    user.phoneNumber = phoneNumber.trim();
+    user.originAddress =
+        originAddress.trim().isEmpty ? null : originAddress.trim();
+    user.avatarStyle = avatarStyle;
+    user.paymentReminderAfterDays = paymentReminderAfterDays;
+    user.paymentReminderFrequencyDays = paymentReminderFrequencyDays;
+    for (final account in localAuthAccounts.where(
+      (account) =>
+          account.userId == user.id ||
+          (account.email.toLowerCase() == previousEmail &&
+              account.role == user.role),
+    )) {
+      account.email = user.email;
+    }
+    _notify('Owner account details were updated.');
+    notifyListeners();
+  }
+
   void updateAvatar(int avatarStyle) {
     final user = currentUser;
     if (user == null) return;
     user.avatarStyle = avatarStyle;
+    _recordActivity('Profile avatar was updated.');
+    notifyListeners();
+  }
+
+  void updateTenancyAgreement(Tenancy tenancy, String fileName) {
+    tenancy.agreementFileName = fileName;
+    tenancy.agreementUploadedAt = DateTime.now();
+    final tenant = userFor(tenancy.tenantId);
+    _notify('Tenancy agreement uploaded for ${tenant.name}.');
     notifyListeners();
   }
 
@@ -1008,13 +2438,34 @@ class RentalStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  void markAllNotificationsRead() {
+    for (final notification in notifications) {
+      notification.isRead = true;
+    }
+    notifyListeners();
+  }
+
   void _notify(String message) {
+    final timestamp = DateTime.now();
     notifications.insert(
       0,
       AppNotification(
         id: 'notification_${notifications.length + 1}',
         message: message,
-        createdAt: DateTime.now(),
+        createdAt: timestamp,
+      ),
+    );
+    _recordActivity(message, timestamp: timestamp);
+  }
+
+  void _recordActivity(String action, {DateTime? timestamp}) {
+    final recordedAt = timestamp ?? DateTime.now();
+    activityHistory.insert(
+      0,
+      ActivityHistoryEvent(
+        id: 'activity_${recordedAt.microsecondsSinceEpoch}',
+        action: action,
+        timestamp: recordedAt,
       ),
     );
   }
@@ -1027,12 +2478,849 @@ class RentalStore extends ChangeNotifier {
     return users.firstWhere((user) => user.id == id);
   }
 
+  Future<void> restoreCloudWorkspace(CloudProfile profile) async {
+    final workspace = cloudWorkspace;
+    if (workspace == null) return;
+    var clearedDemoData = false;
+    _cloudRestoring = true;
+    try {
+      if (profile.role == 'owner') {
+        final remote = await workspace.readOwnerSnapshot(profile.id);
+        if (remote == null) {
+          _cloudRestoring = false;
+          await flushCloudPersistence();
+          _cloudRestoring = true;
+        } else {
+          _restoring = true;
+          _restoreSnapshot(remote);
+          _restoring = false;
+          final tenantSnapshots =
+              await workspace.readOwnerTenantSnapshots(profile.id);
+          for (final snapshot in tenantSnapshots) {
+            _mergeTenantSnapshot(snapshot.payload);
+          }
+        }
+        if (_containsLegacyDemoData) {
+          _clearBusinessData();
+          await workspace.deleteOwnerTenantSnapshots(profile.id);
+          clearedDemoData = true;
+        }
+      } else if (profile.role == 'tenant') {
+        final remote = await workspace.readTenantSnapshot(profile.email);
+        if (remote != null && remote.payload.isNotEmpty) {
+          _tenantSnapshotOwnerId = remote.ownerId;
+          _restoring = true;
+          _restoreSnapshot(remote.payload);
+          _restoring = false;
+        }
+      }
+      _applyCloudProfile(profile);
+      await flushPersistence();
+    } finally {
+      _restoring = false;
+      _cloudRestoring = false;
+    }
+    if (clearedDemoData) {
+      await flushCloudPersistence();
+      await flushPersistence();
+    }
+    notifyListeners();
+  }
+
+  bool get _containsLegacyDemoData => users.any(
+        (user) =>
+            user.email == 'tenant1a@example.com' ||
+            user.email == 'tenant1b@example.com',
+      );
+
+  void _clearBusinessData() {
+    facilities.clear();
+    tenancies.clear();
+    bills.clear();
+    tenantRequests.clear();
+    notifications.clear();
+    activityHistory.clear();
+    paymentReviewHistory.clear();
+    additionalIncomes.clear();
+    additionalExpenses.clear();
+    users.removeWhere((user) => user.role == UserRole.tenant);
+  }
+
+  Future<void> flushCloudPersistence() async {
+    final workspace = cloudWorkspace;
+    final profile = cloudProfile;
+    if (workspace == null || profile == null || _cloudRestoring) return;
+    _cloudSaveTimer?.cancel();
+    try {
+      if (profile.role == 'owner') {
+        await workspace.writeOwnerSnapshot(profile.id, _snapshotMap());
+        for (final tenant in users.where(
+          (user) => user.role == UserRole.tenant,
+        )) {
+          await workspace.writeTenantSnapshot(
+            ownerId: profile.id,
+            tenantEmail: tenant.email,
+            payload: _tenantSnapshotMap(tenant),
+          );
+        }
+      } else if (profile.role == 'tenant' && _tenantSnapshotOwnerId != null) {
+        await workspace.writeTenantSnapshot(
+          ownerId: _tenantSnapshotOwnerId!,
+          tenantEmail: profile.email,
+          payload: _tenantSnapshotMap(currentUser!),
+        );
+      }
+    } catch (error) {
+      persistenceError = 'Cloud sync: $error';
+      super.notifyListeners();
+    }
+  }
+
+  Map<String, dynamic> _tenantSnapshotMap(AppUser tenant) {
+    final snapshot = _snapshotMap();
+    final tenantTenancyIds = tenancies
+        .where((item) => item.tenantId == tenant.id)
+        .map((item) => item.id)
+        .toSet();
+    final facilityIds = tenancies
+        .where((item) => item.tenantId == tenant.id)
+        .map((item) => item.facilityId)
+        .toSet();
+    final billIds = bills
+        .where((item) => item.tenantId == tenant.id)
+        .map((item) => item.id)
+        .toSet();
+    snapshot['users'] = (snapshot['users'] as List<dynamic>)
+        .where((item) => (item as Map)['id'] == tenant.id)
+        .toList();
+    snapshot['facilities'] = (snapshot['facilities'] as List<dynamic>)
+        .where((item) => facilityIds.contains((item as Map)['id']))
+        .toList();
+    snapshot['tenancies'] = (snapshot['tenancies'] as List<dynamic>)
+        .where((item) => tenantTenancyIds.contains((item as Map)['id']))
+        .toList();
+    snapshot['bills'] = (snapshot['bills'] as List<dynamic>)
+        .where((item) => (item as Map)['tenantId'] == tenant.id)
+        .toList();
+    snapshot['tenantRequests'] = (snapshot['tenantRequests'] as List<dynamic>)
+        .where((item) => (item as Map)['tenantId'] == tenant.id)
+        .toList();
+    snapshot['paymentReviewHistory'] =
+        (snapshot['paymentReviewHistory'] as List<dynamic>)
+            .where((item) => billIds.contains((item as Map)['billId']))
+            .toList();
+    snapshot['notifications'] = <dynamic>[];
+    snapshot['activityHistory'] = <dynamic>[];
+    snapshot['additionalIncomes'] = <dynamic>[];
+    snapshot['additionalExpenses'] = <dynamic>[];
+    return snapshot;
+  }
+
+  void _mergeTenantSnapshot(Map<String, dynamic> snapshot) {
+    for (final item in _maps(snapshot['bills'])) {
+      final matches = bills.where((bill) => bill.id == item['id']);
+      if (matches.isEmpty) continue;
+      final bill = matches.first;
+      bill.electricityUsageKwh = _number(item['electricityUsageKwh']);
+      bill.electricityAmount = _number(item['electricityAmount']);
+      bill.generalElectricAmount = _number(item['generalElectricAmount']);
+      bill.waterAmount = _number(item['waterAmount']);
+      bill.internetAmount = _number(item['internetAmount']);
+      bill.parkingRentalAmount = _number(item['parkingRentalAmount']);
+      bill.utilityEvidenceFileName = item['utilityEvidenceFileName'] as String?;
+      bill.status = _enum(
+        PaymentStatus.values,
+        item['status'],
+        bill.status,
+      );
+      bill.slipFileName = item['slipFileName'] as String?;
+      bill.amountPaid = _number(item['amountPaid']);
+      bill.submittedAt = _parseDate(item['submittedAt']);
+      bill.rejectReason = item['rejectReason'] as String?;
+      bill.reviewedAt = _parseDate(item['reviewedAt']);
+      final slipBytesBase64 = item['slipBytesBase64'] as String?;
+      bill.slipBytes = slipBytesBase64 == null
+          ? bill.slipBytes
+          : Uint8List.fromList(base64Decode(slipBytesBase64));
+    }
+    for (final item in _maps(snapshot['tenantRequests'])) {
+      final matches = tenantRequests.where(
+        (request) => request.id == item['id'],
+      );
+      if (matches.isNotEmpty) {
+        matches.first.status =
+            item['status'] as String? ?? matches.first.status;
+        matches.first.reviewedAt = _parseDate(item['reviewedAt']);
+      } else {
+        tenantRequests.add(
+          TenantRequest(
+            id: item['id'] as String,
+            tenantId: item['tenantId'] as String,
+            facilityId: item['facilityId'] as String,
+            title: item['title'] as String,
+            message: item['message'] as String,
+            createdAt: _parseDate(item['createdAt'])!,
+            requestType: item['requestType'] as String? ?? 'General Enquiry',
+            attachmentFileName: item['attachmentFileName'] as String?,
+            attachmentBase64: item['attachmentBase64'] as String?,
+            attachmentSizeBytes: (item['attachmentSizeBytes'] as num?)?.toInt(),
+            status: item['status'] as String? ?? 'Open',
+            reviewedAt: _parseDate(item['reviewedAt']),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> initializePersistence() async {
+    final persistence = _persistence;
+    if (persistence == null) return;
+    try {
+      final snapshot = await persistence.readSnapshot();
+      if (snapshot == null || snapshot.isEmpty) {
+        await persistence.writeSnapshot(jsonEncode(_snapshotMap()));
+      } else {
+        _restoring = true;
+        _restoreSnapshot(jsonDecode(snapshot) as Map<String, dynamic>);
+        _restoring = false;
+      }
+      _ensureDemoPendingUtilityReadings();
+      _ensureCurrentMonthUtilityBills();
+      _ensureDemoRequestHistory();
+      _persistenceReady = true;
+    } catch (error) {
+      _restoring = false;
+      _persistenceReady = true;
+      persistenceError = error.toString();
+    }
+    super.notifyListeners();
+  }
+
+  Future<void> flushPersistence() async {
+    final persistence = _persistence;
+    if (persistence == null || _restoring) return;
+    _saveTimer?.cancel();
+    try {
+      await persistence.writeSnapshot(jsonEncode(_snapshotMap()));
+      persistenceError = null;
+    } catch (error) {
+      persistenceError = error.toString();
+      super.notifyListeners();
+    }
+  }
+
+  Future<void> resetPersistentData() async {
+    final persistence = _persistence;
+    if (persistence == null) return;
+    _restoring = true;
+    users.clear();
+    facilities.clear();
+    tenancies.clear();
+    bills.clear();
+    tenantRequests.clear();
+    notifications.clear();
+    activityHistory.clear();
+    paymentReviewHistory.clear();
+    additionalIncomes.clear();
+    additionalExpenses.clear();
+    currentUser = null;
+    _seed();
+    _restoring = false;
+    await persistence.clear();
+    await flushPersistence();
+    notifyListeners();
+  }
+
+  @override
+  void notifyListeners() {
+    super.notifyListeners();
+    if (_persistence == null || _restoring || !_persistenceReady) return;
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 250), flushPersistence);
+    if (cloudProfile != null && !_cloudRestoring) {
+      _cloudSaveTimer?.cancel();
+      _cloudSaveTimer =
+          Timer(const Duration(milliseconds: 900), flushCloudPersistence);
+    }
+  }
+
+  @override
+  void dispose() {
+    _saveTimer?.cancel();
+    _cloudSaveTimer?.cancel();
+    final persistence = _persistence;
+    if (persistence != null) {
+      unawaited(flushPersistence().whenComplete(persistence.close));
+    }
+    super.dispose();
+  }
+
+  Map<String, dynamic> _snapshotMap() => {
+        'appLanguage': appLanguage.name,
+        'schemaVersion': 1,
+        'savedAt': DateTime.now().toIso8601String(),
+        'users': users
+            .map((user) => {
+                  'id': user.id,
+                  'name': user.name,
+                  'email': user.email,
+                  'phoneNumber': user.phoneNumber,
+                  'role': user.role.name,
+                  'originAddress': user.originAddress,
+                  'dateOfBirth': _date(user.dateOfBirth),
+                  'sex': user.sex,
+                  'accountStatus': user.accountStatus,
+                  'profileComplete': user.profileComplete,
+                  'invitationSentAt': _date(user.invitationSentAt),
+                  'accountCreatedAt': _date(user.accountCreatedAt),
+                  'lastLoginAt': _date(user.lastLoginAt),
+                  'avatarStyle': user.avatarStyle,
+                  'paymentReminderAfterDays': user.paymentReminderAfterDays,
+                  'paymentReminderFrequencyDays':
+                      user.paymentReminderFrequencyDays,
+                })
+            .toList(),
+        'localAuthAccounts': localAuthAccounts
+            .map((account) => {
+                  'userId': account.userId,
+                  'email': account.email,
+                  'password': account.password,
+                  'role': account.role.name,
+                  'createdAt': _date(account.createdAt),
+                })
+            .toList(),
+        'facilities': facilities
+            .map((facility) => {
+                  'id': facility.id,
+                  'ownerId': facility.ownerId,
+                  'name': facility.name,
+                  'addressLine': facility.addressLine,
+                  'postcode': facility.postcode,
+                  'city': facility.city,
+                  'state': facility.state,
+                  'installmentAmount': facility.installmentAmount,
+                  'maintenanceFee': facility.maintenanceFee,
+                  'insuranceFee': facility.insuranceFee,
+                  'insuranceFrequency': facility.insuranceFrequency.name,
+                  'insuranceDueMonth': facility.insuranceDueMonth,
+                  'extraInstallmentPayment': facility.extraInstallmentPayment,
+                  'status': facility.status.name,
+                  'soldAt': _date(facility.soldAt),
+                  'extraCommitments': facility.extraCommitments
+                      .map((item) => {
+                            'id': item.id,
+                            'name': item.name,
+                            'amount': item.amount,
+                            'frequency': item.frequency.name,
+                            'firstDueMonth': item.firstDueMonth,
+                          })
+                      .toList(),
+                  'costHistory': facility.costHistory
+                      .map((item) => {
+                            'id': item.id,
+                            'effectiveMonth': _date(item.effectiveMonth),
+                            'recordedAt': _date(item.recordedAt),
+                            'installmentAmount': item.installmentAmount,
+                            'extraInstallmentPayment':
+                                item.extraInstallmentPayment,
+                            'maintenanceFee': item.maintenanceFee,
+                            'insuranceFee': item.insuranceFee,
+                            'insuranceFrequency': item.insuranceFrequency.name,
+                            'insuranceDueMonth': item.insuranceDueMonth,
+                            'initial': item.initial,
+                          })
+                      .toList(),
+                })
+            .toList(),
+        'tenancies': tenancies
+            .map((tenancy) => {
+                  'id': tenancy.id,
+                  'facilityId': tenancy.facilityId,
+                  'tenantId': tenancy.tenantId,
+                  'unitName': tenancy.unitName,
+                  'monthlyRent': tenancy.monthlyRent,
+                  'electricityPackage': tenancy.electricityPackage.name,
+                  'electricityCharge': tenancy.electricityCharge,
+                  'waterPackage': tenancy.waterPackage.name,
+                  'waterCharge': tenancy.waterCharge,
+                  'internetPackage': tenancy.internetPackage.name,
+                  'internetCharge': tenancy.internetCharge,
+                  'leaseStart': _date(tenancy.leaseStart),
+                  'leaseEnd': _date(tenancy.leaseEnd),
+                  'carParkIncluded': tenancy.carParkIncluded,
+                  'carParkDetails': tenancy.carParkDetails,
+                  'agreementFileName': tenancy.agreementFileName,
+                  'agreementUploadedAt': _date(tenancy.agreementUploadedAt),
+                  'active': tenancy.active,
+                })
+            .toList(),
+        'bills': bills
+            .map((bill) => {
+                  'id': bill.id,
+                  'facilityId': bill.facilityId,
+                  'tenantId': bill.tenantId,
+                  'month': _date(bill.month),
+                  'rentAmount': bill.rentAmount,
+                  'electricityUsageKwh': bill.electricityUsageKwh,
+                  'electricityAmount': bill.electricityAmount,
+                  'generalElectricAmount': bill.generalElectricAmount,
+                  'waterAmount': bill.waterAmount,
+                  'internetAmount': bill.internetAmount,
+                  'parkingRentalAmount': bill.parkingRentalAmount,
+                  'utilityEvidenceFileName': bill.utilityEvidenceFileName,
+                  'status': bill.status.name,
+                  'slipFileName': bill.slipFileName,
+                  'slipBytesBase64': bill.slipBytes == null
+                      ? null
+                      : base64Encode(bill.slipBytes!),
+                  'amountPaid': bill.amountPaid,
+                  'submittedAt': _date(bill.submittedAt),
+                  'rejectReason': bill.rejectReason,
+                  'reviewedAt': _date(bill.reviewedAt),
+                })
+            .toList(),
+        'tenantRequests': tenantRequests
+            .map((request) => {
+                  'id': request.id,
+                  'tenantId': request.tenantId,
+                  'facilityId': request.facilityId,
+                  'title': request.title,
+                  'message': request.message,
+                  'createdAt': _date(request.createdAt),
+                  'requestType': request.requestType,
+                  'attachmentFileName': request.attachmentFileName,
+                  'attachmentBase64': request.attachmentBase64,
+                  'attachmentSizeBytes': request.attachmentSizeBytes,
+                  'status': request.status,
+                  'reviewedAt': _date(request.reviewedAt),
+                })
+            .toList(),
+        'notifications': notifications
+            .map((item) => {
+                  'id': item.id,
+                  'message': item.message,
+                  'createdAt': _date(item.createdAt),
+                  'category': item.category,
+                  'isRead': item.isRead,
+                })
+            .toList(),
+        'activityHistory': activityHistory
+            .map((item) => {
+                  'id': item.id,
+                  'action': item.action,
+                  'timestamp': _date(item.timestamp),
+                })
+            .toList(),
+        'paymentReviewHistory': paymentReviewHistory
+            .map((item) => {
+                  'id': item.id,
+                  'billId': item.billId,
+                  'status': item.status.name,
+                  'timestamp': _date(item.timestamp),
+                  'reason': item.reason,
+                })
+            .toList(),
+        'additionalIncomes': additionalIncomes
+            .map((item) => {
+                  'id': item.id,
+                  'facilityId': item.facilityId,
+                  'month': _date(item.month),
+                  'category': item.category,
+                  'amount': item.amount,
+                  'note': item.note,
+                })
+            .toList(),
+        'additionalExpenses': additionalExpenses
+            .map((item) => {
+                  'id': item.id,
+                  'facilityId': item.facilityId,
+                  'month': _date(item.month),
+                  'category': item.category,
+                  'amount': item.amount,
+                  'note': item.note,
+                })
+            .toList(),
+      };
+
+  void _restoreSnapshot(Map<String, dynamic> snapshot) {
+    appLanguage = _enum(
+      AppLanguage.values,
+      snapshot['appLanguage'],
+      AppLanguage.english,
+    );
+    if ((snapshot['schemaVersion'] as num? ?? 0).toInt() > 1) {
+      throw const FormatException('Unsupported persistence schema.');
+    }
+    users
+      ..clear()
+      ..addAll(_maps(snapshot['users']).map((item) => AppUser(
+            id: item['id'] as String,
+            name: item['name'] as String,
+            email: item['email'] as String,
+            phoneNumber: item['phoneNumber'] as String? ?? '',
+            role: _enum(UserRole.values, item['role'], UserRole.tenant),
+            originAddress: item['originAddress'] as String?,
+            dateOfBirth: _parseDate(item['dateOfBirth']),
+            sex: item['sex'] as String?,
+            accountStatus: item['accountStatus'] as String? ?? 'Active',
+            profileComplete: item['profileComplete'] as bool? ?? false,
+            invitationSentAt: _parseDate(item['invitationSentAt']),
+            accountCreatedAt: _parseDate(item['accountCreatedAt']),
+            lastLoginAt: _parseDate(item['lastLoginAt']),
+            avatarStyle: (item['avatarStyle'] as num? ?? 0).toInt(),
+            paymentReminderAfterDays:
+                (item['paymentReminderAfterDays'] as num? ?? 3).toInt(),
+            paymentReminderFrequencyDays:
+                (item['paymentReminderFrequencyDays'] as num? ?? 2).toInt(),
+          )));
+    localAuthAccounts
+      ..clear()
+      ..addAll(_maps(snapshot['localAuthAccounts']).map(
+        (item) => LocalAuthAccount(
+          userId: item['userId'] as String,
+          email: item['email'] as String,
+          password: item['password'] as String,
+          role: _enum(UserRole.values, item['role'], UserRole.owner),
+          createdAt: _parseDate(item['createdAt']),
+        ),
+      ));
+    if (localAuthAccounts.isEmpty) {
+      _ensureDefaultLocalOwnerAuth();
+    }
+    facilities.clear();
+    for (final item in _maps(snapshot['facilities'])) {
+      final facility = Facility(
+        id: item['id'] as String,
+        ownerId: item['ownerId'] as String,
+        name: item['name'] as String,
+        addressLine: item['addressLine'] as String,
+        postcode: item['postcode'] as String,
+        city: item['city'] as String,
+        state: item['state'] as String,
+        installmentAmount: _number(item['installmentAmount']),
+        maintenanceFee: _number(item['maintenanceFee']),
+        insuranceFee: _number(item['insuranceFee']),
+        insuranceFrequency: _enum(InsuranceFrequency.values,
+            item['insuranceFrequency'], InsuranceFrequency.yearly),
+        insuranceDueMonth: (item['insuranceDueMonth'] as num? ?? 1).toInt(),
+        extraInstallmentPayment: _number(item['extraInstallmentPayment']),
+        status:
+            _enum(FacilityStatus.values, item['status'], FacilityStatus.active),
+        soldAt: _parseDate(item['soldAt']),
+        extraCommitments: _maps(item['extraCommitments'])
+            .map((commitment) => RecurringCommitment(
+                  id: commitment['id'] as String,
+                  name: commitment['name'] as String,
+                  amount: _number(commitment['amount']),
+                  frequency: _enum(CommitmentFrequency.values,
+                      commitment['frequency'], CommitmentFrequency.monthly),
+                  firstDueMonth:
+                      (commitment['firstDueMonth'] as num? ?? 1).toInt(),
+                ))
+            .toList(),
+      );
+      facility.costHistory
+        ..clear()
+        ..addAll(
+            _maps(item['costHistory']).map((version) => FacilityCostVersion(
+                  id: version['id'] as String,
+                  effectiveMonth: _parseDate(version['effectiveMonth'])!,
+                  recordedAt: _parseDate(version['recordedAt'])!,
+                  installmentAmount: _number(version['installmentAmount']),
+                  extraInstallmentPayment:
+                      _number(version['extraInstallmentPayment']),
+                  maintenanceFee: _number(version['maintenanceFee']),
+                  insuranceFee: _number(version['insuranceFee']),
+                  insuranceFrequency: _enum(InsuranceFrequency.values,
+                      version['insuranceFrequency'], InsuranceFrequency.yearly),
+                  insuranceDueMonth:
+                      (version['insuranceDueMonth'] as num? ?? 1).toInt(),
+                  initial: version['initial'] as bool? ?? false,
+                )));
+      facilities.add(facility);
+    }
+    tenancies
+      ..clear()
+      ..addAll(_maps(snapshot['tenancies']).map((item) => Tenancy(
+            id: item['id'] as String,
+            facilityId: item['facilityId'] as String,
+            tenantId: item['tenantId'] as String,
+            unitName: item['unitName'] as String,
+            monthlyRent: _number(item['monthlyRent']),
+            electricityPackage: _enum(UtilityPackage.values,
+                item['electricityPackage'], UtilityPackage.excluded),
+            electricityCharge: _number(item['electricityCharge']),
+            waterPackage: _enum(UtilityPackage.values, item['waterPackage'],
+                UtilityPackage.excluded),
+            waterCharge: _number(item['waterCharge']),
+            internetPackage: _enum(UtilityPackage.values,
+                item['internetPackage'], UtilityPackage.excluded),
+            internetCharge: _number(item['internetCharge']),
+            leaseStart: _parseDate(item['leaseStart'])!,
+            leaseEnd: _parseDate(item['leaseEnd'])!,
+            carParkIncluded: item['carParkIncluded'] as bool? ?? false,
+            carParkDetails: item['carParkDetails'] as String? ?? 'Not included',
+            agreementFileName: item['agreementFileName'] as String?,
+            agreementUploadedAt: _parseDate(item['agreementUploadedAt']),
+            active: item['active'] as bool? ?? true,
+          )));
+    bills
+      ..clear()
+      ..addAll(_maps(snapshot['bills']).map((item) => MonthlyBill(
+            id: item['id'] as String,
+            facilityId: item['facilityId'] as String,
+            tenantId: item['tenantId'] as String,
+            month: _parseDate(item['month'])!,
+            rentAmount: _number(item['rentAmount']),
+            electricityUsageKwh: _number(item['electricityUsageKwh']),
+            electricityAmount: _number(item['electricityAmount']),
+            generalElectricAmount: _number(item['generalElectricAmount']),
+            waterAmount: _number(item['waterAmount']),
+            internetAmount: _number(item['internetAmount']),
+            parkingRentalAmount: _number(item['parkingRentalAmount']),
+            utilityEvidenceFileName: item['utilityEvidenceFileName'] as String?,
+            status: _enum(PaymentStatus.values, item['status'],
+                PaymentStatus.notSubmitted),
+            slipFileName: item['slipFileName'] as String?,
+            slipBytes: item['slipBytesBase64'] == null
+                ? null
+                : Uint8List.fromList(
+                    base64Decode(item['slipBytesBase64'] as String),
+                  ),
+            amountPaid: _number(item['amountPaid']),
+            submittedAt: _parseDate(item['submittedAt']),
+            rejectReason: item['rejectReason'] as String?,
+            reviewedAt: _parseDate(item['reviewedAt']),
+          )));
+    tenantRequests
+      ..clear()
+      ..addAll(_maps(snapshot['tenantRequests']).map((item) => TenantRequest(
+            id: item['id'] as String,
+            tenantId: item['tenantId'] as String,
+            facilityId: item['facilityId'] as String,
+            title: item['title'] as String,
+            message: item['message'] as String,
+            createdAt: _parseDate(item['createdAt'])!,
+            requestType: item['requestType'] as String? ?? 'General Enquiry',
+            attachmentFileName: item['attachmentFileName'] as String?,
+            attachmentBase64: item['attachmentBase64'] as String?,
+            attachmentSizeBytes: (item['attachmentSizeBytes'] as num?)?.toInt(),
+            status: item['status'] as String? ?? 'Open',
+            reviewedAt: _parseDate(item['reviewedAt']),
+          )));
+    notifications
+      ..clear()
+      ..addAll(_maps(snapshot['notifications']).map((item) => AppNotification(
+            id: item['id'] as String,
+            message: item['message'] as String,
+            createdAt: _parseDate(item['createdAt'])!,
+            category: item['category'] as String?,
+            isRead: item['isRead'] as bool? ?? false,
+          )));
+    activityHistory
+      ..clear()
+      ..addAll(_maps(snapshot['activityHistory']).map(
+        (item) => ActivityHistoryEvent(
+          id: item['id'] as String,
+          action: item['action'] as String,
+          timestamp: _parseDate(item['timestamp'])!,
+        ),
+      ));
+    if (activityHistory.isEmpty) {
+      activityHistory.addAll(
+        notifications.map(
+          (item) => ActivityHistoryEvent(
+            id: 'activity_${item.id}',
+            action: item.message,
+            timestamp: item.createdAt,
+          ),
+        ),
+      );
+    }
+    paymentReviewHistory
+      ..clear()
+      ..addAll(_maps(snapshot['paymentReviewHistory'])
+          .map((item) => PaymentReviewEvent(
+                id: item['id'] as String,
+                billId: item['billId'] as String,
+                status: _enum(PaymentStatus.values, item['status'],
+                    PaymentStatus.pendingApproval),
+                timestamp: _parseDate(item['timestamp'])!,
+                reason: item['reason'] as String?,
+              )));
+    additionalIncomes
+      ..clear()
+      ..addAll(
+          _maps(snapshot['additionalIncomes']).map((item) => AdditionalIncome(
+                id: item['id'] as String,
+                facilityId: item['facilityId'] as String,
+                month: _parseDate(item['month'])!,
+                category: item['category'] as String,
+                amount: _number(item['amount']),
+                note: item['note'] as String? ?? '',
+              )));
+    additionalExpenses
+      ..clear()
+      ..addAll(
+          _maps(snapshot['additionalExpenses']).map((item) => AdditionalExpense(
+                id: item['id'] as String,
+                facilityId: item['facilityId'] as String,
+                month: _parseDate(item['month'])!,
+                category: item['category'] as String,
+                amount: _number(item['amount']),
+                note: item['note'] as String? ?? '',
+              )));
+    _upgradeDemoFacilityNames();
+    _ensureDemoHistoricalYearData();
+    currentUser = null;
+  }
+
+  void _upgradeDemoFacilityNames() {
+    const names = {
+      'facility_1': 'Harmoni PJ Rooms',
+      'facility_2': 'Langit Biru Apartment',
+      'facility_3': 'Skyline KL Studio',
+    };
+    for (final facility in facilities) {
+      final upgradedName = names[facility.id];
+      if (upgradedName == null) continue;
+      if (facility.name == 'Facility 1' ||
+          facility.name == 'Facility 2' ||
+          facility.name == 'Facility 3') {
+        facility.name = upgradedName;
+      }
+    }
+  }
+
+  void _ensureDemoHistoricalYearData() {
+    if (bills.any((bill) => bill.id.startsWith('hist_2022_'))) return;
+    final demoTenancies = tenancies
+        .where(
+            (tenancy) => tenancy.id == 'tenancy_1' || tenancy.id == 'tenancy_2')
+        .toList();
+    if (demoTenancies.isEmpty) return;
+    for (final year in [2022, 2023, 2024, 2025]) {
+      final yearlyRentFactor = switch (year) {
+        2022 => 0.82,
+        2023 => 0.9,
+        2024 => 0.96,
+        _ => 1.04,
+      };
+      final utilityFactor = switch (year) {
+        2022 => 0.7,
+        2023 => 0.8,
+        2024 => 0.9,
+        _ => 1.0,
+      };
+      for (var month = 1; month <= 12; month++) {
+        for (final tenancy in demoTenancies) {
+          final seasonal = 1 + ((month % 4) * 0.015);
+          final rent = tenancy.monthlyRent * yearlyRentFactor;
+          final water = tenancy.waterPackage == UtilityPackage.excluded
+              ? tenancy.waterCharge * utilityFactor
+              : 0.0;
+          final electricity =
+              tenancy.electricityPackage == UtilityPackage.excluded
+                  ? tenancy.electricityCharge * utilityFactor * seasonal
+                  : 0.0;
+          final bill = MonthlyBill(
+            id: 'hist_${year}_${month}_${tenancy.id}',
+            facilityId: tenancy.facilityId,
+            tenantId: tenancy.tenantId,
+            month: DateTime(year, month),
+            rentAmount: rent,
+            electricityAmount: electricity,
+            electricityUsageKwh: electricity == 0
+                ? 0
+                : electricity / RentalStore.electricityRatePerKwh,
+            waterAmount: water,
+            internetAmount: tenancy.internetPackage == UtilityPackage.excluded
+                ? tenancy.internetCharge * utilityFactor
+                : 0,
+            status: PaymentStatus.approved,
+          )
+            ..amountPaid = rent + electricity + water
+            ..slipFileName = 'hist_${year}_${month}_${tenancy.tenantId}.jpg'
+            ..submittedAt = DateTime(year, month, 3)
+            ..reviewedAt = DateTime(year, month, 4);
+          bills.add(bill);
+        }
+        if (month.isOdd) {
+          additionalIncomes.add(
+            AdditionalIncome(
+              id: 'hist_income_${year}_$month',
+              facilityId: 'facility_1',
+              month: DateTime(year, month),
+              category: 'Parking rental',
+              amount: 80 + (year - 2022) * 10,
+              note: 'Historical demo income',
+            ),
+          );
+        }
+        additionalExpenses.add(
+          AdditionalExpense(
+            id: 'hist_expense_${year}_$month',
+            facilityId: month.isEven ? 'facility_3' : 'facility_1',
+            month: DateTime(year, month),
+            category: month.isEven ? 'Minor repair' : 'Cleaning',
+            amount: (120 + month * 8) * (1 + (year - 2022) * 0.06),
+            note: 'Historical demo expense',
+          ),
+        );
+      }
+    }
+  }
+
+  static String? _date(DateTime? value) => value?.toIso8601String();
+
+  static DateTime? _parseDate(Object? value) =>
+      value is String && value.isNotEmpty ? DateTime.parse(value) : null;
+
+  static double _number(Object? value) => (value as num?)?.toDouble() ?? 0;
+
+  static List<Map<String, dynamic>> _maps(Object? value) =>
+      (value as List<dynamic>? ?? const [])
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+
+  static T _enum<T extends Enum>(
+    List<T> values,
+    Object? name,
+    T fallback,
+  ) {
+    for (final value in values) {
+      if (value.name == name) return value;
+    }
+    return fallback;
+  }
+
+  void _ensureDefaultLocalOwnerAuth() {
+    if (localAuthAccounts.any((account) => account.role == UserRole.owner)) {
+      return;
+    }
+    final owners = users.where((user) => user.role == UserRole.owner);
+    if (owners.isEmpty) return;
+    final owner = owners.first;
+    if (owner.email == 'owner@example.com') {
+      owner.email = 'ahmad.faisal@email.com';
+    }
+    localAuthAccounts.add(
+      LocalAuthAccount(
+        userId: owner.id,
+        email: owner.email,
+        password: 'password',
+        role: UserRole.owner,
+        createdAt: DateTime(2026, 1),
+      ),
+    );
+  }
+
   void _seed() {
     users.addAll([
       AppUser(
         id: 'owner_1',
         name: 'Alex',
-        email: 'owner@example.com',
+        email: 'ahmad.faisal@email.com',
         role: UserRole.owner,
       ),
       AppUser(
@@ -1045,6 +3333,7 @@ class RentalStore extends ChangeNotifier {
         id: 'tenant_1',
         name: 'Nur Aisyah Binti Rahman',
         email: 'tenant1a@example.com',
+        phoneNumber: '+60165666878',
         role: UserRole.tenant,
         originAddress: '22 Jalan Melur, Shah Alam, Selangor',
         dateOfBirth: DateTime(1996, 5, 14),
@@ -1054,18 +3343,40 @@ class RentalStore extends ChangeNotifier {
         id: 'tenant_2',
         name: 'Daniel Lim Wei Jian',
         email: 'tenant1b@example.com',
+        phoneNumber: '+60198765432',
         role: UserRole.tenant,
         originAddress: '18 Lorong Damai, Ipoh, Perak',
         dateOfBirth: DateTime(1992, 11, 2),
         sex: 'Male',
       ),
+      AppUser(
+        id: 'tenant_3',
+        name: 'Mei Lin Tan',
+        email: 'tenant2@example.com',
+        phoneNumber: '+601122334455',
+        role: UserRole.tenant,
+        originAddress: '31 Jalan Bukit, Kuala Lumpur',
+        dateOfBirth: DateTime(1994, 8, 21),
+        sex: 'Female',
+      ),
+      AppUser(
+        id: 'tenant_4',
+        name: 'Arif Hakim',
+        email: 'tenant3@example.com',
+        phoneNumber: '+601177889900',
+        role: UserRole.tenant,
+        originAddress: '17 Persiaran Murni, Shah Alam, Selangor',
+        dateOfBirth: DateTime(1991, 3, 9),
+        sex: 'Male',
+      ),
     ]);
+    _ensureDefaultLocalOwnerAuth();
 
     facilities.add(
       Facility(
         id: 'facility_1',
         ownerId: 'owner_1',
-        name: 'Facility 1',
+        name: 'Harmoni PJ Rooms',
         addressLine: '12 Jalan Harmoni 3',
         postcode: '47301',
         city: 'Petaling Jaya',
@@ -1089,6 +3400,34 @@ class RentalStore extends ChangeNotifier {
             firstDueMonth: 1,
           ),
         ],
+      ),
+    );
+    facilities.add(
+      Facility(
+        id: 'facility_3',
+        ownerId: 'owner_1',
+        name: 'Skyline KL Studio',
+        addressLine: '26 Persiaran Skyline',
+        postcode: '55100',
+        city: 'Kuala Lumpur',
+        state: 'Wilayah Persekutuan',
+        installmentAmount: 2850,
+        maintenanceFee: 320,
+        insuranceFee: 190,
+      ),
+    );
+    facilities.add(
+      Facility(
+        id: 'facility_2',
+        ownerId: 'owner_1',
+        name: 'Langit Biru Apartment',
+        addressLine: '8 Jalan Langit Biru',
+        postcode: '50480',
+        city: 'Kuala Lumpur',
+        state: 'Wilayah Persekutuan',
+        installmentAmount: 0,
+        maintenanceFee: 0,
+        insuranceFee: 0,
       ),
     );
 
@@ -1216,6 +3555,115 @@ class RentalStore extends ChangeNotifier {
       );
     }
 
+    for (final year in [2022, 2023, 2024, 2025]) {
+      final yearlyRentFactor = switch (year) {
+        2022 => 0.82,
+        2023 => 0.9,
+        2024 => 0.96,
+        _ => 1.04,
+      };
+      final utilityFactor = switch (year) {
+        2022 => 0.7,
+        2023 => 0.8,
+        2024 => 0.9,
+        _ => 1.0,
+      };
+      for (var month = 1; month <= 12; month++) {
+        for (final tenancy in tenancies.take(2)) {
+          final seasonal = 1 + ((month % 4) * 0.015);
+          final rent = tenancy.monthlyRent * yearlyRentFactor;
+          final water = tenancy.waterPackage == UtilityPackage.excluded
+              ? tenancy.waterCharge * utilityFactor
+              : 0.0;
+          final electricity =
+              tenancy.electricityPackage == UtilityPackage.excluded
+                  ? tenancy.electricityCharge * utilityFactor * seasonal
+                  : 0.0;
+          final historicalBill = MonthlyBill(
+            id: 'hist_${year}_${month}_${tenancy.id}',
+            facilityId: tenancy.facilityId,
+            tenantId: tenancy.tenantId,
+            month: DateTime(year, month),
+            rentAmount: rent,
+            electricityAmount: electricity,
+            electricityUsageKwh: electricity == 0
+                ? 0
+                : electricity / RentalStore.electricityRatePerKwh,
+            waterAmount: water,
+            internetAmount: tenancy.internetPackage == UtilityPackage.excluded
+                ? tenancy.internetCharge * utilityFactor
+                : 0,
+            status: PaymentStatus.approved,
+          )
+            ..amountPaid = rent + electricity + water
+            ..slipFileName = 'hist_${year}_${month}_${tenancy.tenantId}.jpg'
+            ..submittedAt = DateTime(year, month, 3)
+            ..reviewedAt = DateTime(year, month, 4);
+          bills.add(historicalBill);
+        }
+        if (month.isOdd) {
+          additionalIncomes.add(
+            AdditionalIncome(
+              id: 'hist_income_${year}_$month',
+              facilityId: 'facility_1',
+              month: DateTime(year, month),
+              category: 'Parking rental',
+              amount: 80 + (year - 2022) * 10,
+              note: 'Historical demo income',
+            ),
+          );
+        }
+        additionalExpenses.add(
+          AdditionalExpense(
+            id: 'hist_expense_${year}_$month',
+            facilityId: month.isEven ? 'facility_3' : 'facility_1',
+            month: DateTime(year, month),
+            category: month.isEven ? 'Minor repair' : 'Cleaning',
+            amount: (120 + month * 8) * (1 + (year - 2022) * 0.06),
+            note: 'Historical demo expense',
+          ),
+        );
+      }
+    }
+
+    // Additional sample tenancies intentionally start without historical bills.
+    tenancies.addAll([
+      Tenancy(
+        id: 'tenancy_3',
+        facilityId: 'facility_2',
+        tenantId: 'tenant_3',
+        unitName: 'Unit 12-3',
+        monthlyRent: 950,
+        electricityPackage: UtilityPackage.excluded,
+        electricityCharge: 0,
+        waterPackage: UtilityPackage.included,
+        waterCharge: 0,
+        internetPackage: UtilityPackage.included,
+        internetCharge: 0,
+        leaseStart: DateTime(2026, 7),
+        leaseEnd: DateTime(2027, 6, 30),
+      ),
+      Tenancy(
+        id: 'tenancy_4',
+        facilityId: 'facility_3',
+        tenantId: 'tenant_4',
+        unitName: 'Studio 8A',
+        monthlyRent: 1100,
+        electricityPackage: UtilityPackage.excluded,
+        electricityCharge: 0,
+        waterPackage: UtilityPackage.excluded,
+        waterCharge: 30,
+        internetPackage: UtilityPackage.included,
+        internetCharge: 0,
+        leaseStart: DateTime(2026, 7),
+        leaseEnd: DateTime(2027, 6, 30),
+      ),
+    ]);
+
+    _ensureDemoPendingUtilityReadings();
+    _ensureCurrentMonthUtilityBills();
+    _ensureDemoRequestHistory();
+
     _notify('Tenant 1B submitted payment slip for Jan 2026.');
     _notify('Monthly bills generated for Facility 1.');
 
@@ -1227,20 +3675,166 @@ class RentalStore extends ChangeNotifier {
         title: 'Air-condition service',
         message: 'The room air-conditioner is not cold enough.',
         createdAt: DateTime(2026, 1, 10),
+        requestType: 'Repair & Maintenance',
+        attachmentFileName: 'aircon_service_photo.png',
+        attachmentBase64:
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+        attachmentSizeBytes: 68,
       ),
     );
+    _upgradeDemoFacilityNames();
+  }
+
+  void _ensureDemoPendingUtilityReadings() {
+    final examples = <({
+      String id,
+      String facilityId,
+      String tenantId,
+      double rent,
+      double water,
+    })>[
+      (
+        id: 'demo_utility_pending_facility_1',
+        facilityId: 'facility_1',
+        tenantId: 'tenant_2',
+        rent: 600,
+        water: 25,
+      ),
+      (
+        id: 'demo_utility_pending_facility_2',
+        facilityId: 'facility_2',
+        tenantId: 'tenant_3',
+        rent: 950,
+        water: 0,
+      ),
+      (
+        id: 'demo_utility_pending_facility_3',
+        facilityId: 'facility_3',
+        tenantId: 'tenant_4',
+        rent: 1100,
+        water: 30,
+      ),
+    ];
+    for (final example in examples) {
+      final hasTenant = users.any((user) => user.id == example.tenantId);
+      final hasFacility =
+          facilities.any((facility) => facility.id == example.facilityId);
+      if (!hasTenant ||
+          !hasFacility ||
+          bills.any((bill) => bill.id == example.id)) {
+        continue;
+      }
+      bills.add(
+        MonthlyBill(
+          id: example.id,
+          facilityId: example.facilityId,
+          tenantId: example.tenantId,
+          month: DateTime(2026, 7),
+          rentAmount: example.rent,
+          electricityAmount: 0,
+          electricityUsageKwh: 0,
+          waterAmount: example.water,
+          internetAmount: 0,
+          status: PaymentStatus.notSubmitted,
+        ),
+      );
+    }
+  }
+
+  void _ensureCurrentMonthUtilityBills() {
+    if (_now.day < 1) return;
+    for (final tenancy in tenancies.where((item) {
+      return item.active && !item.utilitiesFullyIncluded;
+    })) {
+      final alreadyCreated = bills.any((bill) {
+        return bill.facilityId == tenancy.facilityId &&
+            bill.tenantId == tenancy.tenantId &&
+            bill.month.year == currentMonth.year &&
+            bill.month.month == currentMonth.month;
+      });
+      if (alreadyCreated) continue;
+      bills.add(
+        MonthlyBill(
+          id: 'bill_${tenancy.id}_${currentMonth.year}_${currentMonth.month}',
+          facilityId: tenancy.facilityId,
+          tenantId: tenancy.tenantId,
+          month: currentMonth,
+          rentAmount: tenancy.monthlyRent,
+          electricityAmount: 0,
+          electricityUsageKwh: 0,
+          waterAmount: tenancy.waterPackage == UtilityPackage.excluded
+              ? tenancy.waterCharge
+              : 0,
+          internetAmount: tenancy.internetPackage == UtilityPackage.excluded
+              ? tenancy.internetCharge
+              : 0,
+          status: PaymentStatus.notSubmitted,
+        ),
+      );
+    }
+  }
+
+  void _ensureDemoRequestHistory() {
+    if (!users.any((item) => item.id == 'tenant_2') ||
+        !facilities.any((item) => item.id == 'facility_1')) {
+      return;
+    }
+    if (!tenantRequests.any((item) => item.id == 'request_history_1')) {
+      tenantRequests.add(
+        TenantRequest(
+          id: 'request_history_1',
+          tenantId: 'tenant_2',
+          facilityId: 'facility_1',
+          title: 'Bathroom water leak',
+          message: 'Water was leaking below the wash basin.',
+          createdAt: DateTime(2026, 5, 14),
+          requestType: 'Repair & Maintenance',
+          status: 'Closed',
+          reviewedAt: DateTime(2026, 5, 16),
+        ),
+      );
+    }
+    if (!tenantRequests.any((item) => item.id == 'request_history_2')) {
+      tenantRequests.add(
+        TenantRequest(
+          id: 'request_history_2',
+          tenantId: 'tenant_1',
+          facilityId: 'facility_1',
+          title: 'Additional access card',
+          message: 'Requested one additional building access card.',
+          createdAt: DateTime(2026, 4, 8),
+          requestType: 'Access & Security',
+          status: 'Rejected',
+          reviewedAt: DateTime(2026, 4, 9),
+        ),
+      );
+    }
   }
 }
 
 class RentalFacilityApp extends StatefulWidget {
-  const RentalFacilityApp({super.key});
+  const RentalFacilityApp({this.initialStore, super.key});
+
+  final RentalStore? initialStore;
 
   @override
   State<RentalFacilityApp> createState() => _RentalFacilityAppState();
 }
 
 class _RentalFacilityAppState extends State<RentalFacilityApp> {
-  final RentalStore store = RentalStore();
+  late final RentalStore store;
+
+  @override
+  void initState() {
+    super.initState();
+    store = widget.initialStore ?? RentalStore();
+  }
+
+  @override
+  void dispose() {
+    store.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1253,43 +3847,66 @@ class _RentalFacilityAppState extends State<RentalFacilityApp> {
             debugShowCheckedModeBanner: false,
             title: 'Rental Facility Manager',
             theme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: const Color(0xFF3156A3),
-                brightness: Brightness.light,
+              colorScheme: const ColorScheme.light(
+                primary: oceanBlue,
+                secondary: oceanSky,
                 surface: Colors.white,
+                background: oceanCanvas,
+                error: Color(0xFFC43D4B),
               ),
+              fontFamily: 'Manrope',
+              textTheme: Typography.material2021().black.apply(
+                    fontFamily: 'Manrope',
+                    bodyColor: oceanText,
+                    displayColor: oceanText,
+                  ),
               useMaterial3: true,
-              scaffoldBackgroundColor: const Color(0xFFF4F7FC),
+              scaffoldBackgroundColor: oceanCanvas,
+              iconTheme: const IconThemeData(
+                color: Color(0xFF334155),
+                size: 22,
+              ),
+              iconButtonTheme: IconButtonThemeData(
+                style: IconButton.styleFrom(
+                  foregroundColor: const Color(0xFF334155),
+                  minimumSize: const Size(42, 42),
+                  padding: const EdgeInsets.all(9),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
               appBarTheme: const AppBarTheme(
-                backgroundColor: Color(0xFFF4F7FC),
-                foregroundColor: Color(0xFF17233C),
+                backgroundColor: oceanCanvas,
+                foregroundColor: oceanText,
                 centerTitle: false,
                 elevation: 0,
                 scrolledUnderElevation: 0,
                 titleTextStyle: TextStyle(
-                  color: Color(0xFF17233C),
+                  color: oceanText,
                   fontSize: 22,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
               cardTheme: CardTheme(
                 color: Colors.white,
                 elevation: 0,
+                shadowColor: oceanText.withOpacity(0.06),
                 margin: const EdgeInsets.symmetric(vertical: 6),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(18),
-                  side: const BorderSide(color: Color(0xFFE4EAF4)),
+                  side: const BorderSide(color: Color(0x0F0F172A)),
                 ),
               ),
               navigationBarTheme: NavigationBarThemeData(
                 backgroundColor: Colors.white,
-                indicatorColor: const Color(0xFFDDE7FF),
+                indicatorColor: oceanSoft,
                 elevation: 0,
                 labelTextStyle: MaterialStateProperty.resolveWith((states) {
                   return TextStyle(
                     color: states.contains(MaterialState.selected)
-                        ? const Color(0xFF24498F)
-                        : const Color(0xFF667085),
+                        ? oceanDeep
+                        : oceanMuted,
                     fontWeight: states.contains(MaterialState.selected)
                         ? FontWeight.w700
                         : FontWeight.w500,
@@ -1298,31 +3915,103 @@ class _RentalFacilityAppState extends State<RentalFacilityApp> {
               ),
               inputDecorationTheme: InputDecorationTheme(
                 filled: true,
-                fillColor: const Color(0xFFF8FAFD),
+                fillColor: Colors.white,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   borderSide: const BorderSide(color: Color(0xFFD6DEEB)),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   borderSide: const BorderSide(color: Color(0xFFD6DEEB)),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   borderSide: const BorderSide(
-                    color: Color(0xFF3156A3),
+                    color: oceanBlue,
                     width: 2,
                   ),
                 ),
               ),
               filledButtonTheme: FilledButtonThemeData(
                 style: FilledButton.styleFrom(
+                  minimumSize: const Size(44, 48),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  backgroundColor: oceanDeep,
+                  foregroundColor: Colors.white,
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
+              ),
+              outlinedButtonTheme: OutlinedButtonThemeData(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(44, 46),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+                  foregroundColor: oceanDeep,
+                  backgroundColor: Colors.white,
+                  side: const BorderSide(color: Color(0xFFB8C7DB)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              textButtonTheme: TextButtonThemeData(
+                style: TextButton.styleFrom(
+                  foregroundColor: oceanDeep,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              floatingActionButtonTheme: const FloatingActionButtonThemeData(
+                backgroundColor: oceanDeep,
+                foregroundColor: Colors.white,
+                elevation: 2,
+                shape: StadiumBorder(),
+              ),
+              dialogTheme: DialogTheme(
+                backgroundColor: const Color(0xFFF4F7FC),
+                surfaceTintColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+              bottomSheetTheme: const BottomSheetThemeData(
+                backgroundColor: Color(0xFFF4F7FC),
+                surfaceTintColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+                ),
+              ),
+              chipTheme: ChipThemeData(
+                backgroundColor: Colors.white,
+                selectedColor: oceanSoft,
+                side: const BorderSide(color: Color(0xFFDCE5F0)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                labelStyle: const TextStyle(
+                  color: oceanText,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              listTileTheme: const ListTileThemeData(
+                iconColor: oceanDeep,
+                textColor: oceanText,
+                contentPadding: EdgeInsets.symmetric(horizontal: 16),
               ),
             ),
             home: store.isLoggedIn
@@ -1358,74 +4047,160 @@ class RentalStoreScope extends InheritedWidget {
       store != oldWidget.store;
 }
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  bool showSplash = true;
+  Timer? splashTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    splashTimer = Timer(const Duration(milliseconds: 2100), () {
+      if (mounted) setState(() => showSplash = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    splashTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
-    final width = MediaQuery.of(context).size.width;
-    final compact = width < 760;
-    final roleButtons = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        FilledButton.icon(
-          onPressed: () => store.loginAs(UserRole.owner),
-          icon: const Icon(Icons.admin_panel_settings_rounded),
-          label: const Text('Login as Owner'),
-        ),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: () => store.loginAs(UserRole.propertyAgent),
-          icon: const Icon(Icons.real_estate_agent_rounded),
-          label: const Text('Login as Property Agent'),
-        ),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: () => store.loginAs(UserRole.tenant),
-          icon: const Icon(Icons.person_rounded),
-          label: const Text('Login as Tenant'),
-        ),
-      ],
-    );
-
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFEFF4FF), Color(0xFFF8FAFC)],
+      backgroundColor: oceanCanvas,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          AnimatedOpacity(
+            opacity: showSplash ? 0 : 1,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOutCubic,
+            child: store.cloudAuthEnabled
+                ? _CloudLoginExperience(store: store)
+                : _LoginExperience(
+                    onOwner: () => store.loginAs(UserRole.owner),
+                    onAgent: () => store.loginAs(UserRole.propertyAgent),
+                    onTenant: () => store.loginAs(UserRole.tenant),
+                  ),
           ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 980),
-                child: compact
-                    ? Column(
-                        children: [
-                          _LoginRolePanel(roleButtons: roleButtons),
-                          const SizedBox(height: 18),
-                          const _LoginHeroPanel(),
-                        ],
-                      )
-                    : Row(
-                        children: [
-                          const Expanded(flex: 6, child: _LoginHeroPanel()),
-                          const SizedBox(width: 24),
-                          Expanded(
-                            flex: 4,
-                            child: _LoginRolePanel(roleButtons: roleButtons),
-                          ),
-                        ],
-                      ),
-              ),
+          IgnorePointer(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 350),
+              switchOutCurve: Curves.easeInCubic,
+              child: showSplash
+                  ? const _BrandSplash(key: ValueKey('brand_splash'))
+                  : const SizedBox(key: ValueKey('splash_complete')),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BrandSplash extends StatelessWidget {
+  const _BrandSplash({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF4EA8EC), Color(0xFF2E86E0), Color(0xFF1C67CF)],
+        ),
+      ),
+      child: Center(
+        child: TweenAnimationBuilder<double>(
+          duration: const Duration(milliseconds: 1350),
+          curve: Curves.easeOutBack,
+          tween: Tween(begin: 0.72, end: 1),
+          builder: (context, value, child) => Transform.translate(
+            offset: Offset(0, (1 - value) * 90),
+            child: Transform.scale(
+              scale: value,
+              child: Opacity(opacity: value.clamp(0, 1), child: child),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 126,
+                height: 126,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.32),
+                      blurRadius: 56,
+                      spreadRadius: 10,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.house_outlined,
+                  color: Colors.white,
+                  size: 96,
+                ),
+              ),
+              const SizedBox(height: 28),
+              const Text(
+                'PLATINUM\nVICTORY',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 40,
+                  fontWeight: FontWeight.w500,
+                  height: 1.05,
+                  letterSpacing: 6,
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'PROPERTY MANAGEMENT, SIMPLIFIED',
+                style: TextStyle(
+                  color: Color(0xDDFFFFFF),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: 4,
+                ),
+              ),
+              const SizedBox(height: 54),
+              SizedBox(
+                width: 148,
+                child: LinearProgressIndicator(
+                  minHeight: 3,
+                  borderRadius: BorderRadius.circular(99),
+                  backgroundColor: Color(0x44FFFFFF),
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 34),
+              const Text(
+                'Version 2.4.0',
+                style: TextStyle(
+                  color: Color(0xDDFFFFFF),
+                  fontSize: 11,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 5),
+              const Text(
+                '© 2026 Platinum Victory',
+                style: TextStyle(color: Color(0x99FFFFFF), fontSize: 10),
+              ),
+            ],
           ),
         ),
       ),
@@ -1433,76 +4208,1000 @@ class LoginScreen extends StatelessWidget {
   }
 }
 
-class _LoginHeroPanel extends StatelessWidget {
-  const _LoginHeroPanel();
+class _CloudLoginExperience extends StatelessWidget {
+  const _CloudLoginExperience({required this.store});
+
+  final RentalStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        const Positioned.fill(child: _LoginBackdrop()),
+        SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 680),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const _StandardLoginBrand(),
+                    const SizedBox(height: 24),
+                    _CloudLoginPanel(store: store),
+                    const SizedBox(height: 18),
+                    const Text(
+                      'Secure shared access for owners, agents and tenants',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFF667085),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+enum _CompactLoginRole { owner, tenant, technician, agent }
+
+class _CompactRoleLogin extends StatefulWidget {
+  const _CompactRoleLogin({
+    required this.onOwner,
+    required this.onAgent,
+    required this.onTenant,
+  });
+
+  final VoidCallback onOwner;
+  final VoidCallback onAgent;
+  final VoidCallback onTenant;
+
+  @override
+  State<_CompactRoleLogin> createState() => _CompactRoleLoginState();
+}
+
+class _CompactRoleLoginState extends State<_CompactRoleLogin> {
+  _CompactLoginRole role = _CompactLoginRole.owner;
+  final fullName = TextEditingController();
+  final email = TextEditingController(text: 'ahmad.faisal@email.com');
+  final password = TextEditingController(text: 'password');
+  final confirmPassword = TextEditingController();
+  bool createAccount = false;
+  bool obscure = true;
+  String? errorMessage;
+
+  String get roleName => switch (role) {
+        _CompactLoginRole.owner => 'Owner',
+        _CompactLoginRole.tenant => 'Tenant',
+        _CompactLoginRole.technician => 'Technician',
+        _CompactLoginRole.agent => 'Agent',
+      };
+
+  @override
+  void dispose() {
+    fullName.dispose();
+    email.dispose();
+    password.dispose();
+    confirmPassword.dispose();
+    super.dispose();
+  }
+
+  void login() {
+    if (role != _CompactLoginRole.owner) return;
+    final store = RentalStoreScope.of(context);
+    setState(() => errorMessage = null);
+    if (!isValidEmailInput(email.text)) {
+      setState(() => errorMessage = 'Please enter a valid email address.');
+      return;
+    }
+    if (password.text.length < 8) {
+      setState(() => errorMessage = 'Password must be at least 8 characters.');
+      return;
+    }
+    try {
+      if (createAccount) {
+        if (!isValidHumanName(fullName.text)) {
+          setState(() => errorMessage = 'Full name cannot contain numbers.');
+          return;
+        }
+        if (confirmPassword.text != password.text) {
+          setState(() => errorMessage = 'Confirm password does not match.');
+          return;
+        }
+        store.createLocalOwnerAccount(
+          fullName: fullName.text,
+          email: email.text,
+          password: password.text,
+        );
+      } else {
+        store.signInLocalAccount(
+          email: email.text,
+          password: password.text,
+          role: UserRole.owner,
+        );
+      }
+    } catch (error) {
+      setState(() =>
+          errorMessage = error.toString().replaceFirst('Bad state: ', ''));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+        color: oceanCanvas,
+        child: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              math.max(18, (MediaQuery.sizeOf(context).width - 480) / 2 + 18),
+              20,
+              math.max(18, (MediaQuery.sizeOf(context).width - 480) / 2 + 18),
+              16,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  createAccount ? 'Create owner account' : 'Welcome back',
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.7,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  createAccount
+                      ? 'Fill in your details to create an owner workspace.'
+                      : 'Sign in to continue',
+                  style: const TextStyle(color: oceanMuted, fontSize: 13),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'I AM A',
+                  style: TextStyle(
+                    color: oceanMuted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const SizedBox(height: 4),
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 2,
+                  childAspectRatio: 3.45,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  children: [
+                    _roleChoice(
+                        _CompactLoginRole.owner, Icons.home_outlined, 'Owner'),
+                    _roleChoice(_CompactLoginRole.tenant,
+                        Icons.person_outline_rounded, 'Tenant'),
+                    _roleChoice(_CompactLoginRole.technician,
+                        Icons.bolt_rounded, 'Technician'),
+                    _roleChoice(_CompactLoginRole.agent,
+                        Icons.work_outline_rounded, 'Agent'),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                if (createAccount) ...[
+                  const Text('Full name', style: TextStyle(fontSize: 12)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: fullName,
+                    textCapitalization: TextCapitalization.words,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.deny(RegExp(r'[0-9]')),
+                    ],
+                    decoration: const InputDecoration(
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                    ),
+                  ),
+                  const SizedBox(height: 13),
+                ],
+                const Text('Email', style: TextStyle(fontSize: 12)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: email,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                  ),
+                ),
+                const SizedBox(height: 13),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final twoColumn =
+                        createAccount && constraints.maxWidth >= 430;
+                    final passwordField = Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text('Password', style: TextStyle(fontSize: 12)),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: password,
+                          obscureText: obscure,
+                          decoration: InputDecoration(
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 13),
+                            suffixIcon: IconButton(
+                              onPressed: () =>
+                                  setState(() => obscure = !obscure),
+                              icon: Icon(obscure
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                    final confirmField = Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text('Confirm password',
+                            style: TextStyle(fontSize: 12)),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: confirmPassword,
+                          obscureText: obscure,
+                          decoration: const InputDecoration(
+                            contentPadding: EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 13),
+                          ),
+                        ),
+                      ],
+                    );
+                    if (!createAccount) return passwordField;
+                    if (twoColumn) {
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: passwordField),
+                          const SizedBox(width: 12),
+                          Expanded(child: confirmField),
+                        ],
+                      );
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        passwordField,
+                        const SizedBox(height: 13),
+                        confirmField,
+                      ],
+                    );
+                  },
+                ),
+                if (errorMessage != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF1F2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFECACA)),
+                    ),
+                    child: Text(
+                      errorMessage!,
+                      style: const TextStyle(
+                        color: Color(0xFFB42318),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+                if (!createAccount)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () {
+                        if (!isValidEmailInput(email.text)) {
+                          setState(() => errorMessage =
+                              'Enter your registered email first.');
+                          return;
+                        }
+                        final exists =
+                            RentalStoreScope.of(context).hasLocalAccount(
+                          email.text,
+                          UserRole.owner,
+                        );
+                        setState(() => errorMessage = exists
+                            ? 'Password reset link will be sent when email/SMS service is connected. For now, contact the app owner/admin.'
+                            : 'No owner account found for this email.');
+                      },
+                      child: const Text('Forgot password?',
+                          style: TextStyle(fontSize: 12)),
+                    ),
+                  )
+                else
+                  const SizedBox(height: 12),
+                Center(
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        createAccount
+                            ? 'Already have an account? '
+                            : 'Don’t have an account? ',
+                        style: const TextStyle(
+                          color: oceanMuted,
+                          fontSize: 12,
+                        ),
+                      ),
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            createAccount = !createAccount;
+                            errorMessage = null;
+                            if (createAccount && password.text == 'password') {
+                              password.clear();
+                            }
+                          });
+                        },
+                        child: Text(
+                          createAccount ? 'Sign in' : 'Create new account',
+                          style: const TextStyle(
+                            color: oceanDeep,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                        colors: [oceanSky, oceanBlue, oceanDeep]),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: oceanBlue.withOpacity(0.24),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    onPressed: login,
+                    child: Text(createAccount
+                        ? 'Create Owner Account'
+                        : 'Log in as $roleName'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Tenant, technician and agent access remain under maintenance. Owner account creation is enabled for this prototype.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: oceanMuted, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+  Widget _roleChoice(_CompactLoginRole value, IconData icon, String label) {
+    final active = role == value;
+    final enabled = value == _CompactLoginRole.owner;
+    return Material(
+      color: active
+          ? const Color(0xFFEFF6FF)
+          : enabled
+              ? Colors.white
+              : const Color(0xFFF3F4F6),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: enabled ? () => setState(() => role = value) : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: active
+                  ? oceanBlue
+                  : enabled
+                      ? const Color(0xFFE2E8F0)
+                      : const Color(0xFFE5E7EB),
+              width: active ? 1.4 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 17,
+                color: active
+                    ? oceanBlue
+                    : enabled
+                        ? oceanMuted
+                        : const Color(0xFFB8C0CC),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: active
+                            ? oceanDeep
+                            : enabled
+                                ? oceanText
+                                : const Color(0xFF9CA3AF),
+                        fontWeight: active ? FontWeight.w800 : FontWeight.w500,
+                      ),
+                    ),
+                    if (!enabled)
+                      const Text(
+                        'Under maintenance',
+                        maxLines: 1,
+                        style: TextStyle(
+                          color: Color(0xFFE05A35),
+                          fontSize: 8,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CloudLoginPanel extends StatefulWidget {
+  const _CloudLoginPanel({required this.store});
+
+  final RentalStore store;
+
+  @override
+  State<_CloudLoginPanel> createState() => _CloudLoginPanelState();
+}
+
+class _CloudLoginPanelState extends State<_CloudLoginPanel> {
+  final formKey = GlobalKey<FormState>();
+  final fullName = TextEditingController();
+  final email = TextEditingController();
+  final password = TextEditingController();
+  bool createAccount = false;
+  String accountRole = 'owner';
+  bool obscurePassword = true;
+  bool loading = false;
+  String? errorMessage;
+
+  @override
+  void dispose() {
+    fullName.dispose();
+    email.dispose();
+    password.dispose();
+    super.dispose();
+  }
+
+  Future<void> submit() async {
+    if (!(formKey.currentState?.validate() ?? false)) return;
+    setState(() {
+      loading = true;
+      errorMessage = null;
+    });
+    try {
+      if (createAccount) {
+        final signedIn = await widget.store.registerCloudAccount(
+          fullName: fullName.text,
+          email: email.text,
+          password: password.text,
+          role: accountRole,
+        );
+        if (!signedIn && mounted) {
+          setState(() {
+            createAccount = false;
+            errorMessage =
+                'Account created. Check your email to confirm it, then sign in.';
+          });
+        }
+      } else {
+        await widget.store.signInWithEmail(
+          email: email.text,
+          password: password.text,
+        );
+      }
+    } on AuthException catch (error) {
+      if (mounted) setState(() => errorMessage = error.message);
+    } catch (error) {
+      if (mounted) {
+        setState(() => errorMessage = 'Unable to continue: $error');
+      }
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> resetPassword() async {
+    final value = email.text.trim();
+    if (value.isEmpty) {
+      setState(() => errorMessage = 'Enter your email address first.');
+      return;
+    }
+    setState(() {
+      loading = true;
+      errorMessage = null;
+    });
+    try {
+      await widget.store.sendPasswordReset(value);
+      if (mounted) {
+        setState(() => errorMessage = 'Password reset email sent.');
+      }
+    } on AuthException catch (error) {
+      if (mounted) setState(() => errorMessage = error.message);
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(30),
+      key: const Key('cloud_login_panel'),
+      padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: const Color(0xFF17233C),
-        borderRadius: BorderRadius.circular(28),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDCE4F1)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF17233C).withOpacity(0.18),
-            blurRadius: 28,
-            offset: const Offset(0, 18),
+            color: const Color(0xFF3156A3).withOpacity(0.10),
+            blurRadius: 34,
+            offset: const Offset(0, 16),
+          ),
+        ],
+      ),
+      child: Form(
+        key: formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              createAccount ? 'Create your account' : 'Welcome back',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: const Color(0xFF101828),
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              createAccount
+                  ? 'Owners create a workspace; invited tenants connect using the same email supplied by their owner.'
+                  : 'Sign in with the account assigned to you.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF667085)),
+            ),
+            const SizedBox(height: 22),
+            if (createAccount) ...[
+              DropdownButtonFormField<String>(
+                value: accountRole,
+                decoration: const InputDecoration(
+                  labelText: 'Account type',
+                  prefixIcon: Icon(Icons.badge_outlined),
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'owner',
+                    child: Text('Property owner'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'tenant',
+                    child: Text('Invited tenant'),
+                  ),
+                ],
+                onChanged: (value) => setState(
+                  () => accountRole = value ?? accountRole,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: fullName,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Full name',
+                  prefixIcon: Icon(Icons.person_outline_rounded),
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) => value == null || value.trim().length < 2
+                    ? 'Enter your full name.'
+                    : null,
+              ),
+              const SizedBox(height: 12),
+            ],
+            TextFormField(
+              controller: email,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.email],
+              decoration: const InputDecoration(
+                labelText: 'Email address',
+                prefixIcon: Icon(Icons.mail_outline_rounded),
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) => value == null || !value.contains('@')
+                  ? 'Enter a valid email address.'
+                  : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: password,
+              obscureText: obscurePassword,
+              onFieldSubmitted: (_) => loading ? null : submit(),
+              autofillHints: const [AutofillHints.password],
+              decoration: InputDecoration(
+                labelText: 'Password',
+                prefixIcon: const Icon(Icons.lock_outline_rounded),
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  onPressed: () => setState(
+                    () => obscurePassword = !obscurePassword,
+                  ),
+                  icon: Icon(
+                    obscurePassword
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                  ),
+                ),
+              ),
+              validator: (value) => value == null || value.length < 8
+                  ? 'Use at least 8 characters.'
+                  : null,
+            ),
+            if (errorMessage != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF4F7FC),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  errorMessage!,
+                  style: const TextStyle(color: Color(0xFF344054)),
+                ),
+              ),
+            ],
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: loading ? null : submit,
+              icon: loading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(createAccount
+                      ? Icons.person_add_rounded
+                      : Icons.login_rounded),
+              label: Text(createAccount ? 'Create Account' : 'Sign In'),
+            ),
+            if (!createAccount)
+              TextButton(
+                onPressed: loading ? null : resetPassword,
+                child: const Text('Forgot password?'),
+              ),
+            const Divider(height: 24),
+            const Text(
+              'New accounts are invitation-only. Contact your property owner for access.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFF667085), fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.shield_outlined, size: 15, color: Color(0xFF667085)),
+                SizedBox(width: 6),
+                Text(
+                  'Protected by Supabase Authentication',
+                  style: TextStyle(color: Color(0xFF667085), fontSize: 12),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LoginExperience extends StatelessWidget {
+  const _LoginExperience({
+    required this.onOwner,
+    required this.onAgent,
+    required this.onTenant,
+  });
+
+  final VoidCallback onOwner;
+  final VoidCallback onAgent;
+  final VoidCallback onTenant;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, constraints) {
+      if (constraints.maxWidth < 100000) {
+        return _CompactRoleLogin(
+          onOwner: onOwner,
+          onAgent: onAgent,
+          onTenant: onTenant,
+        );
+      }
+      return Stack(
+        children: [
+          const Positioned.fill(child: _LoginBackdrop()),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 680),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const _StandardLoginBrand(),
+                      const SizedBox(height: 24),
+                      _LoginAccessPanel(
+                        onOwner: onOwner,
+                        onAgent: onAgent,
+                        onTenant: onTenant,
+                      ),
+                      const SizedBox(height: 18),
+                      const Text(
+                        'Collections • Expenses • Utilities • Tenants',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Color(0xFF667085),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    });
+  }
+}
+
+class _StandardLoginBrand extends StatelessWidget {
+  const _StandardLoginBrand();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            color: const Color(0xFF3156A3),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF3156A3).withOpacity(0.18),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.maps_home_work_rounded,
+            color: Colors.white,
+            size: 32,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          'Rental Facility Manager',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                color: const Color(0xFF17233C),
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.8,
+              ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Property management, simplified.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Color(0xFF667085), fontSize: 15),
+        ),
+      ],
+    );
+  }
+}
+
+class _LoginBackdrop extends StatelessWidget {
+  const _LoginBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFF8FAFD), Color(0xFFF0F4FB), Color(0xFFE8EEFC)],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            left: -120,
+            top: -100,
+            child: _GlowOrb(
+              size: 360,
+              color: const Color(0xFF8FAEFF).withOpacity(0.16),
+            ),
+          ),
+          Positioned(
+            right: -150,
+            bottom: -180,
+            child: _GlowOrb(
+              size: 460,
+              color: const Color(0xFF3156A3).withOpacity(0.10),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GlowOrb extends StatelessWidget {
+  const _GlowOrb({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(colors: [color, color.withOpacity(0)]),
+      ),
+    );
+  }
+}
+
+class _LoginAccessPanel extends StatelessWidget {
+  const _LoginAccessPanel({
+    required this.onOwner,
+    required this.onAgent,
+    required this.onTenant,
+  });
+
+  final VoidCallback onOwner;
+  final VoidCallback onAgent;
+  final VoidCallback onTenant;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('login_access_panel'),
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDCE4F1)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF3156A3).withOpacity(0.10),
+            blurRadius: 34,
+            offset: const Offset(0, 16),
           ),
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            padding: const EdgeInsets.all(14),
+            width: 44,
+            height: 5,
+            alignment: Alignment.centerLeft,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: const Icon(
-              Icons.apartment_rounded,
-              color: Colors.white,
-              size: 38,
+              color: const Color(0xFF3156A3),
+              borderRadius: BorderRadius.circular(99),
             ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 22),
           Text(
-            'Rental Facility Manager',
-            style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                  color: Colors.white,
+            'Choose your workspace',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.w900,
+                  color: const Color(0xFF101828),
+                  letterSpacing: -0.8,
                 ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Track rental collection, facility costs, utilities, and tenant payment status from one workspace.',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.white.withOpacity(0.82),
-                  height: 1.35,
-                ),
+          const SizedBox(height: 8),
+          const Text(
+            'Continue with the role assigned to your account.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Color(0xFF667085), fontSize: 15),
           ),
-          const SizedBox(height: 30),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: const [
-              _LoginFeatureChip(
-                icon: Icons.payments_rounded,
-                label: 'Collections',
-              ),
-              _LoginFeatureChip(
-                icon: Icons.receipt_long_rounded,
-                label: 'Expenses',
-              ),
-              _LoginFeatureChip(
-                icon: Icons.water_drop_rounded,
-                label: 'Utilities',
-              ),
-              _LoginFeatureChip(
-                icon: Icons.people_alt_rounded,
-                label: 'Tenants',
+          const SizedBox(height: 24),
+          _RoleAccessTile(
+            icon: Icons.key_rounded,
+            title: 'Login as Owner',
+            subtitle: 'Manage facilities, finances and approvals',
+            onTap: onOwner,
+            emphasized: true,
+          ),
+          const SizedBox(height: 10),
+          _RoleAccessTile(
+            icon: Icons.real_estate_agent_rounded,
+            title: 'Login as Property Agent',
+            subtitle: 'Manage daily operations and tenants',
+            onTap: onAgent,
+            disabled: true,
+          ),
+          const SizedBox(height: 10),
+          _RoleAccessTile(
+            icon: Icons.person_rounded,
+            title: 'Login as Tenant',
+            subtitle: 'View bills, payments and requests',
+            onTap: onTenant,
+            disabled: true,
+          ),
+          const SizedBox(height: 20),
+          const Row(
+            children: [
+              Icon(Icons.lock_outline_rounded,
+                  size: 15, color: Color(0xFF98A2B3)),
+              SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Secure role-based access',
+                  style: TextStyle(color: Color(0xFF98A2B3), fontSize: 12),
+                ),
               ),
             ],
           ),
@@ -1512,67 +5211,110 @@ class _LoginHeroPanel extends StatelessWidget {
   }
 }
 
-class _LoginFeatureChip extends StatelessWidget {
-  const _LoginFeatureChip({required this.icon, required this.label});
+class _RoleAccessTile extends StatelessWidget {
+  const _RoleAccessTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.emphasized = false,
+    this.disabled = false,
+  });
 
   final IconData icon;
-  final String label;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool emphasized;
+  final bool disabled;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white, size: 18),
-          const SizedBox(width: 7),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
+    final foreground = disabled
+        ? const Color(0xFF98A2B3)
+        : emphasized
+            ? Colors.white
+            : const Color(0xFF17233C);
+    return Material(
+      color: emphasized
+          ? const Color(0xFF3156A3)
+          : disabled
+              ? const Color(0xFFF4F5F7)
+              : Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: disabled ? null : onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: emphasized
+                  ? const Color(0xFF3156A3)
+                  : const Color(0xFFDDE3EC),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LoginRolePanel extends StatelessWidget {
-  const _LoginRolePanel({required this.roleButtons});
-
-  final Widget roleButtons;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(26),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Welcome back',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: emphasized
+                      ? Colors.white.withOpacity(0.14)
+                      : disabled
+                          ? const Color(0xFFE9ECF1)
+                          : const Color(0xFFE8EEFC),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: emphasized
+                      ? Colors.white
+                      : disabled
+                          ? const Color(0xFF98A2B3)
+                          : const Color(0xFF3156A3),
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: foreground,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: emphasized
+                            ? Colors.white.withOpacity(0.7)
+                            : const Color(0xFF667085),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (disabled)
+                const Text(
+                  'Under maintenance',
+                  style: TextStyle(
+                    color: Color(0xFF98A2B3),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
                   ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Choose a role to preview the prototype flow.',
-              style: TextStyle(color: Color(0xFF667085)),
-            ),
-            const SizedBox(height: 22),
-            roleButtons,
-          ],
+                )
+              else
+                Icon(Icons.arrow_forward_rounded, color: foreground, size: 19),
+            ],
+          ),
         ),
       ),
     );
@@ -1586,6 +5328,173 @@ class OwnerHomeScreen extends StatefulWidget {
   State<OwnerHomeScreen> createState() => _OwnerHomeScreenState();
 }
 
+class AnimatedTabIndexedStack extends StatefulWidget {
+  const AnimatedTabIndexedStack({
+    required this.index,
+    required this.children,
+    super.key,
+  });
+
+  final int index;
+  final List<Widget> children;
+
+  @override
+  State<AnimatedTabIndexedStack> createState() =>
+      _AnimatedTabIndexedStackState();
+}
+
+class _AnimatedTabIndexedStackState extends State<AnimatedTabIndexedStack>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController controller;
+  late int currentIndex;
+  late int previousIndex;
+  int direction = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    currentIndex = widget.index;
+    previousIndex = widget.index;
+    controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    )..value = 1;
+  }
+
+  @override
+  void didUpdateWidget(covariant AnimatedTabIndexedStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.index == currentIndex) return;
+    previousIndex = currentIndex;
+    direction = widget.index > currentIndex ? 1 : -1;
+    currentIndex = widget.index;
+    controller.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final curved = CurvedAnimation(
+      parent: controller,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    return Stack(
+      fit: StackFit.expand,
+      children: List.generate(widget.children.length, (index) {
+        final child = KeyedSubtree(
+          key: ValueKey('tab_$index'),
+          child: widget.children[index],
+        );
+        if (index == currentIndex) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: Offset(0.045 * direction, 0),
+              end: Offset.zero,
+            ).animate(curved),
+            child: FadeTransition(
+              opacity: Tween<double>(begin: 0.0, end: 1.0).animate(curved),
+              child: child,
+            ),
+          );
+        }
+        if (index == previousIndex && controller.value < 1) {
+          return IgnorePointer(
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: Offset.zero,
+                end: Offset(-0.025 * direction, 0),
+              ).animate(curved),
+              child: FadeTransition(
+                opacity: Tween<double>(begin: 1.0, end: 0.0).animate(curved),
+                child: child,
+              ),
+            ),
+          );
+        }
+        return Offstage(
+          offstage: true,
+          child: TickerMode(enabled: false, child: child),
+        );
+      }),
+    );
+  }
+}
+
+class NotificationBellIcon extends StatefulWidget {
+  const NotificationBellIcon({required this.unreadCount, super.key});
+
+  final int unreadCount;
+
+  @override
+  State<NotificationBellIcon> createState() => _NotificationBellIconState();
+}
+
+class _NotificationBellIconState extends State<NotificationBellIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController controller;
+  late final Animation<double> turns;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 760),
+    );
+    turns = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0, end: -0.055), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: -0.055, end: 0.055), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 0.055, end: -0.045), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: -0.045, end: 0.035), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 0.035, end: 0), weight: 1),
+    ]).animate(CurvedAnimation(parent: controller, curve: Curves.easeInOut));
+    if (widget.unreadCount > 0) controller.repeat();
+  }
+
+  @override
+  void didUpdateWidget(covariant NotificationBellIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.unreadCount > 0 && !controller.isAnimating) {
+      controller.repeat();
+    }
+    if (widget.unreadCount == 0 && controller.isAnimating) {
+      controller.stop();
+      controller.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bell = RotationTransition(
+      turns: widget.unreadCount > 0
+          ? turns
+          : const AlwaysStoppedAnimation<double>(0),
+      child: Icon(
+        widget.unreadCount > 0
+            ? Icons.notifications_active_rounded
+            : Icons.notifications_outlined,
+      ),
+    );
+    if (widget.unreadCount == 0) return bell;
+    return Badge(
+      label: Text('${widget.unreadCount}'),
+      child: bell,
+    );
+  }
+}
+
 class _OwnerHomeScreenState extends State<OwnerHomeScreen> {
   int selectedIndex = 2;
 
@@ -1593,88 +5502,141 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> {
     FacilitiesTab(),
     AdvancedReviewTab(),
     OwnerReportTab(),
-    UtilitiesTab(),
+    OwnerRequestsFeedTab(),
     OwnerAccountTab(),
-  ];
-
-  static const titles = [
-    'Facilities',
-    'Slip Review',
-    'Main',
-    'Utilities',
-    'Account',
   ];
 
   @override
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
+    final titles = [
+      tr(context, 'Properties'),
+      tr(context, 'Payments'),
+      tr(context, 'Home'),
+      tr(context, 'Requests'),
+      tr(context, 'Profile'),
+    ];
     final title = selectedIndex == 2
-        ? '${timeGreeting(DateTime.now())}, ${firstName(store.currentUser!.name)}'
+        ? '${tr(context, timeGreeting(DateTime.now()))}, ${firstName(store.currentUser!.name)}'
         : titles[selectedIndex];
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: selectedIndex == 2 ? Colors.white : oceanCanvas,
+        foregroundColor: oceanText,
         title: Text(title),
         actions: [
           IconButton(
-            tooltip: 'Notifications',
+            tooltip: tr(context, 'Notifications'),
             onPressed: () => showNotifications(context),
-            icon: store.unreadNotificationCount == 0
-                ? const Icon(Icons.notifications_outlined)
-                : Badge(
-                    label: Text('${store.unreadNotificationCount}'),
-                    child: const Icon(Icons.notifications_outlined),
-                  ),
-          ),
-          IconButton(
-            tooltip: 'Logout',
-            onPressed: store.logout,
-            icon: const Icon(Icons.logout_rounded),
+            icon: NotificationBellIcon(
+              unreadCount: store.unreadNotificationCount,
+            ),
           ),
         ],
       ),
-      body: IndexedStack(
+      body: AnimatedTabIndexedStack(
         index: selectedIndex,
         children: pages,
       ),
       bottomNavigationBar: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
-          child: NavigationBar(
-            selectedIndex: selectedIndex,
-            height: 72,
-            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-            onDestinationSelected: (index) {
-              setState(() {
-                selectedIndex = index;
-              });
-            },
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.maps_home_work_outlined),
-                selectedIcon: Icon(Icons.maps_home_work_rounded),
-                label: 'Facilities',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.fact_check_outlined),
-                selectedIcon: Icon(Icons.fact_check_rounded),
-                label: 'Review',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home_rounded),
-                label: 'Main',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.water_drop_outlined),
-                selectedIcon: Icon(Icons.water_drop_rounded),
-                label: 'Utilities',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.account_circle_outlined),
-                selectedIcon: Icon(Icons.account_circle_rounded),
-                label: 'Account',
-              ),
+        child: AppBottomNavigator(
+          selectedIndex: selectedIndex,
+          onSelected: (index) {
+            if (index == selectedIndex) return;
+            setState(() {
+              selectedIndex = index;
+            });
+          },
+          items: [
+            AppBottomNavItem(
+              icon: Icons.apartment_outlined,
+              activeIcon: Icons.apartment_rounded,
+              label: tr(context, 'Properties'),
+            ),
+            AppBottomNavItem(
+              icon: Icons.payments_outlined,
+              activeIcon: Icons.payments_rounded,
+              label: tr(context, 'Payments'),
+            ),
+            AppBottomNavItem(
+              icon: Icons.home_outlined,
+              activeIcon: Icons.home_rounded,
+              label: tr(context, 'Home'),
+            ),
+            AppBottomNavItem(
+              icon: Icons.bolt_outlined,
+              activeIcon: Icons.bolt_rounded,
+              label: tr(context, 'Requests'),
+            ),
+            AppBottomNavItem(
+              icon: Icons.person_outline_rounded,
+              activeIcon: Icons.person_rounded,
+              label: tr(context, 'Profile'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class AppBottomNavItem {
+  const AppBottomNavItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    this.badgeLabel,
+  });
+
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  final String? badgeLabel;
+}
+
+class AppBottomNavigator extends StatelessWidget {
+  const AppBottomNavigator({
+    required this.selectedIndex,
+    required this.items,
+    required this.onSelected,
+    super.key,
+  });
+
+  final int selectedIndex;
+  final List<AppBottomNavItem> items;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.transparent,
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x140F172A),
+              blurRadius: 18,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: SizedBox(
+          height: 64,
+          child: Row(
+            children: [
+              for (var index = 0; index < items.length; index++)
+                Expanded(
+                  child: _AppBottomNavTile(
+                    item: items[index],
+                    selected: index == selectedIndex,
+                    onTap: () => onSelected(index),
+                  ),
+                ),
             ],
           ),
         ),
@@ -1683,100 +5645,163 @@ class _OwnerHomeScreenState extends State<OwnerHomeScreen> {
   }
 }
 
-class OwnerReportTab extends StatelessWidget {
+class _AppBottomNavTile extends StatelessWidget {
+  const _AppBottomNavTile({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AppBottomNavItem item;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? oceanDeep : const Color(0xFF64748B);
+    final labelStyle = TextStyle(
+      color: color,
+      fontSize: 10,
+      height: 1.1,
+      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+    );
+    final icon = Icon(
+      selected ? item.activeIcon : item.icon,
+      color: color,
+      size: 22,
+    );
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Stack(
+          alignment: Alignment.topCenter,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              width: selected ? 46 : 0,
+              height: 3,
+              decoration: BoxDecoration(
+                color: selected ? oceanDeep : Colors.transparent,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (item.badgeLabel == null)
+                      icon
+                    else
+                      Badge(
+                        label: Text(item.badgeLabel!),
+                        child: icon,
+                      ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: labelStyle,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class OwnerReportTab extends StatefulWidget {
   const OwnerReportTab({super.key});
+
+  @override
+  State<OwnerReportTab> createState() => _OwnerReportTabState();
+}
+
+class _OwnerReportTabState extends State<OwnerReportTab> {
+  late int reportYear;
+
+  @override
+  void initState() {
+    super.initState();
+    reportYear = DateTime.now().year;
+  }
 
   @override
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
-    final reports = store.facilityReports;
-    final reportYear = DateTime.now().year;
+    final reports = store.facilityReportsForYear(reportYear);
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
       children: [
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 960),
-          child: Row(
-            children: [
-              Expanded(
-                child: MetricCard(
-                  title: 'Total Rental Collection',
-                  value: money(store.totalInflow),
-                  icon: Icons.payments_rounded,
-                  color: const Color(0xFF16856B),
-                  fullWidth: true,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const FinancialDetailsScreen(
-                        mode: FinancialDetailMode.collection,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: MetricCard(
-                  title: 'Total Expenses',
-                  value: money(store.totalOutflow),
-                  icon: Icons.receipt_long_rounded,
-                  color: const Color(0xFFD16432),
-                  fullWidth: true,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const FinancialDetailsScreen(
-                        mode: FinancialDetailMode.expenses,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: MetricCard(
-                  title: 'Net Rental Income',
-                  value: money(store.netCashflow),
-                  icon: Icons.savings_rounded,
-                  positive: store.netCashflow >= 0,
-                  fullWidth: true,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const FinancialDetailsScreen(
-                        mode: FinancialDetailMode.netIncome,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+        OceanBreezeOwnerHero(store: store),
         const SizedBox(height: 16),
         YearlyFinancialChart(
           year: reportYear,
           summaries: store.yearlyFinancialSummary(reportYear),
+          onPreviousYear: () => setState(() => reportYear--),
+          onNextYear: reportYear >= DateTime.now().year
+              ? null
+              : () => setState(() => reportYear++),
         ),
         const SizedBox(height: 20),
         Text(
-          'Tap a Facility for Individual Performance',
-          style: Theme.of(context).textTheme.titleLarge,
+          '${tr(context, 'Tap a facility for performance')} · $reportYear',
+          style: Theme.of(context)
+              .textTheme
+              .titleMedium
+              ?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 8),
-        ...reports.map((report) {
+        ...reports.indexed.map((entry) {
+          final index = entry.$1;
+          final report = entry.$2;
+          final colors = facilityCardColors(index);
           return Card(
             elevation: 0,
+            color: colors.$1,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: BorderSide(color: colors.$2.withOpacity(0.24)),
+            ),
             child: ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) =>
-                        FacilityMasterDetailScreen(facility: report.facility),
+                    builder: (_) => FacilityMasterDetailScreen(
+                      facility: report.facility,
+                      year: reportYear,
+                    ),
                   ),
                 );
               },
-              leading:
-                  const CircleAvatar(child: Icon(Icons.maps_home_work_rounded)),
-              title: Text(report.facility.name),
+              leading: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: colors.$2,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Icons.apartment_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              title: Text(
+                report.facility.name,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
               subtitle: Text(
                 '${report.facility.address} • ${facilityStatusText(report.facility)}',
               ),
@@ -1812,10 +5837,449 @@ class OwnerReportTab extends StatelessWidget {
   }
 }
 
+class OceanBreezeOwnerHero extends StatelessWidget {
+  const OceanBreezeOwnerHero({required this.store, super.key});
+
+  final RentalStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    final facilityIds = store.ownerFacilities.map((item) => item.id).toSet();
+    final portfolioTenancies = store.tenancies
+        .where((item) => facilityIds.contains(item.facilityId))
+        .toList();
+    final activeTenancies =
+        portfolioTenancies.where((item) => item.active).length;
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 960),
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [oceanSky, oceanBlue, oceanDeep],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: oceanBlue.withOpacity(0.22),
+            blurRadius: 32,
+            offset: const Offset(0, 16),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                tr(context, 'Portfolio overview'),
+                style: const TextStyle(color: Color(0xDDFFFFFF), fontSize: 14),
+              ),
+              const Spacer(),
+              Tooltip(
+                message: 'Account details',
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () => showOwnerAccountSetupDialog(context),
+                  child: CircleAvatar(
+                    backgroundColor: Colors.white.withOpacity(0.22),
+                    foregroundColor: Colors.white,
+                    child: Text(
+                      firstName(store.currentUser!.name).substring(0, 1),
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _OceanFinancialTotal(
+                  label: tr(context, 'Total Rental Collection'),
+                  value: money(store.totalInflow),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const FinancialDetailsScreen(
+                        mode: FinancialDetailMode.collection,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 58,
+                margin: const EdgeInsets.symmetric(horizontal: 14),
+                color: Colors.white.withOpacity(.28),
+              ),
+              Expanded(
+                child: _OceanFinancialTotal(
+                  label: tr(context, 'Total Expenses'),
+                  value: money(store.totalOutflow),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const FinancialDetailsScreen(
+                        mode: FinancialDetailMode.expenses,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: _OceanHeroChip(
+                  value: '${store.ownerFacilities.length}',
+                  label: tr(context, 'Properties'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _OceanHeroChip(
+                  value: '$activeTenancies',
+                  label: tr(context, 'Active units'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _OceanHeroChip(
+                  value: '${store.pendingUtilityBillsThisMonth.length}',
+                  label: tr(context, 'Readings left'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => Scaffold(
+                        appBar: AppBar(title: const Text('Utility readings')),
+                        body: const UtilitiesTab(),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Kept for possible future analytics screen use.
+// ignore: unused_element
+class PortfolioHealthCard extends StatelessWidget {
+  const PortfolioHealthCard({required this.store, super.key});
+
+  final RentalStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    final facilityIds = store.ownerFacilities.map((item) => item.id).toSet();
+    final tenancies = store.tenancies
+        .where((item) => facilityIds.contains(item.facilityId))
+        .toList();
+    final active = tenancies.where((item) => item.active).length;
+    final occupancy = tenancies.isEmpty ? 0.0 : active / tenancies.length * 100;
+    final ratio =
+        store.totalOutflow == 0 ? null : store.totalInflow / store.totalOutflow;
+    final roi = store.totalOutflow == 0
+        ? null
+        : store.netCashflow / store.totalOutflow * 100;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: oceanText.withOpacity(0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Portfolio health',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _PortfolioHealthMetric(
+                  icon: Icons.pie_chart_outline_rounded,
+                  value: '${occupancy.toStringAsFixed(1)}%',
+                  label: tr(context, 'Occupancy'),
+                ),
+              ),
+              Expanded(
+                child: _PortfolioHealthMetric(
+                  icon: Icons.compare_arrows_rounded,
+                  value: ratio == null ? 'N/A' : '${ratio.toStringAsFixed(2)}x',
+                  label: tr(context, 'Inflow / outflow'),
+                ),
+              ),
+              Expanded(
+                child: _PortfolioHealthMetric(
+                  icon: Icons.trending_up_rounded,
+                  value: roi == null ? 'N/A' : '${roi.toStringAsFixed(1)}%',
+                  label: tr(context, 'ROI'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PortfolioHealthMetric extends StatelessWidget {
+  const _PortfolioHealthMetric({
+    required this.icon,
+    required this.value,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: oceanSoft,
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, color: oceanDeep, size: 18),
+          ),
+          const SizedBox(height: 7),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            ),
+          ),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: oceanMuted, fontSize: 10),
+          ),
+        ],
+      );
+}
+
+class _OceanFinancialTotal extends StatelessWidget {
+  const _OceanFinancialTotal({
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      const TextStyle(color: Color(0xCCFFFFFF), fontSize: 11)),
+              const SizedBox(height: 3),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -.7,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _OceanHeroChip extends StatelessWidget {
+  const _OceanHeroChip({
+    required this.value,
+    required this.label,
+    this.onTap,
+  });
+
+  final String value;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.20)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  label,
+                  style:
+                      const TextStyle(color: Color(0xCCFFFFFF), fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+}
+
+// ignore: unused_element
+class _WorkflowShortcut extends StatelessWidget {
+  const _WorkflowShortcut({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    // ignore: unused_element_parameter
+    this.pendingCount = 0,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final int pendingCount;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 154,
+        child: Card(
+          child: InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: onTap,
+            child: Stack(
+              children: [
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: oceanSoft,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(icon, color: oceanBlue, size: 20),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(label,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700)),
+                            Text(
+                              pendingCount == 0
+                                  ? 'All units completed'
+                                  : '$pendingCount unit${pendingCount == 1 ? '' : 's'} left this month',
+                              style: TextStyle(
+                                color: pendingCount == 0
+                                    ? const Color(0xFF16835D)
+                                    : oceanMuted,
+                                fontSize: 9,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (pendingCount > 0)
+                  Positioned(
+                    right: 7,
+                    top: 7,
+                    child: Container(
+                      constraints:
+                          const BoxConstraints(minWidth: 20, minHeight: 20),
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFDC2626),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '$pendingCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+}
+
 class FacilityDetailScreen extends StatefulWidget {
-  const FacilityDetailScreen({required this.facility, super.key});
+  const FacilityDetailScreen({
+    required this.facility,
+    required this.year,
+    super.key,
+  });
 
   final Facility facility;
+  final int year;
 
   @override
   State<FacilityDetailScreen> createState() => _FacilityDetailScreenState();
@@ -1828,13 +6292,16 @@ class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
     final facility = widget.facility;
-    final inflow = store.facilityInflow(facility.id);
-    final outflow = store.facilityOutflow(facility);
+    final inflow = store.facilityInflowForYear(facility.id, widget.year);
+    final outflow = store.facilityOutflowForYear(facility, widget.year);
     final net = inflow - outflow;
     final tenants = store.tenancies
         .where((tenancy) => tenancy.facilityId == facility.id)
         .toList();
-    final facilityBills = store.facilityBills(facility.id);
+    final facilityBills = store
+        .facilityBills(facility.id)
+        .where((bill) => bill.month.year == widget.year)
+        .toList();
     final displayedBills = selectedTenantId == null
         ? facilityBills
         : facilityBills
@@ -1856,7 +6323,7 @@ class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
               children: [
                 Expanded(
                   child: MetricCard(
-                    title: 'Rental Collection',
+                    title: tr(context, 'Rental Collection'),
                     value: money(inflow),
                     icon: Icons.payments_rounded,
                     color: const Color(0xFF16856B),
@@ -1866,7 +6333,7 @@ class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: MetricCard(
-                    title: 'Facility Expenses',
+                    title: tr(context, 'Facility Expenses'),
                     value: money(outflow),
                     icon: Icons.receipt_long_rounded,
                     color: const Color(0xFFD16432),
@@ -1876,7 +6343,7 @@ class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: MetricCard(
-                    title: 'Net Rental Income',
+                    title: tr(context, 'Net Rental Income'),
                     value: money(net),
                     icon: Icons.savings_rounded,
                     positive: net >= 0,
@@ -1889,14 +6356,29 @@ class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
           const SizedBox(height: 20),
           Row(
             children: [
-              Text('Tenants', style: Theme.of(context).textTheme.titleLarge),
+              Text(tr(context, 'Tenants'),
+                  style: Theme.of(context).textTheme.titleLarge),
               const Spacer(),
               if (selectedTenantId != null)
                 TextButton.icon(
                   onPressed: () => setState(() => selectedTenantId = null),
                   icon: const Icon(Icons.people_alt_outlined),
-                  label: const Text('All Tenants'),
+                  label: Text(tr(context, 'All Tenants')),
                 ),
+              if (selectedTenantId != null) const SizedBox(width: 6),
+              FilledButton.icon(
+                key: const Key('facility_detail_add_tenant_button'),
+                onPressed: () => showAddTenantDialog(context, facility),
+                icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                label: const Text('Add Tenant'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 13,
+                    vertical: 10,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -1935,8 +6417,8 @@ class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
           const SizedBox(height: 16),
           Text(
             selectedTenant == null
-                ? 'Bill Performance • All Tenants'
-                : 'Bill Performance • ${selectedTenant.name}',
+                ? '${tr(context, 'Bill Performance')} • ${tr(context, 'All Tenants')}'
+                : '${tr(context, 'Bill Performance')} • ${selectedTenant.name}',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 8),
@@ -1966,9 +6448,14 @@ class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
 }
 
 class FacilityMasterDetailScreen extends StatefulWidget {
-  const FacilityMasterDetailScreen({required this.facility, super.key});
+  const FacilityMasterDetailScreen({
+    required this.facility,
+    required this.year,
+    super.key,
+  });
 
   final Facility facility;
+  final int year;
 
   @override
   State<FacilityMasterDetailScreen> createState() =>
@@ -1978,6 +6465,7 @@ class FacilityMasterDetailScreen extends StatefulWidget {
 class _FacilityMasterDetailScreenState
     extends State<FacilityMasterDetailScreen> {
   String? selectedTenantId;
+  bool sidebarCollapsed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1989,180 +6477,686 @@ class _FacilityMasterDetailScreenState
     final bills = store
         .facilityBills(facility.id)
         .where((bill) =>
-            selectedTenantId == null || bill.tenantId == selectedTenantId)
+            bill.month.year == widget.year &&
+            (selectedTenantId == null || bill.tenantId == selectedTenantId))
         .toList();
     final selectedTenant =
         selectedTenantId == null ? null : store.userFor(selectedTenantId!);
-    final inflow = store.facilityInflow(facility.id);
-    final outflow = store.facilityOutflow(facility);
+    final inflow = store.facilityInflowForYear(facility.id, widget.year);
+    final outflow = store.facilityOutflowForYear(facility, widget.year);
 
     return Scaffold(
       appBar: AppBar(title: Text(facility.name)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(facility.address, style: Theme.of(context).textTheme.bodyLarge),
-          const SizedBox(height: 16),
-          Row(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 760) {
+            return _CompactFacilityPerformance(
+              facility: facility,
+              tenants: tenants,
+              bills: bills,
+              selectedTenantId: selectedTenantId,
+              inflow: inflow,
+              outflow: outflow,
+              year: widget.year,
+              onTenantSelected: (tenantId) {
+                setState(() => selectedTenantId = tenantId);
+              },
+            );
+          }
+          final detail = _FacilityBillPerformance(
+            facility: facility,
+            bills: bills,
+            selectedTenant: selectedTenant,
+            year: widget.year,
+          );
+          final expandedWidth = math.min(320.0, constraints.maxWidth * 0.42);
+          return Row(
             children: [
-              Expanded(
-                child: MetricCard(
-                  title: 'Rental Collection',
-                  value: money(inflow),
-                  icon: Icons.payments_rounded,
-                  color: const Color(0xFF16856B),
-                  fullWidth: true,
+              AnimatedContainer(
+                key: const Key('facility_performance_sidebar'),
+                duration: const Duration(milliseconds: 220),
+                width: sidebarCollapsed ? 76 : expandedWidth,
+                child: _FacilityPerformanceSidebar(
+                  facility: facility,
+                  tenants: tenants,
+                  selectedTenantId: selectedTenantId,
+                  inflow: inflow,
+                  outflow: outflow,
+                  onToggleCollapsed: () {
+                    setState(() => sidebarCollapsed = !sidebarCollapsed);
+                  },
+                  onTenantSelected: (tenantId) {
+                    setState(() {
+                      selectedTenantId = tenantId;
+                      sidebarCollapsed = true;
+                    });
+                  },
                 ),
               ),
-              const SizedBox(width: 12),
+              const VerticalDivider(width: 1),
               Expanded(
-                child: MetricCard(
-                  title: 'Facility Expenses',
-                  value: money(outflow),
-                  icon: Icons.receipt_long_rounded,
-                  color: const Color(0xFFD16432),
-                  fullWidth: true,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: MetricCard(
-                  title: 'Net Rental Income',
-                  value: money(inflow - outflow),
-                  icon: Icons.savings_rounded,
-                  positive: inflow - outflow >= 0,
-                  fullWidth: true,
+                child: Listener(
+                  behavior: HitTestBehavior.translucent,
+                  onPointerDown: (_) {
+                    if (!sidebarCollapsed) {
+                      setState(() => sidebarCollapsed = true);
+                    }
+                  },
+                  child: detail,
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 20),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final tenantPanel = Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Tenants',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Card(
-                    color: selectedTenantId == null
-                        ? const Color(0xFFE8EEFC)
-                        : null,
-                    child: ListTile(
-                      key: const Key('all_tenants_filter'),
-                      onTap: () => setState(() => selectedTenantId = null),
-                      leading: const Icon(Icons.groups_rounded),
-                      title: const Text('All Tenants'),
-                      subtitle: Text('${tenants.length} tenant(s)'),
-                    ),
-                  ),
-                  ...tenants.map((tenancy) {
-                    final tenant = store.userFor(tenancy.tenantId);
-                    final selected = tenant.id == selectedTenantId;
-                    return Card(
-                      color: selected ? const Color(0xFFE8EEFC) : null,
-                      child: ListTile(
-                        onTap: () =>
-                            setState(() => selectedTenantId = tenant.id),
-                        leading: Icon(
-                          selected
-                              ? Icons.check_circle_rounded
-                              : Icons.meeting_room_rounded,
-                          color: selected ? const Color(0xFF3156A3) : null,
-                        ),
-                        title: Text(tenant.name),
-                        subtitle: Text(
-                          '${tenancy.unitName} • Rent ${money(tenancy.monthlyRent)}',
-                        ),
-                        trailing: IconButton(
-                          tooltip: 'View tenant profile',
-                          onPressed: () => showTenantProfileDialog(
-                            context,
-                            tenant: tenant,
-                            tenancy: tenancy,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _FacilityPerformanceSidebar extends StatelessWidget {
+  const _FacilityPerformanceSidebar({
+    required this.facility,
+    required this.tenants,
+    required this.selectedTenantId,
+    required this.inflow,
+    required this.outflow,
+    required this.onToggleCollapsed,
+    required this.onTenantSelected,
+  });
+
+  final Facility facility;
+  final List<Tenancy> tenants;
+  final String? selectedTenantId;
+  final double inflow;
+  final double outflow;
+  final VoidCallback onToggleCollapsed;
+  final ValueChanged<String?> onTenantSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 200;
+        return ColoredBox(
+          color: Colors.white,
+          child: Padding(
+            padding: EdgeInsets.all(narrow ? 8 : 12),
+            child: Column(
+              crossAxisAlignment: narrow
+                  ? CrossAxisAlignment.center
+                  : CrossAxisAlignment.stretch,
+              children: [
+                if (narrow)
+                  IconButton(
+                    key: const Key('toggle_performance_sidebar_button'),
+                    tooltip: 'Expand summary and tenants',
+                    onPressed: onToggleCollapsed,
+                    icon: const Icon(Icons.chevron_right_rounded),
+                  )
+                else
+                  Row(
+                    children: [
+                      const Icon(Icons.dashboard_rounded,
+                          color: Color(0xFF3156A3)),
+                      const SizedBox(width: 9),
+                      const Expanded(
+                        child: Text(
+                          'FACILITY OVERVIEW',
+                          style: TextStyle(
+                            color: Color(0xFF667085),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.8,
                           ),
-                          icon: const Icon(Icons.account_circle_outlined),
                         ),
                       ),
-                    );
-                  }),
-                ],
-              );
-              final billPanel = Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    selectedTenant == null
-                        ? 'Bill Performance • All Tenants'
-                        : 'Bill Performance • ${selectedTenant.name}',
-                    key: const Key('bill_performance_detail'),
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                      IconButton(
+                        key: const Key('toggle_performance_sidebar_button'),
+                        tooltip: 'Collapse summary and tenants',
+                        onPressed: onToggleCollapsed,
+                        icon: const Icon(Icons.chevron_left_rounded),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  if (bills.isEmpty)
-                    const EmptyState(
-                      icon: Icons.receipt_long_outlined,
-                      title: 'No bill records',
-                      message:
-                          'This tenant does not have any bill records yet.',
-                    )
-                  else
-                    ...bills.map((bill) {
-                      final tenant = store.userFor(bill.tenantId);
-                      return Card(
-                        child: ListTile(
-                          leading: const Icon(Icons.receipt_long_rounded),
-                          title: Text(
-                              '${tenant.name} • ${monthLabel(bill.month)}'),
-                          subtitle: Text('Due ${money(bill.totalAmount)}'),
-                          trailing: StatusChip(status: bill.status),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: ListView(
+                    children: [
+                      if (narrow) ...[
+                        _CollapsedSidebarIcon(
+                          icon: Icons.payments_rounded,
+                          color: const Color(0xFF16856B),
+                          tooltip: 'Rental Collection',
+                          onTap: onToggleCollapsed,
                         ),
-                      );
-                    }),
-                ],
-              );
-              if (constraints.maxWidth < 760) {
-                return Column(
-                  children: [
-                    tenantPanel,
-                    const SizedBox(height: 18),
-                    billPanel,
-                  ],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(width: 300, child: tenantPanel),
-                  const SizedBox(width: 18),
-                  Expanded(child: billPanel),
-                ],
-              );
-            },
+                        _CollapsedSidebarIcon(
+                          icon: Icons.receipt_long_rounded,
+                          color: const Color(0xFFD16432),
+                          tooltip: 'Facility Expenses',
+                          onTap: onToggleCollapsed,
+                        ),
+                        _CollapsedSidebarIcon(
+                          icon: Icons.savings_rounded,
+                          color: const Color(0xFFC43D4B),
+                          tooltip: 'Net Rental Income',
+                          onTap: onToggleCollapsed,
+                        ),
+                        const Divider(height: 20),
+                      ] else ...[
+                        const _SidebarSectionLabel(label: 'SUMMARY'),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _CompactSummaryMetric(
+                                title: tr(context, 'Rental Collection'),
+                                value: money(inflow),
+                                icon: Icons.payments_rounded,
+                                color: const Color(0xFF16856B),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _CompactSummaryMetric(
+                                title: tr(context, 'Facility Expenses'),
+                                value: money(outflow),
+                                icon: Icons.receipt_long_rounded,
+                                color: const Color(0xFFD16432),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _CompactSummaryMetric(
+                                title: tr(context, 'Net Rental Income'),
+                                value: money(inflow - outflow),
+                                icon: Icons.savings_rounded,
+                                color: inflow - outflow >= 0
+                                    ? const Color(0xFF16856B)
+                                    : const Color(0xFFC43D4B),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 26),
+                        const _SidebarSectionLabel(label: 'TENANTS'),
+                      ],
+                      if (narrow)
+                        Card(
+                          color: selectedTenantId == null
+                              ? const Color(0xFFE8EEFC)
+                              : null,
+                          child: InkWell(
+                            key: const Key('all_tenants_filter'),
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => onTenantSelected(null),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 14),
+                              child: Center(child: Icon(Icons.groups_rounded)),
+                            ),
+                          ),
+                        )
+                      else
+                        Card(
+                          color: selectedTenantId == null
+                              ? const Color(0xFFE8EEFC)
+                              : null,
+                          child: ListTile(
+                            key: const Key('all_tenants_filter'),
+                            dense: true,
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 10),
+                            onTap: () => onTenantSelected(null),
+                            leading: const Icon(Icons.groups_rounded),
+                            title: Text(tr(context, 'All Tenants')),
+                            subtitle: Text('${tenants.length} tenant(s)'),
+                          ),
+                        ),
+                      ...tenants.map((tenancy) {
+                        final tenant = store.userFor(tenancy.tenantId);
+                        final selected = tenant.id == selectedTenantId;
+                        if (narrow) {
+                          return Card(
+                            color: selected ? const Color(0xFFE8EEFC) : null,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () => onTenantSelected(tenant.id),
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                                child: Center(
+                                  child: Icon(
+                                    selected
+                                        ? Icons.check_circle_rounded
+                                        : Icons.meeting_room_rounded,
+                                    color: selected
+                                        ? const Color(0xFF3156A3)
+                                        : null,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                        return Card(
+                          color: selected ? const Color(0xFFE8EEFC) : null,
+                          child: ListTile(
+                            dense: true,
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 10),
+                            onTap: () => onTenantSelected(tenant.id),
+                            leading: Icon(
+                              selected
+                                  ? Icons.check_circle_rounded
+                                  : Icons.meeting_room_rounded,
+                              color: selected ? const Color(0xFF3156A3) : null,
+                            ),
+                            title: narrow ? null : Text(tenant.name),
+                            subtitle: narrow
+                                ? null
+                                : Text(
+                                    '${tenancy.unitName} • ${money(tenancy.monthlyRent)}',
+                                  ),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
+        );
+      },
+    );
+  }
+}
+
+class _SidebarSectionLabel extends StatelessWidget {
+  const _SidebarSectionLabel({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 6, 4, 7),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Color(0xFF98A2B3),
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 1,
+        ),
       ),
+    );
+  }
+}
+
+class _CompactSummaryMetric extends StatelessWidget {
+  const _CompactSummaryMetric({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final veryNarrow = constraints.maxWidth < 76;
+        return Container(
+          constraints: const BoxConstraints(minHeight: 74),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.07),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withOpacity(0.22)),
+          ),
+          child: veryNarrow
+              ? Center(child: Icon(icon, color: color, size: 18))
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Icon(icon, color: color, size: 16),
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF667085),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              value,
+                              maxLines: 1,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+        );
+      },
+    );
+  }
+}
+
+class _CollapsedSidebarIcon extends StatelessWidget {
+  const _CollapsedSidebarIcon({
+    required this.icon,
+    required this.color,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: '$tooltip • click to expand',
+      child: IconButton(
+        onPressed: onTap,
+        icon: Icon(icon, color: color, size: 23),
+      ),
+    );
+  }
+}
+
+class _FacilityBillPerformance extends StatelessWidget {
+  const _FacilityBillPerformance({
+    required this.facility,
+    required this.bills,
+    required this.selectedTenant,
+    required this.year,
+  });
+
+  final Facility facility;
+  final List<MonthlyBill> bills;
+  final AppUser? selectedTenant;
+  final int year;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Text(
+          facility.name,
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+        ),
+        const SizedBox(height: 3),
+        Text(facility.address,
+            style: const TextStyle(color: Color(0xFF667085))),
+        const SizedBox(height: 4),
+        Text(
+          'Performance year: $year',
+          style: const TextStyle(
+            color: Color(0xFF667085),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 22),
+        Text(
+          selectedTenant == null
+              ? '${tr(context, 'Bill Performance')} • ${tr(context, 'All Tenants')}'
+              : '${tr(context, 'Bill Performance')} • ${selectedTenant!.name}',
+          key: const Key('bill_performance_detail'),
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+        ),
+        const SizedBox(height: 8),
+        if (bills.isEmpty)
+          EmptyState(
+            icon: Icons.receipt_long_outlined,
+            title: 'No bill records for $year',
+            message: 'This tenant does not have bill records for this year.',
+          )
+        else
+          ...bills.map((bill) {
+            final tenant = store.userFor(bill.tenantId);
+            return Card(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth >= 340) {
+                    return ListTile(
+                      leading: const Icon(Icons.receipt_long_rounded),
+                      title: Text('${tenant.name} • ${monthLabel(bill.month)}'),
+                      subtitle: Text('Due ${money(bill.totalAmount)}'),
+                      trailing: StatusChip(status: bill.status),
+                    );
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.receipt_long_rounded, size: 20),
+                            const SizedBox(width: 9),
+                            Expanded(
+                              child: Text(
+                                '${tenant.name} • ${monthLabel(bill.month)}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        Text('Due ${money(bill.totalAmount)}'),
+                        const SizedBox(height: 9),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: StatusChip(status: bill.status),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            );
+          }),
+      ],
+    );
+  }
+}
+
+class _CompactFacilityPerformance extends StatelessWidget {
+  const _CompactFacilityPerformance({
+    required this.facility,
+    required this.tenants,
+    required this.bills,
+    required this.selectedTenantId,
+    required this.inflow,
+    required this.outflow,
+    required this.year,
+    required this.onTenantSelected,
+  });
+
+  final Facility facility;
+  final List<Tenancy> tenants;
+  final List<MonthlyBill> bills;
+  final String? selectedTenantId;
+  final double inflow;
+  final double outflow;
+  final int year;
+  final ValueChanged<String?> onTenantSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    final selectedTenant =
+        selectedTenantId == null ? null : store.userFor(selectedTenantId!);
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: [
+        Text(facility.address,
+            style: const TextStyle(color: Color(0xFF667085))),
+        const SizedBox(height: 4),
+        Text(
+          'Performance year: $year',
+          style: const TextStyle(
+            color: Color(0xFF667085),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _CompactSummaryMetric(
+                title: tr(context, 'Rental Collection'),
+                value: money(inflow),
+                icon: Icons.payments_rounded,
+                color: const Color(0xFF16856B),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _CompactSummaryMetric(
+                title: tr(context, 'Facility Expenses'),
+                value: money(outflow),
+                icon: Icons.receipt_long_rounded,
+                color: const Color(0xFFD16432),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _CompactSummaryMetric(
+                title: tr(context, 'Net Rental Income'),
+                value: money(inflow - outflow),
+                icon: Icons.savings_rounded,
+                color: inflow - outflow >= 0
+                    ? const Color(0xFF16856B)
+                    : const Color(0xFFC43D4B),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Text(tr(context, 'Tenants'),
+            style: Theme.of(context)
+                .textTheme
+                .titleLarge
+                ?.copyWith(fontWeight: FontWeight.w800)),
+        Card(
+          color: selectedTenantId == null ? const Color(0xFFE8EEFC) : null,
+          child: ListTile(
+            key: const Key('all_tenants_filter'),
+            onTap: () => onTenantSelected(null),
+            leading: const Icon(Icons.groups_rounded),
+            title: Text(tr(context, 'All Tenants')),
+          ),
+        ),
+        ...tenants.map((tenancy) {
+          final tenant = store.userFor(tenancy.tenantId);
+          return Card(
+            color:
+                selectedTenantId == tenant.id ? const Color(0xFFE8EEFC) : null,
+            child: ListTile(
+              onTap: () => onTenantSelected(tenant.id),
+              leading: const Icon(Icons.meeting_room_rounded),
+              title: Text(tenant.name),
+              subtitle:
+                  Text('${tenancy.unitName} • ${money(tenancy.monthlyRent)}'),
+            ),
+          );
+        }),
+        const SizedBox(height: 14),
+        Text(
+          selectedTenant == null
+              ? '${tr(context, 'Bill Performance')} • ${tr(context, 'All Tenants')}'
+              : '${tr(context, 'Bill Performance')} • ${selectedTenant.name}',
+          key: const Key('bill_performance_detail'),
+          style: Theme.of(context)
+              .textTheme
+              .titleLarge
+              ?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 8),
+        ...bills.map((bill) {
+          final tenant = store.userFor(bill.tenantId);
+          return Card(
+            child: ListTile(
+              leading: const Icon(Icons.receipt_long_rounded),
+              title: Text('${tenant.name} • ${monthLabel(bill.month)}'),
+              subtitle: Text('Due ${money(bill.totalAmount)}'),
+              trailing: StatusChip(status: bill.status),
+            ),
+          );
+        }),
+      ],
     );
   }
 }
 
 enum FinancialDetailMode { collection, expenses, netIncome }
 
-class FinancialDetailsScreen extends StatelessWidget {
+class FinancialDetailsScreen extends StatefulWidget {
   const FinancialDetailsScreen({required this.mode, super.key});
 
   final FinancialDetailMode mode;
 
   @override
+  State<FinancialDetailsScreen> createState() => _FinancialDetailsScreenState();
+}
+
+class _FinancialDetailsScreenState extends State<FinancialDetailsScreen> {
+  String? selectedFacilityId;
+  bool sidebarCollapsed = false;
+
+  @override
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
+    final mode = widget.mode;
+    final facilities = store.ownerFacilities;
+    final selectedFacility = facilities.firstWhere(
+      (facility) => facility.id == selectedFacilityId,
+      orElse: () => facilities.first,
+    );
     final title = switch (mode) {
       FinancialDetailMode.collection => 'Rental Collection Details',
       FinancialDetailMode.expenses => 'Expense Details',
@@ -2176,66 +7170,174 @@ class FinancialDetailsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: Text(title)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Row(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final detail = ListView(
+            padding: const EdgeInsets.all(18),
+            children: [
+              Row(
                 children: [
-                  CircleAvatar(
-                    radius: 24,
-                    child: Icon(
-                      switch (mode) {
-                        FinancialDetailMode.collection =>
-                          Icons.payments_rounded,
-                        FinancialDetailMode.expenses =>
-                          Icons.receipt_long_rounded,
-                        FinancialDetailMode.netIncome => Icons.savings_rounded,
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'All Facilities Total',
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: const Color(0xFF667085),
-                                  ),
-                        ),
-                        Text(
-                          money(total),
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineSmall
-                              ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
-                        ),
+                        Text(selectedFacility.name,
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineSmall
+                                ?.copyWith(fontWeight: FontWeight.w900)),
+                        Text(selectedFacility.address,
+                            style: const TextStyle(color: Color(0xFF667085))),
                       ],
                     ),
                   ),
+                  if (mode == FinancialDetailMode.collection)
+                    FilledButton.icon(
+                      onPressed: () =>
+                          showAddIncomeDialog(context, selectedFacility),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Add One-time Income'),
+                    ),
+                  if (mode == FinancialDetailMode.expenses)
+                    FilledButton.icon(
+                      onPressed: () =>
+                          showAddExpenseDialog(context, selectedFacility),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Add One-time Expense'),
+                    ),
                 ],
               ),
+              const SizedBox(height: 14),
+              Card(
+                child: ListTile(
+                  leading: Icon(switch (mode) {
+                    FinancialDetailMode.collection => Icons.payments_rounded,
+                    FinancialDetailMode.expenses => Icons.receipt_long_rounded,
+                    FinancialDetailMode.netIncome => Icons.savings_rounded,
+                  }),
+                  title: const Text('All Facilities Total'),
+                  trailing: Text(money(total),
+                      style: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.w900)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              switch (mode) {
+                FinancialDetailMode.collection =>
+                  _CollectionFacilitySection(facility: selectedFacility),
+                FinancialDetailMode.expenses =>
+                  _ExpenseFacilitySection(facility: selectedFacility),
+                FinancialDetailMode.netIncome =>
+                  _NetFacilitySection(facility: selectedFacility),
+              },
+            ],
+          );
+          if (constraints.maxWidth < 680) return detail;
+          return Row(
+            children: [
+              AnimatedContainer(
+                key: const Key('financial_detail_sidebar'),
+                duration: const Duration(milliseconds: 220),
+                width: sidebarCollapsed ? 76 : 230,
+                child: _FinancialFacilitySidebar(
+                  facilities: facilities,
+                  selectedFacilityId: selectedFacility.id,
+                  collapsed: sidebarCollapsed,
+                  onToggle: () =>
+                      setState(() => sidebarCollapsed = !sidebarCollapsed),
+                  onSelected: (facility) => setState(() {
+                    selectedFacilityId = facility.id;
+                    sidebarCollapsed = false;
+                  }),
+                ),
+              ),
+              const VerticalDivider(width: 1),
+              Expanded(
+                child: Listener(
+                  behavior: HitTestBehavior.translucent,
+                  onPointerDown: (_) {
+                    if (!sidebarCollapsed) {
+                      setState(() => sidebarCollapsed = true);
+                    }
+                  },
+                  child: detail,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _FinancialFacilitySidebar extends StatelessWidget {
+  const _FinancialFacilitySidebar({
+    required this.facilities,
+    required this.selectedFacilityId,
+    required this.collapsed,
+    required this.onToggle,
+    required this.onSelected,
+  });
+
+  final List<Facility> facilities;
+  final String selectedFacilityId;
+  final bool collapsed;
+  final VoidCallback onToggle;
+  final ValueChanged<Facility> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          children: [
+            if (collapsed)
+              IconButton(
+                tooltip: 'Expand facilities',
+                onPressed: onToggle,
+                icon: const Icon(Icons.chevron_right_rounded),
+              )
+            else
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text('FACILITIES',
+                        style: TextStyle(
+                            color: Color(0xFF667085),
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: .8)),
+                  ),
+                  IconButton(
+                    tooltip: 'Collapse facilities',
+                    onPressed: onToggle,
+                    icon: const Icon(Icons.chevron_left_rounded),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView(
+                children: facilities.map((facility) {
+                  final selected = facility.id == selectedFacilityId;
+                  return Card(
+                    color: selected ? const Color(0xFFE8EEFC) : null,
+                    child: ListTile(
+                      dense: true,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 10),
+                      leading: const Icon(Icons.apartment_rounded),
+                      title: collapsed ? null : Text(facility.name),
+                      onTap: () => onSelected(facility),
+                    ),
+                  );
+                }).toList(),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          ...store.ownerFacilities.map((facility) {
-            return switch (mode) {
-              FinancialDetailMode.collection =>
-                _CollectionFacilitySection(facility: facility),
-              FinancialDetailMode.expenses =>
-                _ExpenseFacilitySection(facility: facility),
-              FinancialDetailMode.netIncome =>
-                _NetFacilitySection(facility: facility),
-            };
-          }),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2360,28 +7462,40 @@ class _ExpenseFacilitySection extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
     final elapsedMonths = store.elapsedMonthsThisYear;
+    final versions = List.generate(
+      elapsedMonths,
+      (index) => store.costVersionForMonth(
+        facility,
+        DateTime(store.currentMonth.year, index + 1),
+      ),
+    );
     final items = <(String, double, IconData)>[
       (
         'Installment',
-        facility.installmentAmount * elapsedMonths,
+        versions.fold<double>(0, (sum, item) => sum + item.installmentAmount),
         Icons.account_balance_rounded
       ),
       (
         'Extra installment',
-        facility.extraInstallmentPayment * elapsedMonths,
+        versions.fold<double>(
+            0, (sum, item) => sum + item.extraInstallmentPayment),
         Icons.add_card_rounded,
       ),
       (
         'Maintenance',
-        facility.maintenanceFee * elapsedMonths,
+        versions.fold<double>(0, (sum, item) => sum + item.maintenanceFee),
         Icons.handyman_rounded
       ),
       (
-        'Fire Insurance (${insuranceFrequencyText(facility.insuranceFrequency)})',
-        List.generate(elapsedMonths, (index) => index + 1)
-                .where((month) => store.isInsuranceDue(facility, month))
-                .length *
-            facility.insuranceFee,
+        'Fire Insurance',
+        List.generate(elapsedMonths, (index) => index + 1).fold<double>(0,
+            (sum, month) {
+          final version = versions[month - 1];
+          final due = month == version.insuranceDueMonth ||
+              (version.insuranceFrequency == InsuranceFrequency.halfYearly &&
+                  month == ((version.insuranceDueMonth + 5) % 12) + 1);
+          return sum + (due ? version.insuranceFee : 0);
+        }),
         Icons.local_fire_department_rounded
       ),
       for (final commitment in facility.extraCommitments)
@@ -2398,6 +7512,13 @@ class _ExpenseFacilitySection extends StatelessWidget {
                   .length *
               commitment.amount,
           Icons.receipt_long_rounded,
+        ),
+      for (final expense in store.additionalExpenses
+          .where((expense) => expense.facilityId == facility.id))
+        (
+          '${expense.category} • ${monthLabel(expense.month)}',
+          expense.amount,
+          Icons.add_circle_outline_rounded,
         ),
     ];
 
@@ -2508,9 +7629,9 @@ class _FacilitiesTabState extends State<FacilitiesTab> {
       orElse: () => facilities.first,
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final sidebar = _FacilitySidebar(
+    return Column(
+      children: [
+        _CompactFacilitySelector(
           facilities: facilities,
           selectedFacilityId: selectedFacility.id,
           onSelected: (facility) {
@@ -2522,44 +7643,10 @@ class _FacilitiesTabState extends State<FacilitiesTab> {
               setState(() => selectedFacilityId = facility.id);
             }
           },
-        );
-        final detail = _FacilityWorkspace(facility: selectedFacility);
-
-        if (constraints.maxWidth < 760) {
-          return Column(
-            children: [
-              _CompactFacilitySelector(
-                facilities: facilities,
-                selectedFacilityId: selectedFacility.id,
-                onSelected: (facility) {
-                  setState(() => selectedFacilityId = facility.id);
-                },
-                onCreateFacility: () async {
-                  final facility = await showAddFacilityDialog(context);
-                  if (facility != null && mounted) {
-                    setState(() => selectedFacilityId = facility.id);
-                  }
-                },
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: _FacilityWorkspace(
-                  facility: selectedFacility,
-                  compact: true,
-                ),
-              ),
-            ],
-          );
-        }
-
-        return Row(
-          children: [
-            SizedBox(width: 290, child: sidebar),
-            const VerticalDivider(width: 1),
-            Expanded(child: detail),
-          ],
-        );
-      },
+        ),
+        const Divider(height: 1),
+        Expanded(child: _FacilityWorkspace(facility: selectedFacility)),
+      ],
     );
   }
 }
@@ -2626,9 +7713,7 @@ class _FacilityCircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected
-        ? Theme.of(context).colorScheme.primary
-        : const Color(0xFF667085);
+    final color = selected ? oceanDeep : const Color(0xFF94A3B8);
     return SizedBox(
       width: 64,
       child: InkWell(
@@ -2642,14 +7727,10 @@ class _FacilityCircleButton extends StatelessWidget {
               width: 50,
               height: 50,
               decoration: BoxDecoration(
-                color: selected
-                    ? const Color(0xFFDDE7FF)
-                    : const Color(0xFFF3F5F9),
+                color: selected ? Colors.white : const Color(0xFFF3F6FA),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: selected
-                      ? Theme.of(context).colorScheme.primary
-                      : const Color(0xFFD6DEEB),
+                  color: selected ? oceanDeep : const Color(0xFFD6DEEB),
                   width: selected ? 2 : 1,
                 ),
               ),
@@ -2674,42 +7755,71 @@ class _FacilityCircleButton extends StatelessWidget {
   }
 }
 
+// Retained for wide-screen migration compatibility.
+// ignore: unused_element
 class _FacilitySidebar extends StatelessWidget {
   const _FacilitySidebar({
     required this.facilities,
     required this.selectedFacilityId,
     required this.onSelected,
     required this.onCreateFacility,
+    required this.collapsed,
+    required this.onToggleCollapsed,
   });
 
   final List<Facility> facilities;
   final String selectedFacilityId;
   final ValueChanged<Facility> onSelected;
   final Future<void> Function() onCreateFacility;
+  final bool collapsed;
+  final VoidCallback onToggleCollapsed;
 
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
       color: Colors.white,
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(10),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: collapsed
+              ? CrossAxisAlignment.center
+              : CrossAxisAlignment.stretch,
           children: [
-            FilledButton.icon(
-              onPressed: () => onCreateFacility(),
-              icon: const Icon(Icons.add_business_rounded),
-              label: const Text('New Facility'),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              'MY FACILITIES',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: const Color(0xFF667085),
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
+            if (collapsed)
+              IconButton(
+                key: const Key('toggle_facility_sidebar_button'),
+                tooltip: 'Expand facilities',
+                onPressed: onToggleCollapsed,
+                icon: const Icon(Icons.chevron_right_rounded),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => onCreateFacility(),
+                      icon: const Icon(Icons.add_business_rounded),
+                      label: const Text('New Facility'),
+                    ),
                   ),
-            ),
+                  IconButton(
+                    key: const Key('toggle_facility_sidebar_button'),
+                    tooltip: 'Collapse facilities',
+                    onPressed: onToggleCollapsed,
+                    icon: const Icon(Icons.chevron_left_rounded),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 10),
+            if (!collapsed)
+              Text(
+                'MY FACILITIES',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: const Color(0xFF667085),
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                    ),
+              ),
             const SizedBox(height: 8),
             Expanded(
               child: ListView.separated(
@@ -2723,6 +7833,9 @@ class _FacilitySidebar extends StatelessWidget {
                         selected ? const Color(0xFFE8EEFC) : Colors.transparent,
                     borderRadius: BorderRadius.circular(12),
                     child: ListTile(
+                      dense: true,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 10),
                       selected: selected,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -2731,16 +7844,13 @@ class _FacilitySidebar extends StatelessWidget {
                         Icons.apartment_rounded,
                         color: selected ? const Color(0xFF3156A3) : null,
                       ),
-                      title: Text(
-                        facility.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        facility.address,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      title: collapsed
+                          ? null
+                          : Text(
+                              facility.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                       onTap: () => onSelected(facility),
                     ),
                   );
@@ -2757,6 +7867,7 @@ class _FacilitySidebar extends StatelessWidget {
 class _FacilityWorkspace extends StatelessWidget {
   const _FacilityWorkspace({
     required this.facility,
+    // ignore: unused_element_parameter
     this.compact = false,
   });
 
@@ -2797,33 +7908,6 @@ class _FacilityWorkspace extends StatelessWidget {
                 ],
               ),
             ),
-            FilledButton.icon(
-              onPressed: () => showAddTenantDialog(context, facility),
-              icon: const Icon(Icons.person_add_alt_1_rounded),
-              label: Text(compact ? 'Tenant' : 'New Tenant'),
-              style: compact
-                  ? FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      visualDensity: VisualDensity.compact,
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 8),
-            if (compact)
-              IconButton.filledTonal(
-                tooltip: 'Facility Settings',
-                onPressed: () => showFacilitySettingsDialog(context, facility),
-                icon: const Icon(Icons.settings_rounded),
-              )
-            else
-              OutlinedButton.icon(
-                onPressed: () => showFacilitySettingsDialog(context, facility),
-                icon: const Icon(Icons.settings_rounded),
-                label: const Text('Settings'),
-              ),
           ],
         ),
         SizedBox(height: compact ? 10 : 16),
@@ -2835,26 +7919,20 @@ class _FacilityWorkspace extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      'Facility Costs',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                    Expanded(
+                      child: Text(
+                        'Facility Costs',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                      ),
                     ),
-                    const Spacer(),
                     OutlinedButton.icon(
-                      onPressed: () => showEditCostsDialog(context, facility),
-                      icon: const Icon(Icons.edit_rounded),
+                      onPressed: () =>
+                          showPropertyExpenseEditorDialog(context, facility),
+                      icon: const Icon(Icons.edit_rounded, size: 18),
                       label: const Text('Edit'),
-                      style: compact
-                          ? OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
-                              ),
-                              visualDensity: VisualDensity.compact,
-                            )
-                          : null,
                     ),
                   ],
                 ),
@@ -2875,6 +7953,22 @@ class _FacilityWorkspace extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Chip(label: Text('${tenants.length}')),
+            const Spacer(),
+            FilledButton.icon(
+              key: const Key('add_tenant_button'),
+              onPressed: () => showAddTenantDialog(context, facility),
+              icon: const Icon(Icons.person_add_alt_1_rounded),
+              label: Text(compact ? 'Add' : 'New Tenant'),
+              style: compact
+                  ? FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                    )
+                  : null,
+            ),
           ],
         ),
         SizedBox(height: compact ? 4 : 8),
@@ -2915,25 +8009,10 @@ class _FacilityWorkspace extends StatelessWidget {
                     child: Icon(Icons.person_rounded),
                   ),
                   title: Text('${tenant.name} • ${tenancy.unitName}'),
-                  subtitle: Text(
-                    'Rent ${money(tenancy.monthlyRent)} • ${tenant.accountCreated ? tenant.accountCreatedAt == null ? 'Account active' : 'Account created ${dateLabel(tenant.accountCreatedAt!)}' : tenant.invitationSent ? 'Awaiting tenant acceptance' : 'Invitation not sent'}',
+                  subtitle: Text('Rent ${money(tenancy.monthlyRent)}'),
+                  trailing: TenantStatusChip(
+                    label: tenantStatusText(tenant, tenancy),
                   ),
-                  trailing: tenant.accountCreated
-                      ? const StatusChipText(label: 'Account Created')
-                      : FilledButton.icon(
-                          onPressed: () =>
-                              showSendInvitationDialog(context, tenant),
-                          icon: Icon(
-                            tenant.invitationSent
-                                ? Icons.forward_to_inbox_rounded
-                                : Icons.mark_email_unread_rounded,
-                          ),
-                          label: Text(
-                            tenant.invitationSent
-                                ? 'Resend Invite'
-                                : 'Send Invite',
-                          ),
-                        ),
                 ),
               ),
             );
@@ -3014,6 +8093,7 @@ class AdvancedReviewTab extends StatefulWidget {
 class _AdvancedReviewTabState extends State<AdvancedReviewTab>
     with SingleTickerProviderStateMixin {
   late final TabController controller;
+  String? selectedFacilityId;
 
   @override
   void initState() {
@@ -3033,33 +8113,58 @@ class _AdvancedReviewTabState extends State<AdvancedReviewTab>
     return AnimatedBuilder(
       animation: store,
       builder: (context, _) {
-        final openRequests = store.tenantRequests
-            .where((request) => request.status == 'Open')
-            .toList()
-          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        final requestHistory = store.tenantRequests
-            .where((request) => request.status != 'Open')
-            .toList()
-          ..sort((a, b) => (b.reviewedAt ?? b.createdAt)
-              .compareTo(a.reviewedAt ?? a.createdAt));
-        final paymentHistory = [...store.paymentReviewHistory]
+        final facilities = store.ownerFacilities;
+        if (facilities.isEmpty) {
+          return const EmptyState(
+            icon: Icons.apartment_rounded,
+            title: 'No facilities yet',
+            message: 'Add a facility before reviewing tenant activity.',
+          );
+        }
+        final selectedFacility = facilities.firstWhere(
+          (facility) => facility.id == selectedFacilityId,
+          orElse: () => facilities.first,
+        );
+        final pendingBills = store.pendingBills
+            .where((bill) => bill.facilityId == selectedFacility.id)
+            .toList();
+        final paymentHistory = store.paymentReviewHistory.where((event) {
+          final bill = store.bills.firstWhere(
+            (bill) => bill.id == event.billId,
+          );
+          return bill.facilityId == selectedFacility.id;
+        }).toList()
           ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
-        return Column(
+        final detail = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    selectedFacility.name,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    selectedFacility.address,
+                    style: const TextStyle(color: Color(0xFF667085)),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
               child: TabBar(
                 controller: controller,
                 tabs: [
-                  Tab(
-                    text:
-                        'Pending Action (${store.pendingBills.length + openRequests.length})',
-                  ),
-                  Tab(
-                    text:
-                        'History (${paymentHistory.length + requestHistory.length})',
-                  ),
+                  Tab(text: 'Pending Action (${pendingBills.length})'),
+                  Tab(text: 'History (${paymentHistory.length})'),
                 ],
               ),
             ),
@@ -3068,19 +8173,289 @@ class _AdvancedReviewTabState extends State<AdvancedReviewTab>
                 controller: controller,
                 children: [
                   _PendingReviewList(
-                    bills: store.pendingBills,
-                    requests: openRequests,
+                    bills: pendingBills,
+                    requests: const <TenantRequest>[],
                   ),
                   _ReviewHistoryList(
                     paymentEvents: paymentHistory,
-                    requests: requestHistory,
+                    requests: const <TenantRequest>[],
                   ),
                 ],
               ),
             ),
           ],
         );
+
+        return Column(
+          children: [
+            _CompactPaymentFacilitySelector(
+              facilities: facilities,
+              selectedFacility: selectedFacility,
+              pendingBills: pendingBills,
+              badgeCount: (facility) => store.pendingBills
+                  .where((bill) => bill.facilityId == facility.id)
+                  .length,
+              onSelected: (facility) {
+                setState(() => selectedFacilityId = facility.id);
+              },
+            ),
+            const Divider(height: 1),
+            Expanded(child: detail),
+          ],
+        );
       },
+    );
+  }
+}
+
+// Retained for wide-screen migration compatibility.
+// ignore: unused_element
+class _ReviewFacilitySidebar extends StatelessWidget {
+  const _ReviewFacilitySidebar({
+    required this.facilities,
+    required this.selectedFacility,
+    required this.onSelected,
+    required this.collapsed,
+    required this.onToggleCollapsed,
+    // ignore: unused_element_parameter
+    this.badgeCount,
+  });
+
+  final List<Facility> facilities;
+  final Facility selectedFacility;
+  final ValueChanged<Facility> onSelected;
+  final bool collapsed;
+  final VoidCallback onToggleCollapsed;
+  final int Function(Facility facility)? badgeCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    return ColoredBox(
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: collapsed
+              ? CrossAxisAlignment.center
+              : CrossAxisAlignment.stretch,
+          children: [
+            if (collapsed)
+              IconButton(
+                key: const Key('toggle_review_sidebar_button'),
+                tooltip: 'Expand review facilities',
+                onPressed: onToggleCollapsed,
+                icon: const Icon(Icons.chevron_right_rounded),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'REVIEW FACILITIES',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: const Color(0xFF667085),
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
+                          ),
+                    ),
+                  ),
+                  IconButton(
+                    key: const Key('toggle_review_sidebar_button'),
+                    tooltip: 'Collapse review facilities',
+                    onPressed: onToggleCollapsed,
+                    icon: const Icon(Icons.chevron_left_rounded),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.separated(
+                itemCount: facilities.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 6),
+                itemBuilder: (context, index) {
+                  final facility = facilities[index];
+                  final selected = facility.id == selectedFacility.id;
+                  final pendingCount = badgeCount?.call(facility) ??
+                      store.pendingBills
+                          .where((bill) => bill.facilityId == facility.id)
+                          .length;
+                  return Material(
+                    color:
+                        selected ? const Color(0xFFE8EEFC) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    child: ListTile(
+                      dense: true,
+                      selected: selected,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      leading: Icon(
+                        Icons.apartment_rounded,
+                        color: selected ? const Color(0xFF3156A3) : null,
+                      ),
+                      title: Text(
+                        collapsed ? '' : facility.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: collapsed || pendingCount == 0
+                          ? null
+                          : Badge(label: Text('$pendingCount')),
+                      onTap: () => onSelected(facility),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ignore: unused_element
+class _CompactReviewFacilitySelector extends StatelessWidget {
+  const _CompactReviewFacilitySelector({
+    required this.facilities,
+    required this.selectedFacility,
+    required this.onSelected,
+  });
+
+  final List<Facility> facilities;
+  final Facility selectedFacility;
+  final ValueChanged<Facility> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: DropdownButtonFormField<Facility>(
+          value: selectedFacility,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Review facility',
+            prefixIcon: Icon(Icons.apartment_rounded),
+            border: OutlineInputBorder(),
+          ),
+          items: facilities
+              .map(
+                (facility) => DropdownMenuItem(
+                  value: facility,
+                  child: Text(facility.name),
+                ),
+              )
+              .toList(),
+          onChanged: (facility) {
+            if (facility != null) onSelected(facility);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// ignore: unused_element
+class _CompactPaymentFacilitySelector extends StatelessWidget {
+  const _CompactPaymentFacilitySelector({
+    required this.facilities,
+    required this.selectedFacility,
+    // ignore: unused_element_parameter
+    this.pendingBills = const [],
+    // ignore: unused_element_parameter
+    this.badgeCount,
+    required this.onSelected,
+  });
+
+  final List<Facility> facilities;
+  final Facility selectedFacility;
+  final List<MonthlyBill> pendingBills;
+  final int Function(Facility facility)? badgeCount;
+  final ValueChanged<Facility> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.white,
+      child: SizedBox(
+        height: 98,
+        child: ListView.separated(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          scrollDirection: Axis.horizontal,
+          itemCount: facilities.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 14),
+          itemBuilder: (context, index) {
+            final facility = facilities[index];
+            final selected = facility.id == selectedFacility.id;
+            final count = badgeCount?.call(facility) ??
+                pendingBills
+                    .where((bill) => bill.facilityId == facility.id)
+                    .length;
+            return SizedBox(
+              width: 68,
+              child: InkWell(
+                onTap: () => onSelected(facility),
+                borderRadius: BorderRadius.circular(34),
+                child: Column(
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? Colors.white
+                                : const Color(0xFFF3F6FA),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: selected
+                                  ? oceanDeep
+                                  : const Color(0x00FFFFFF),
+                              width: selected ? 2 : 1,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.apartment_rounded,
+                            color:
+                                selected ? oceanDeep : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                        if (count > 0)
+                          Positioned(
+                            right: -5,
+                            top: -4,
+                            child: Badge(label: Text('$count')),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      facility.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: selected ? oceanDeep : const Color(0xFF94A3B8),
+                        fontSize: 10,
+                        fontWeight:
+                            selected ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 }
@@ -3214,6 +8589,13 @@ class _ReviewHistoryList extends StatelessWidget {
         return (
           time: event.timestamp,
           widget: ListTile(
+            onTap: () => showPaymentReviewDialog(
+              context,
+              bill,
+              readOnly: true,
+              reviewedAt: event.timestamp,
+              reviewReason: event.reason,
+            ),
             leading: const Icon(Icons.receipt_long_rounded),
             title: Text('${tenant.name} • ${monthLabel(bill.month)}'),
             subtitle: Text(
@@ -3300,10 +8682,23 @@ class UtilitiesTab extends StatefulWidget {
   State<UtilitiesTab> createState() => _UtilitiesTabState();
 }
 
-class _UtilitiesTabState extends State<UtilitiesTab> {
+class _UtilitiesTabState extends State<UtilitiesTab>
+    with SingleTickerProviderStateMixin {
   String? selectedFacilityId;
-  String? selectedTenantId;
   bool sidebarCollapsed = false;
+  late final TabController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3320,22 +8715,34 @@ class _UtilitiesTabState extends State<UtilitiesTab> {
       (item) => item.id == selectedFacilityId,
       orElse: () => facilities.first,
     );
-    final tenancies = store.tenancies
-        .where((item) => item.facilityId == facility.id)
-        .toList();
+    final pendingBills = store.bills
+        .where(
+          (bill) =>
+              bill.facilityId == facility.id &&
+              bill.status == PaymentStatus.notSubmitted,
+        )
+        .toList()
+      ..sort((a, b) => a.month.compareTo(b.month));
+    final historyBills = store.bills.where((bill) {
+      if (bill.facilityId != facility.id ||
+          bill.status == PaymentStatus.notSubmitted) {
+        return false;
+      }
+      final tenancy = store.tenancies.firstWhere(
+        (tenancy) => tenancy.tenantId == bill.tenantId,
+      );
+      return bill.utilityEvidenceFileName != null ||
+          tenancy.utilitiesFullyIncluded;
+    }).toList()
+      ..sort((a, b) => b.month.compareTo(a.month));
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final detail = _UtilityFacilityDetail(
           facility: facility,
-          tenancies: tenancies,
-          selectedTenantId: selectedTenantId,
-          onTenantSelected: (tenancy) {
-            setState(() {
-              selectedTenantId = tenancy.tenantId;
-              sidebarCollapsed = true;
-            });
-          },
+          pendingBills: pendingBills,
+          historyBills: historyBills,
+          controller: controller,
         );
         if (constraints.maxWidth < 760) {
           return Column(
@@ -3346,7 +8753,6 @@ class _UtilitiesTabState extends State<UtilitiesTab> {
                 onSelected: (value) {
                   setState(() {
                     selectedFacilityId = value.id;
-                    selectedTenantId = null;
                   });
                 },
                 onCreateFacility: () async {},
@@ -3361,7 +8767,7 @@ class _UtilitiesTabState extends State<UtilitiesTab> {
             AnimatedContainer(
               key: const Key('utility_facility_sidebar'),
               duration: const Duration(milliseconds: 220),
-              width: sidebarCollapsed ? 76 : 290,
+              width: sidebarCollapsed ? 76 : 220,
               child: _UtilityFacilitySidebar(
                 facilities: facilities,
                 selectedFacilityId: facility.id,
@@ -3372,8 +8778,7 @@ class _UtilitiesTabState extends State<UtilitiesTab> {
                 onSelected: (value) {
                   setState(() {
                     selectedFacilityId = value.id;
-                    selectedTenantId = null;
-                    sidebarCollapsed = false;
+                    sidebarCollapsed = true;
                   });
                 },
               ),
@@ -3414,10 +8819,11 @@ class _UtilityFacilitySidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
     return ColoredBox(
       color: Colors.white,
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(10),
         child: Column(
           crossAxisAlignment:
               collapsed ? CrossAxisAlignment.center : CrossAxisAlignment.start,
@@ -3468,20 +8874,30 @@ class _UtilityFacilitySidebar extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final facility = facilities[index];
                   final selected = facility.id == selectedFacilityId;
+                  final pendingCount = store.bills
+                      .where(
+                        (bill) =>
+                            bill.facilityId == facility.id &&
+                            bill.status == PaymentStatus.notSubmitted,
+                      )
+                      .length;
                   return Material(
                     color:
                         selected ? const Color(0xFFE8EEFC) : Colors.transparent,
                     borderRadius: BorderRadius.circular(12),
                     child: ListTile(
-                      contentPadding: collapsed
-                          ? const EdgeInsets.symmetric(horizontal: 10)
-                          : null,
+                      dense: true,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 10),
                       onTap: () => onSelected(facility),
                       leading: Icon(
                         Icons.apartment_rounded,
                         color: selected ? const Color(0xFF3156A3) : null,
                       ),
                       title: collapsed ? null : Text(facility.name),
+                      trailing: collapsed || pendingCount == 0
+                          ? null
+                          : Badge(label: Text('$pendingCount')),
                     ),
                   );
                 },
@@ -3497,157 +8913,169 @@ class _UtilityFacilitySidebar extends StatelessWidget {
 class _UtilityFacilityDetail extends StatelessWidget {
   const _UtilityFacilityDetail({
     required this.facility,
-    required this.tenancies,
-    required this.selectedTenantId,
-    required this.onTenantSelected,
+    required this.pendingBills,
+    required this.historyBills,
+    required this.controller,
   });
 
   final Facility facility;
-  final List<Tenancy> tenancies;
-  final String? selectedTenantId;
-  final ValueChanged<Tenancy> onTenantSelected;
+  final List<MonthlyBill> pendingBills;
+  final List<MonthlyBill> historyBills;
+  final TabController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                facility.name,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                facility.address,
+                style: const TextStyle(color: Color(0xFF667085)),
+              ),
+              const SizedBox(height: 3),
+              const Text(
+                'Electricity is calculated automatically at RM 0.516 per kWh.',
+                style: TextStyle(color: Color(0xFF667085)),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: TabBar(
+            controller: controller,
+            tabs: [
+              Tab(text: 'Pending Action (${pendingBills.length})'),
+              Tab(text: 'History (${historyBills.length})'),
+            ],
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: controller,
+            children: [
+              _PendingUtilityList(bills: pendingBills),
+              _UtilityHistoryList(bills: historyBills),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PendingUtilityList extends StatelessWidget {
+  const _PendingUtilityList({required this.bills});
+
+  final List<MonthlyBill> bills;
 
   @override
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
-    Tenancy? selectedTenancy;
-    if (selectedTenantId != null) {
-      for (final tenancy in tenancies) {
-        if (tenancy.tenantId == selectedTenantId) {
-          selectedTenancy = tenancy;
-          break;
-        }
-      }
+    if (bills.isEmpty) {
+      return const EmptyState(
+        icon: Icons.task_alt_rounded,
+        title: 'No pending utility actions',
+        message: 'All required utility entries have been submitted.',
+      );
     }
-    final activeTenantId = selectedTenancy?.tenantId;
-    final bills = activeTenantId == null
-        ? <MonthlyBill>[]
-        : store.bills
-            .where((bill) =>
-                bill.tenantId == activeTenantId &&
-                bill.facilityId == facility.id &&
-                bill.status == PaymentStatus.notSubmitted)
-            .toList()
-      ..sort((a, b) => a.month.compareTo(b.month));
-
     return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        Text(
-          facility.name,
-          style: Theme.of(context)
-              .textTheme
-              .headlineSmall
-              ?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        Text(facility.address,
-            style: const TextStyle(color: Color(0xFF667085))),
-        const SizedBox(height: 4),
-        const Text(
-          'Electricity is calculated automatically at RM 0.516 per kWh.',
-          style: TextStyle(color: Color(0xFF667085)),
-        ),
-        const SizedBox(height: 18),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final tenantList = Column(
+      padding: const EdgeInsets.all(16),
+      children: bills.map((bill) {
+        final tenant = store.userFor(bill.tenantId);
+        final tenancy = store.tenancies.firstWhere(
+          (tenancy) => tenancy.tenantId == bill.tenantId,
+        );
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Tenants',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w800)),
-                const SizedBox(height: 8),
-                ...tenancies.map((tenancy) {
-                  final tenant = store.userFor(tenancy.tenantId);
-                  final selected = tenancy.tenantId == selectedTenantId;
-                  return Card(
-                    color: selected ? const Color(0xFFE8EEFC) : null,
-                    child: ListTile(
-                      onTap: () => onTenantSelected(tenancy),
-                      leading: Icon(
-                        selected
-                            ? Icons.check_circle_rounded
-                            : Icons.person_rounded,
-                        color: selected ? const Color(0xFF3156A3) : null,
-                      ),
-                      title: Text(tenant.name),
-                      subtitle: Text(tenancy.unitName),
-                    ),
-                  );
-                }),
-              ],
-            );
-            final breakdown = Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  selectedTenancy == null
-                      ? 'Utility Breakdown'
-                      : '${store.userFor(selectedTenancy.tenantId).name} • Utility Breakdown',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w800),
+                const ReviewTypeBadge(
+                  label: 'UTILITY ENTRY',
+                  icon: Icons.electric_meter_rounded,
+                  color: Color(0xFF3156A3),
                 ),
-                const SizedBox(height: 8),
-                if (selectedTenancy == null)
-                  const EmptyState(
-                    icon: Icons.touch_app_rounded,
-                    title: 'Select a tenant',
-                    message:
-                        'Choose a tenant on the left to view utility bills.',
-                  )
-                else if (bills.isEmpty)
-                  const EmptyState(
-                    icon: Icons.task_alt_rounded,
-                    title: 'No open utility bills',
-                    message: 'All utility entries are complete.',
-                  )
-                else
-                  ...bills.map(
-                    (bill) => Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.electric_meter_rounded),
-                        title: Text(monthLabel(bill.month)),
-                        subtitle: Text(
-                          '${bill.electricityUsageKwh.toStringAsFixed(1)} kWh • Utilities ${money(bill.totalUtilityAmount)}',
-                        ),
-                        trailing: OutlinedButton.icon(
-                          onPressed: () => showUtilityDialog(context, bill),
-                          icon: const Icon(Icons.upload_file_rounded),
-                          label: Text(
-                            bill.utilityEvidenceFileName == null
-                                ? 'Enter & Upload'
-                                : 'Edit',
-                          ),
-                        ),
+                const SizedBox(height: 10),
+                Text(
+                  '${tenant.name} • ${monthLabel(bill.month)}',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
-                    ),
-                  ),
+                ),
+                Text(
+                    '${tenancy.unitName} • Meter reading and attachment required'),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: () => showUtilityDialog(context, bill),
+                  icon: const Icon(Icons.upload_file_rounded),
+                  label: const Text('Enter & Upload'),
+                ),
               ],
-            );
-            if (constraints.maxWidth < 700) {
-              return Column(
-                children: [
-                  tenantList,
-                  const SizedBox(height: 18),
-                  breakdown,
-                ],
-              );
-            }
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(width: 260, child: tenantList),
-                const SizedBox(width: 18),
-                Expanded(child: breakdown),
-              ],
-            );
-          },
-        ),
-      ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _UtilityHistoryList extends StatelessWidget {
+  const _UtilityHistoryList({required this.bills});
+
+  final List<MonthlyBill> bills;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    if (bills.isEmpty) {
+      return const EmptyState(
+        icon: Icons.history_rounded,
+        title: 'No utility history',
+        message: 'Submitted monthly utility records will appear here.',
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: bills.map((bill) {
+        final tenant = store.userFor(bill.tenantId);
+        final tenancy = store.tenancies.firstWhere(
+          (tenancy) => tenancy.tenantId == bill.tenantId,
+        );
+        final included = tenancy.utilitiesFullyIncluded;
+        return Card(
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 10,
+            ),
+            leading: const CircleAvatar(
+              child: Icon(Icons.electric_meter_rounded),
+            ),
+            title: Text('${tenant.name} • ${monthLabel(bill.month)}'),
+            subtitle: Text(
+              included
+                  ? '${tenancy.unitName} • Utilities included in package • No attachment required'
+                  : '${tenancy.unitName} • ${bill.electricityUsageKwh.toStringAsFixed(1)} kWh • Utilities ${money(bill.totalUtilityAmount)}\nAttachment: ${bill.utilityEvidenceFileName}',
+            ),
+            isThreeLine: !included,
+            trailing: StatusChip(status: bill.status),
+          ),
+        );
+      }).toList(),
     );
   }
 }
@@ -3736,6 +9164,402 @@ class _LegacyUtilitiesTab extends StatelessWidget {
   }
 }
 
+class OwnerRequestsFeedTab extends StatefulWidget {
+  const OwnerRequestsFeedTab({super.key});
+
+  @override
+  State<OwnerRequestsFeedTab> createState() => _OwnerRequestsFeedTabState();
+}
+
+class _OwnerRequestsFeedTabState extends State<OwnerRequestsFeedTab>
+    with SingleTickerProviderStateMixin {
+  late final TabController controller;
+  String? selectedFacilityId;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    final facilities = store.ownerFacilities;
+    if (facilities.isEmpty) {
+      return const EmptyState(
+        icon: Icons.handyman_rounded,
+        title: 'No facilities',
+        message: 'Tenant requests will appear after a facility is created.',
+      );
+    }
+    final facility = facilities.firstWhere(
+      (item) => item.id == selectedFacilityId,
+      orElse: () => facilities.first,
+    );
+    final requests = store.tenantRequests
+        .where((item) => item.facilityId == facility.id)
+        .toList();
+    final pending = requests.where((item) => item.status == 'Open').toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final history = requests.where((item) => item.status != 'Open').toList()
+      ..sort((a, b) =>
+          (b.reviewedAt ?? b.createdAt).compareTo(a.reviewedAt ?? a.createdAt));
+
+    final detail = Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: TabBar(
+            controller: controller,
+            tabs: [
+              Tab(text: 'Pending Action (${pending.length})'),
+              Tab(text: 'History (${history.length})'),
+            ],
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: controller,
+            children: [
+              _OwnerRequestList(
+                requests: pending,
+                pending: true,
+                onActionCompleted: () {
+                  setState(() {});
+                  controller.animateTo(1);
+                },
+              ),
+              _OwnerRequestList(requests: history, pending: false),
+            ],
+          ),
+        ),
+      ],
+    );
+    return Column(
+      children: [
+        _CompactPaymentFacilitySelector(
+          facilities: facilities,
+          selectedFacility: facility,
+          badgeCount: (item) => store.tenantRequests
+              .where((request) =>
+                  request.facilityId == item.id && request.status == 'Open')
+              .length,
+          onSelected: (value) {
+            setState(() => selectedFacilityId = value.id);
+          },
+        ),
+        const Divider(height: 1),
+        Expanded(child: detail),
+      ],
+    );
+  }
+}
+
+class _OwnerRequestList extends StatelessWidget {
+  const _OwnerRequestList({
+    required this.requests,
+    required this.pending,
+    this.onActionCompleted,
+  });
+
+  final List<TenantRequest> requests;
+  final bool pending;
+  final VoidCallback? onActionCompleted;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    if (requests.isEmpty) {
+      return EmptyState(
+        icon: pending ? Icons.task_alt_rounded : Icons.history_rounded,
+        title: pending ? 'No pending requests' : 'No request history',
+        message: pending
+            ? 'All tenant requests have been handled.'
+            : 'Closed and rejected requests will appear here.',
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: requests.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final request = requests[index];
+        final tenant = store.userFor(request.tenantId);
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    ReviewTypeBadge(
+                      label: request.requestType.toUpperCase(),
+                      icon: Icons.handyman_rounded,
+                      color: pending
+                          ? const Color(0xFFD25B2A)
+                          : const Color(0xFF64748B),
+                    ),
+                    const Spacer(),
+                    StatusChipText(label: request.status),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(request.title,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(
+                  '${tenant.name} • ${dateTimeLabel(request.createdAt)}',
+                  style: const TextStyle(color: oceanMuted, fontSize: 11),
+                ),
+                const SizedBox(height: 9),
+                Text(request.message),
+                if (request.hasAttachment) ...[
+                  const SizedBox(height: 12),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () => showTenantRequestAttachmentDialog(
+                      context,
+                      request,
+                      tenant.name,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: oceanSoft.withOpacity(0.75),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFBFDBFE)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.image_rounded,
+                            color: oceanDeep,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Tenant picture attached',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                Text(
+                                  [
+                                    request.attachmentFileName,
+                                    if (request.attachmentSizeBytes != null)
+                                      fileSizeLabel(
+                                        request.attachmentSizeBytes!,
+                                      ),
+                                  ].whereType<String>().join(' • '),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: oceanMuted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.visibility_rounded,
+                            color: oceanDeep,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                if (request.reviewedAt != null) ...[
+                  const SizedBox(height: 8),
+                  Text('Updated ${dateTimeLabel(request.reviewedAt!)}',
+                      style: const TextStyle(color: oceanMuted, fontSize: 10)),
+                ],
+                if (pending) ...[
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      if (request.status == 'Open')
+                        FilledButton.icon(
+                          onPressed: () async {
+                            final confirmed = await showActionConfirmation(
+                              context,
+                              title: 'Accept this request?',
+                              message:
+                                  '${request.title} will move to request history as Accepted.',
+                              confirmLabel: 'Accept',
+                            );
+                            if (confirmed) {
+                              store.reviewTenantRequest(request, 'Accepted');
+                              onActionCompleted?.call();
+                            }
+                          },
+                          icon: const Icon(Icons.check_rounded),
+                          label: const Text('Accept'),
+                        ),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final confirmed = await showActionConfirmation(
+                            context,
+                            title: 'Close this request?',
+                            message:
+                                '${request.title} will move to request history.',
+                            confirmLabel: 'Close Request',
+                          );
+                          if (confirmed) {
+                            store.reviewTenantRequest(request, 'Closed');
+                            onActionCompleted?.call();
+                          }
+                        },
+                        icon: const Icon(Icons.task_alt_rounded),
+                        label: const Text('Close'),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// Retained temporarily while older screenshots are migrated.
+// ignore: unused_element
+class _LegacyOwnerRequestsFeedTab extends StatelessWidget {
+  const _LegacyOwnerRequestsFeedTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    final requests = [...store.tenantRequests]
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text(
+          'Maintenance requests',
+          style: Theme.of(context)
+              .textTheme
+              .headlineSmall
+              ?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Review active requests and follow their history.',
+          style: TextStyle(color: oceanMuted),
+        ),
+        const SizedBox(height: 14),
+        if (requests.isEmpty)
+          const EmptyState(
+            icon: Icons.handyman_rounded,
+            title: 'No requests',
+            message: 'Tenant requests will appear here.',
+          )
+        else
+          ...requests.map((request) {
+            final open = request.status == 'Open';
+            return Card(
+              child: Padding(
+                padding: const EdgeInsets.all(17),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: open
+                                ? const Color(0xFFFEF3C7)
+                                : const Color(0xFFDCFCE7),
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                          child: Icon(
+                            Icons.handyman_rounded,
+                            color: open
+                                ? const Color(0xFFB45309)
+                                : const Color(0xFF15803D),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                request.title,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              Text(
+                                '${store.userFor(request.tenantId).name} · ${store.facilityFor(request.facilityId).name}',
+                                style: const TextStyle(
+                                  color: oceanMuted,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        StatusChipText(label: request.status),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(request.message),
+                    if (open) ...[
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          FilledButton.icon(
+                            onPressed: () => store.reviewTenantRequest(
+                              request,
+                              'In Progress',
+                            ),
+                            icon: const Icon(Icons.check_rounded),
+                            label: const Text('Accept'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => store.reviewTenantRequest(
+                              request,
+                              'Closed',
+                            ),
+                            icon: const Icon(Icons.task_alt_rounded, size: 19),
+                            label: const Text('Close'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+}
+
 class OwnerAccountTab extends StatelessWidget {
   const OwnerAccountTab({super.key});
 
@@ -3743,74 +9567,429 @@ class OwnerAccountTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
     final user = store.currentUser!;
-    final roleLabel =
-        user.role == UserRole.owner ? 'Property Owner' : 'Property Agent';
+    final roleLabel = user.role == UserRole.owner
+        ? tr(context, 'Owner')
+        : tr(context, 'Property Agent');
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
+    return ColoredBox(
+      color: oceanCanvas,
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(22, 34, 22, 34),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF3188D7), Color(0xFF173758)],
+              ),
+            ),
+            child: Row(
               children: [
-                ProfileAvatar(user: user, radius: 38),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () => showAvatarPickerDialog(context),
-                  icon: const Icon(Icons.add_a_photo_rounded),
-                  label: const Text('Choose Profile Picture'),
+                GestureDetector(
+                  onTap: () => showAvatarPickerDialog(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.18),
+                      shape: BoxShape.circle,
+                    ),
+                    child: ProfileAvatar(user: user, radius: 29),
+                  ),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  user.name,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
+                const SizedBox(width: 15),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 21,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  roleLabel,
-                  style: const TextStyle(color: Color(0xFF667085)),
-                ),
-                const SizedBox(height: 16),
-                ProfileInfoRow(label: 'Email', value: user.email),
-                ProfileInfoRow(
-                  label: 'Facilities',
-                  value: '${store.ownerFacilities.length}',
-                ),
-                ProfileInfoRow(
-                  label: 'Unread Notifications',
-                  value: '${store.unreadNotificationCount}',
+                      const SizedBox(height: 2),
+                      Text(
+                        '$roleLabel · ${trCount(context, store.ownerFacilities.length, 'property', 'properties')}',
+                        style: const TextStyle(
+                          color: Color(0xDDFFFFFF),
+                          fontSize: 11,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Last login: ${user.lastLoginAt == null ? 'Not recorded' : dateTimeLabel(user.lastLoginAt!)}',
+                        style: const TextStyle(
+                          color: Color(0xCCFFFFFF),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+            child: Column(
+              children: [
+                _ProfileMenuGroup(
+                  children: [
+                    _ProfileMenuItem(
+                      icon: Icons.person_outline_rounded,
+                      label: 'Account details',
+                      onTap: () => showOwnerAccountSetupDialog(context),
+                    ),
+                    _ProfileMenuItem(
+                      icon: Icons.notifications_none_rounded,
+                      label: 'Notifications',
+                      onTap: () => showNotifications(context),
+                    ),
+                    _ProfileMenuItem(
+                      icon: Icons.notifications_active_outlined,
+                      label: 'Payment reminders',
+                      meta: trDayStart(context, user.paymentReminderAfterDays),
+                      onTap: () => showReminderSettingsDialog(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _ProfileMenuGroup(
+                  children: [
+                    _ProfileMenuItem(
+                      icon: Icons.apartment_outlined,
+                      label: 'Facility configuration',
+                      onTap: () => showFacilityConfigurationDialog(context),
+                    ),
+                    _ProfileMenuItem(
+                      icon: Icons.storage_outlined,
+                      label: 'Data & backup',
+                      onTap: () => showDataExportDialog(context),
+                    ),
+                    _ProfileMenuItem(
+                      icon: Icons.language_rounded,
+                      label: 'Language',
+                      onTap: () async {
+                        await Navigator.of(context).push<void>(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const _LanguageScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _ProfileMenuItem(
+                      icon: Icons.info_outline_rounded,
+                      label: 'Help & support',
+                      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Support centre will open here.'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _ProfileMenuGroup(
+                  children: [
+                    _ProfileMenuItem(
+                      icon: Icons.add_card_outlined,
+                      label: 'Other monthly income',
+                      onTap: () => showAddIncomeDialog(context),
+                    ),
+                    _ProfileMenuItem(
+                      icon: Icons.history_outlined,
+                      label: 'Activity history',
+                      meta: trCount(
+                        context,
+                        store.activityHistory.length,
+                        'record',
+                        'records',
+                      ),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const ActivityHistoryScreen(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                TextButton(
+                  onPressed: () => confirmLogout(context),
+                  child: Text(
+                    tr(context, 'Log out'),
+                    style: const TextStyle(
+                      color: Color(0xFFDC2626),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ActivityHistoryScreen extends StatelessWidget {
+  const ActivityHistoryScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    final records = [...store.activityHistory]
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return Scaffold(
+      appBar: AppBar(title: const Text('Activity History')),
+      body: records.isEmpty
+          ? const EmptyState(
+              icon: Icons.history_rounded,
+              title: 'No history yet',
+              message: 'Added and edited records will appear here.',
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: records.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final record = records[index];
+                final lower = record.action.toLowerCase();
+                final icon = lower.contains('payment')
+                    ? Icons.payments_rounded
+                    : lower.contains('tenant') || lower.contains('profile')
+                        ? Icons.person_rounded
+                        : lower.contains('facility') ||
+                                lower.contains('cost') ||
+                                lower.contains('commitment')
+                            ? Icons.apartment_rounded
+                            : lower.contains('request')
+                                ? Icons.handyman_rounded
+                                : Icons.edit_note_rounded;
+                return Card(
+                  child: ListTile(
+                    leading: CircleAvatar(child: Icon(icon)),
+                    title: Text(record.action),
+                    subtitle: Text(dateTimeLabel(record.timestamp)),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+}
+
+class _ProfileMenuGroup extends StatelessWidget {
+  const _ProfileMenuGroup({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: oceanText.withOpacity(0.035),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
-        Card(
-          child: Column(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.settings_rounded),
-                title: const Text('Settings'),
-                subtitle: const Text('Payment reminders and account settings'),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => showAccountSettingsDialog(context),
+        child: Column(
+          children: [
+            for (var index = 0; index < children.length; index++) ...[
+              children[index],
+              if (index != children.length - 1)
+                const Divider(height: 1, indent: 50, endIndent: 14),
+            ],
+          ],
+        ),
+      );
+}
+
+class _ProfileMenuItem extends StatelessWidget {
+  const _ProfileMenuItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.meta,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final String? meta;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+        dense: true,
+        minVerticalPadding: 13,
+        leading: Icon(icon, color: oceanDeep, size: 20),
+        title: Text(
+          tr(context, label),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (meta != null)
+              Text(
+                meta!,
+                style: const TextStyle(color: oceanDeep, fontSize: 10),
               ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.logout_rounded),
-                title: const Text('Logout'),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: store.logout,
+            if (meta != null) const SizedBox(width: 7),
+            const Icon(Icons.chevron_right_rounded,
+                color: Color(0xFFCBD5E1), size: 20),
+          ],
+        ),
+        onTap: onTap,
+      );
+}
+
+class _LanguageScreen extends StatefulWidget {
+  const _LanguageScreen();
+
+  @override
+  State<_LanguageScreen> createState() => _LanguageScreenState();
+}
+
+class _LanguageScreenState extends State<_LanguageScreen> {
+  AppLanguage? selected;
+
+  // ignore: unused_field
+  static const options = [
+    ('GB', 'English', 'English', AppLanguage.english),
+    ('CN', '中文', 'Chinese (Simplified)', AppLanguage.chinese),
+    ('MY', 'Bahasa Melayu', 'Malay', AppLanguage.malay),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    selected ??= store.appLanguage;
+    const options = [
+      ('GB', 'English', 'English', AppLanguage.english),
+      ('CN', '中文', 'Chinese (Simplified)', AppLanguage.chinese),
+      ('MY', 'Bahasa Melayu', 'Malay', AppLanguage.malay),
+    ];
+    return Scaffold(
+      appBar: AppBar(title: Text(tr(context, 'Language'))),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 9),
+                child: Text(
+                  tr(context, 'Applies across the whole app'),
+                  style: const TextStyle(color: oceanMuted, fontSize: 12),
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Column(
+                  children: [
+                    for (var index = 0; index < options.length; index++) ...[
+                      _LanguageChoice(
+                        code: options[index].$1,
+                        title: tr(context, options[index].$2),
+                        subtitle: tr(context, options[index].$3),
+                        selected: selected == options[index].$4,
+                        onTap: () => setState(
+                          () => selected = options[index].$4,
+                        ),
+                      ),
+                      if (index != options.length - 1)
+                        const Divider(height: 1, indent: 54),
+                    ],
+                  ],
+                ),
               ),
             ],
           ),
         ),
-      ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [oceanSky, oceanBlue, oceanDeep],
+              ),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+              ),
+              onPressed: () {
+                store.updateLanguage(selected!);
+                Navigator.pop(context);
+              },
+              child: Text(tr(context, 'Apply')),
+            ),
+          ),
+        ),
+      ),
     );
   }
+}
+
+class _LanguageChoice extends StatelessWidget {
+  const _LanguageChoice({
+    required this.code,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String code;
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+        leading: Container(
+          width: 34,
+          height: 34,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: switch (code) {
+              'GB' => const Color(0xFFEFF6FF),
+              'CN' => const Color(0xFFFFF1F2),
+              _ => const Color(0xFFFFFBEA),
+            },
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Text(code,
+              style:
+                  const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+        subtitle: Text(subtitle, style: const TextStyle(fontSize: 11)),
+        trailing: selected
+            ? const Icon(Icons.check_circle_rounded, color: oceanBlue)
+            : const Icon(Icons.radio_button_unchecked_rounded,
+                color: Color(0xFFCBD5E1)),
+        onTap: onTap,
+      );
 }
 
 class TenantHomeScreen extends StatefulWidget {
@@ -3824,17 +10003,17 @@ class _TenantHomeScreenState extends State<TenantHomeScreen> {
   int selectedIndex = 0;
 
   static const pages = [
+    TenantFigmaHomeTab(),
     TenantPayTab(),
-    TenantPaymentHistoryTab(),
     TenantRequestsTab(),
-    TenantTermsTab(),
+    TenantAccountTab(),
   ];
 
   static const titles = [
+    'Home',
     'Pay',
-    'Payment History',
     'Requests',
-    'Tenancy Term',
+    'Profile',
   ];
 
   @override
@@ -3843,65 +10022,222 @@ class _TenantHomeScreenState extends State<TenantHomeScreen> {
     final user = store.currentUser!;
     return Scaffold(
       appBar: AppBar(
-        title: Text('${titles[selectedIndex]} • ${user.name}'),
+        title: Text(
+          '${tr(context, timeGreeting(DateTime.now()))}, ${firstName(user.name)} • ${titles[selectedIndex]}',
+        ),
         actions: [
           IconButton(
             tooltip: 'Notifications',
             onPressed: () => showNotifications(context),
-            icon: store.unreadNotificationCount == 0
-                ? const Icon(Icons.notifications_outlined)
-                : Badge(
-                    label: Text('${store.unreadNotificationCount}'),
-                    child: const Icon(Icons.notifications_outlined),
-                  ),
+            icon: NotificationBellIcon(
+              unreadCount: store.unreadNotificationCount,
+            ),
           ),
           IconButton(
             tooltip: 'Logout',
-            onPressed: store.logout,
+            onPressed: () => confirmLogout(context),
             icon: const Icon(Icons.logout_rounded),
           ),
         ],
       ),
-      body: IndexedStack(index: selectedIndex, children: pages),
+      body: AnimatedTabIndexedStack(index: selectedIndex, children: pages),
       bottomNavigationBar: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
-          child: NavigationBar(
-            selectedIndex: selectedIndex,
-            height: 72,
-            onDestinationSelected: (index) {
-              setState(() {
-                selectedIndex = index;
-              });
-            },
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.payments_outlined),
-                selectedIcon: Icon(Icons.payments_rounded),
-                label: 'Pay',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.history_outlined),
-                selectedIcon: Icon(Icons.history_rounded),
-                label: 'History',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.handyman_outlined),
-                selectedIcon: Icon(Icons.handyman_rounded),
-                label: 'Request',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.description_outlined),
-                selectedIcon: Icon(Icons.description_rounded),
-                label: 'Terms',
-              ),
-            ],
-          ),
+        child: AppBottomNavigator(
+          selectedIndex: selectedIndex,
+          onSelected: (index) {
+            if (index == selectedIndex) return;
+            setState(() {
+              selectedIndex = index;
+            });
+          },
+          items: const [
+            AppBottomNavItem(
+              icon: Icons.home_outlined,
+              activeIcon: Icons.home_rounded,
+              label: 'Home',
+            ),
+            AppBottomNavItem(
+              icon: Icons.payments_outlined,
+              activeIcon: Icons.payments_rounded,
+              label: 'Pay',
+              badgeLabel: '!',
+            ),
+            AppBottomNavItem(
+              icon: Icons.handyman_outlined,
+              activeIcon: Icons.handyman_rounded,
+              label: 'Requests',
+            ),
+            AppBottomNavItem(
+              icon: Icons.account_circle_outlined,
+              activeIcon: Icons.account_circle_rounded,
+              label: 'Profile',
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+class TenantFigmaHomeTab extends StatelessWidget {
+  const TenantFigmaHomeTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    final tenancy =
+        store.tenantTenancies.isEmpty ? null : store.tenantTenancies.first;
+    final payable = store.tenantPayableBills;
+    final amountDue = payable.fold<double>(
+      0,
+      (total, bill) => total + bill.totalAmount,
+    );
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [oceanSky, oceanBlue, oceanDeep],
+            ),
+            borderRadius: BorderRadius.circular(26),
+            boxShadow: [
+              BoxShadow(
+                color: oceanBlue.withOpacity(0.20),
+                blurRadius: 26,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                tenancy == null
+                    ? 'Your tenancy'
+                    : '${store.facilityFor(tenancy.facilityId).name} · ${tenancy.unitName}',
+                style: const TextStyle(color: Color(0xDDFFFFFF)),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Amount due',
+                style: TextStyle(color: Color(0xCCFFFFFF), fontSize: 13),
+              ),
+              Text(
+                money(amountDue),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 38,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -1,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _TenantHomeAction(
+                icon: Icons.payments_rounded,
+                label: 'Pay rent',
+                onTap: payable.isEmpty
+                    ? null
+                    : () => showSubmitSlipDialog(context, payable.first),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _TenantHomeAction(
+                icon: Icons.history_rounded,
+                label: 'Receipts',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => Scaffold(
+                      appBar: AppBar(title: const Text('Payment history')),
+                      body: const TenantPaymentHistoryTab(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        Text(
+          'Active requests',
+          style: Theme.of(context)
+              .textTheme
+              .titleMedium
+              ?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 8),
+        if (store.currentTenantRequests.isEmpty)
+          const Card(
+            child: ListTile(
+              leading: Icon(Icons.check_circle_outline_rounded),
+              title: Text('No active requests'),
+            ),
+          )
+        else
+          ...store.currentTenantRequests.take(2).map(
+                (request) => Card(
+                  child: ListTile(
+                    leading:
+                        const Icon(Icons.handyman_rounded, color: oceanBlue),
+                    title: Text(request.title),
+                    subtitle: Text(request.status),
+                    trailing: StatusChipText(label: request.status),
+                  ),
+                ),
+              ),
+      ],
+    );
+  }
+}
+
+class _TenantHomeAction extends StatelessWidget {
+  const _TenantHomeAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            child: Column(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: oceanSoft,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, color: oceanBlue),
+                ),
+                const SizedBox(height: 8),
+                Text(label,
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
+        ),
+      );
 }
 
 class TenantPayTab extends StatelessWidget {
@@ -3910,21 +10246,12 @@ class TenantPayTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
-    final bills = store.tenantPayableBills;
-    if (bills.isEmpty) {
-      return const EmptyState(
-        icon: Icons.check_circle_rounded,
-        title: 'All paid',
-        message: 'Approved bills will remain available in Payment History.',
-      );
-    }
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text('Current Bills', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 12),
-        ...bills.map((bill) => TenantBillCard(bill: bill, showPayAction: true)),
-      ],
+    return _TenantYearBillsView(
+      title: 'Pending Actions',
+      bills: store.tenantPayableBills,
+      showPayAction: true,
+      emptyTitle: 'All paid',
+      emptyMessage: 'Approved bills remain available in Payment History.',
     );
   }
 }
@@ -3935,22 +10262,123 @@ class TenantPaymentHistoryTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
-    final history = store.tenantPaymentHistory;
-    if (history.isEmpty) {
-      return const EmptyState(
-        icon: Icons.history_rounded,
-        title: 'No payment history yet',
-        message: 'Submitted and approved payments will appear here.',
-      );
-    }
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text('Payment History', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 12),
-        ...history.map((bill) => TenantBillCard(bill: bill)),
-      ],
+    return _TenantYearBillsView(
+      title: 'Payment History',
+      bills: store.tenantPaymentHistory,
+      emptyTitle: 'No payment history yet',
+      emptyMessage: 'Submitted and approved payments will appear here.',
     );
+  }
+}
+
+class _TenantYearBillsView extends StatefulWidget {
+  const _TenantYearBillsView({
+    required this.title,
+    required this.bills,
+    required this.emptyTitle,
+    required this.emptyMessage,
+    this.showPayAction = false,
+  });
+
+  final String title;
+  final List<MonthlyBill> bills;
+  final String emptyTitle;
+  final String emptyMessage;
+  final bool showPayAction;
+
+  @override
+  State<_TenantYearBillsView> createState() => _TenantYearBillsViewState();
+}
+
+class _TenantYearBillsViewState extends State<_TenantYearBillsView> {
+  int? selectedYear;
+  bool collapsed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final years = widget.bills.map((bill) => bill.month.year).toSet().toList()
+      ..sort((a, b) => b.compareTo(a));
+    final year =
+        selectedYear ?? (years.isEmpty ? DateTime.now().year : years.first);
+    final bills =
+        widget.bills.where((bill) => bill.month.year == year).toList();
+    final detail = bills.isEmpty
+        ? EmptyState(
+            icon: Icons.history_rounded,
+            title: widget.emptyTitle,
+            message: widget.emptyMessage,
+          )
+        : ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text('${widget.title} • $year',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 10),
+              ...bills.map((bill) => TenantBillCard(
+                    bill: bill,
+                    showPayAction: widget.showPayAction,
+                  )),
+            ],
+          );
+    return LayoutBuilder(builder: (context, constraints) {
+      if (constraints.maxWidth < 680) return detail;
+      return Row(
+        children: [
+          AnimatedContainer(
+            key: Key(widget.showPayAction
+                ? 'tenant_pay_year_sidebar'
+                : 'tenant_history_year_sidebar'),
+            duration: const Duration(milliseconds: 220),
+            width: collapsed ? 76 : 210,
+            color: Colors.white,
+            child: Column(
+              children: [
+                Align(
+                  alignment:
+                      collapsed ? Alignment.center : Alignment.centerRight,
+                  child: IconButton(
+                    onPressed: () => setState(() => collapsed = !collapsed),
+                    icon: Icon(collapsed
+                        ? Icons.chevron_right_rounded
+                        : Icons.chevron_left_rounded),
+                  ),
+                ),
+                if (!collapsed)
+                  const Padding(
+                    padding: EdgeInsets.all(10),
+                    child: Text('GROUP BY YEAR',
+                        style: TextStyle(
+                            color: Color(0xFF667085),
+                            fontWeight: FontWeight.w900)),
+                  ),
+                ...years.map((item) => ListTile(
+                      selected: item == year,
+                      leading: const Icon(Icons.calendar_month_rounded),
+                      title: collapsed ? null : Text('$item'),
+                      onTap: () => setState(() {
+                        selectedYear = item;
+                        collapsed = false;
+                      }),
+                    )),
+              ],
+            ),
+          ),
+          const VerticalDivider(width: 1),
+          Expanded(
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (_) {
+                if (!collapsed) setState(() => collapsed = true);
+              },
+              child: detail,
+            ),
+          ),
+        ],
+      );
+    });
   }
 }
 
@@ -3961,65 +10389,162 @@ class TenantRequestsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
     final requests = store.currentTenantRequests;
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: FilledButton.icon(
-            onPressed: () => showAddRequestDialog(context),
-            icon: const Icon(Icons.add_comment_rounded),
-            label: const Text('New Request'),
-          ),
-        ),
-        const SizedBox(height: 12),
-        if (requests.isEmpty)
-          const EmptyState(
-            icon: Icons.handyman_rounded,
-            title: 'No requests yet',
-            message:
-                'Submit repair, document, or general tenancy requests here.',
-          )
-        else
-          ...requests.map((request) {
-            final facility = store.facilityFor(request.facilityId);
-            return Card(
-              elevation: 0,
-              child: ListTile(
-                leading: const Icon(Icons.chat_bubble_outline_rounded),
-                title: Text(request.title),
-                subtitle: Text(
-                  '${facility.name} • ${request.message}\n${dateLabel(request.createdAt)}',
+    final active =
+        requests.where((request) => request.status == 'Open').toList();
+    final history =
+        requests.where((request) => request.status != 'Open').toList();
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TabBar(tabs: [
+                    Tab(text: 'Active (${active.length})'),
+                    Tab(text: 'History (${history.length})'),
+                  ]),
                 ),
-                trailing: StatusChipText(label: request.status),
-              ),
-            );
-          }),
-      ],
+                const SizedBox(width: 12),
+                FilledButton.icon(
+                  onPressed: () => showAddRequestDialog(context),
+                  icon: const Icon(Icons.add_comment_rounded),
+                  label: const Text('New Request'),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(children: [
+              _TenantRequestList(requests: active, active: true),
+              _TenantRequestList(requests: history),
+            ]),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class TenantTermsTab extends StatelessWidget {
-  const TenantTermsTab({super.key});
+class _TenantRequestList extends StatelessWidget {
+  const _TenantRequestList({required this.requests, this.active = false});
+
+  final List<TenantRequest> requests;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
-    final tenancies = store.tenantTenancies;
-    if (tenancies.isEmpty) {
-      return const EmptyState(
-        icon: Icons.description_rounded,
-        title: 'No tenancy found',
-        message: 'Your tenancy agreement will appear here once assigned.',
+    if (requests.isEmpty) {
+      return EmptyState(
+        icon: active ? Icons.task_alt_rounded : Icons.history_rounded,
+        title: active ? 'No active requests' : 'No request history',
+        message: active
+            ? 'Create a request whenever you need owner assistance.'
+            : 'Closed requests will appear here.',
       );
     }
     return ListView(
       padding: const EdgeInsets.all(16),
+      children: requests.map((request) {
+        final facility = store.facilityFor(request.facilityId);
+        return Card(
+          child: ListTile(
+            leading: const Icon(Icons.chat_bubble_outline_rounded),
+            title: Text(request.title),
+            subtitle: Text(
+              '${request.requestType} • ${facility.name}\n${request.message}\n${dateLabel(request.createdAt)}',
+            ),
+            isThreeLine: true,
+            trailing: StatusChipText(label: request.status),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class TenantAccountTab extends StatelessWidget {
+  const TenantAccountTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    final user = store.currentUser!;
+    final tenancies = store.tenantTenancies;
+    return ListView(
+      padding: const EdgeInsets.all(16),
       children: [
-        Text('Tenancy Agreement View',
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                ProfileAvatar(user: user, radius: 34),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(user.name,
+                          style: Theme.of(context).textTheme.titleLarge),
+                      Text(user.email),
+                      Text('${store.unreadNotificationCount} unread messages'),
+                    ],
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => showAvatarPickerDialog(context),
+                  icon: const Icon(Icons.add_a_photo_rounded),
+                  label: const Text('Avatar'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.notifications_rounded),
+                title: const Text('Messages & notifications'),
+                subtitle: Text('${store.unreadNotificationCount} unread'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => showNotifications(context),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.storage_rounded),
+                title: const Text('Data export'),
+                subtitle: const Text('Prepare Excel workbook or SQLite backup'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => showDataExportDialog(context),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.logout_rounded),
+                title: const Text('Logout'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => confirmLogout(context),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        Text('Tenancy Agreements',
             style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
+        if (tenancies.isEmpty)
+          const Card(
+            child: ListTile(
+              leading: Icon(Icons.description_rounded),
+              title: Text('No tenancy found'),
+              subtitle: Text('Your agreement will appear once assigned.'),
+            ),
+          ),
         ...tenancies.map((tenancy) {
           final facility = store.facilityFor(tenancy.facilityId);
           return Card(
@@ -4159,11 +10684,15 @@ class YearlyFinancialChart extends StatefulWidget {
   const YearlyFinancialChart({
     required this.year,
     required this.summaries,
+    required this.onPreviousYear,
+    required this.onNextYear,
     super.key,
   });
 
   final int year;
   final List<MonthlyFinancialSummary> summaries;
+  final VoidCallback onPreviousYear;
+  final VoidCallback? onNextYear;
 
   @override
   State<YearlyFinancialChart> createState() => _YearlyFinancialChartState();
@@ -4172,6 +10701,15 @@ class YearlyFinancialChart extends StatefulWidget {
 class _YearlyFinancialChartState extends State<YearlyFinancialChart> {
   int? hoveredMonthIndex;
   int? selectedMonthIndex;
+
+  @override
+  void didUpdateWidget(covariant YearlyFinancialChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.year != widget.year) {
+      selectedMonthIndex = null;
+      hoveredMonthIndex = null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -4200,6 +10738,16 @@ class _YearlyFinancialChartState extends State<YearlyFinancialChart> {
                               fontWeight: FontWeight.w700,
                             ),
                       ),
+                    ),
+                    IconButton(
+                      tooltip: 'Previous year',
+                      onPressed: widget.onPreviousYear,
+                      icon: const Icon(Icons.chevron_left_rounded),
+                    ),
+                    IconButton(
+                      tooltip: 'Next year',
+                      onPressed: widget.onNextYear,
+                      icon: const Icon(Icons.chevron_right_rounded),
                     ),
                   ],
                 ),
@@ -4950,37 +11498,40 @@ class CostSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final total = facility.installmentAmount +
-        facility.extraInstallmentPayment +
-        facility.maintenanceFee;
+    final store = RentalStoreScope.of(context);
+    final version = store.costVersionForMonth(facility, store.currentMonth);
+    final total = store.monthlyFacilityOutflow(
+      facility,
+      month: store.currentMonth,
+    );
     final items = [
       (
         'Installment',
-        facility.installmentAmount,
+        version.installmentAmount,
         Icons.account_balance_rounded,
         const Color(0xFF3156A3),
         '',
       ),
       (
         'Extra Payment',
-        facility.extraInstallmentPayment,
+        version.extraInstallmentPayment,
         Icons.add_card_rounded,
         const Color(0xFF6B5CB8),
         '',
       ),
       (
         'Maintenance',
-        facility.maintenanceFee,
+        version.maintenanceFee,
         Icons.handyman_rounded,
         const Color(0xFFD16432),
         '',
       ),
       (
-        'Fire Insurance • ${insuranceFrequencyText(facility.insuranceFrequency)}',
-        facility.insuranceFee,
+        'Fire Insurance • ${insuranceFrequencyText(version.insuranceFrequency)}',
+        version.insuranceFee,
         Icons.local_fire_department_rounded,
         const Color(0xFFC43D4B),
-        FinancialChartPainter.monthNames[facility.insuranceDueMonth - 1],
+        FinancialChartPainter.monthNames[version.insuranceDueMonth - 1],
       ),
       for (final commitment in facility.extraCommitments)
         (
@@ -5124,7 +11675,7 @@ class AmountRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(child: Text(label, style: style)),
-          Text(money(value), style: style),
+          Text(moneyExact(value), style: style),
         ],
       ),
     );
@@ -5149,12 +11700,22 @@ class StatusChip extends StatelessWidget {
       PaymentStatus.rejected => ('Rejected', Colors.red),
     };
     return Chip(
-      label: Text(label),
+      label: Text(tr(context, label)),
       side: BorderSide(color: color.shade300),
       backgroundColor: color.shade50,
       labelStyle: TextStyle(color: color.shade900),
     );
   }
+}
+
+String paymentStatusLabel(PaymentStatus status) {
+  return switch (status) {
+    PaymentStatus.notSubmitted => 'Pending Owner Utilities',
+    PaymentStatus.pendingTenantPayment => 'Pending Tenant Payment',
+    PaymentStatus.pendingApproval => 'Pending',
+    PaymentStatus.approved => 'Approved',
+    PaymentStatus.rejected => 'Rejected',
+  };
 }
 
 class StatusChipText extends StatelessWidget {
@@ -5165,9 +11726,36 @@ class StatusChipText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Chip(
-      label: Text(label),
+      label: Text(tr(context, label)),
       side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
       backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+    );
+  }
+}
+
+String tenantStatusText(AppUser tenant, Tenancy tenancy) {
+  if (!tenancy.active) return 'Inactive';
+  if (tenant.accountCreated) return 'Active';
+  return 'Pending verification';
+}
+
+class TenantStatusChip extends StatelessWidget {
+  const TenantStatusChip({required this.label, super.key});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (label) {
+      'Active' => Colors.green,
+      'Inactive' => Colors.grey,
+      _ => Colors.orange,
+    };
+    return Chip(
+      label: Text(label),
+      side: BorderSide(color: color.shade300),
+      backgroundColor: color.shade50,
+      labelStyle: TextStyle(color: color.shade900),
     );
   }
 }
@@ -5231,14 +11819,15 @@ class EmptyState extends StatelessWidget {
 
 Future<Facility?> showAddFacilityDialog(BuildContext context) {
   final store = RentalStoreScope.of(context);
-  final name = TextEditingController(text: 'New Facility');
-  final addressLine = TextEditingController(text: '');
-  final postcode = TextEditingController(text: '');
-  final city = TextEditingController(text: '');
-  final state = TextEditingController(text: '');
-  final installment = TextEditingController(text: '3700');
-  final maintenance = TextEditingController(text: '450');
-  final insurance = TextEditingController(text: '230');
+  final name = TextEditingController();
+  final addressLine1 = TextEditingController();
+  final addressLine2 = TextEditingController();
+  final installment = TextEditingController();
+  final maintenance = TextEditingController();
+  final insurance = TextEditingController();
+  String? selectedState;
+  String? selectedCity;
+  String? selectedPostcode;
   var insuranceFrequency = InsuranceFrequency.yearly;
   var insuranceDueMonth = 1;
   String? validationMessage;
@@ -5255,34 +11844,38 @@ Future<Facility?> showAddFacilityDialog(BuildContext context) {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  AppTextField(controller: name, label: 'Facility Name'),
                   AppTextField(
-                    controller: addressLine,
-                    label: 'Address',
+                    controller: name,
+                    label: 'Facility Name',
                   ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: AppTextField(
-                          controller: postcode,
-                          label: 'Postcode',
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: AppTextField(
-                          controller: city,
-                          label: 'City',
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: AppTextField(
-                          controller: state,
-                          label: 'State',
-                        ),
-                      ),
-                    ],
+                  AppTextField(
+                    controller: addressLine1,
+                    label: 'Address line 1 *',
+                  ),
+                  AppTextField(
+                    controller: addressLine2,
+                    label: 'Address line 2',
+                  ),
+                  MalaysiaAddressDropdowns(
+                    state: selectedState,
+                    city: selectedCity,
+                    postcode: selectedPostcode,
+                    onStateChanged: (value) {
+                      setDialogState(() {
+                        selectedState = value;
+                        selectedCity = null;
+                        selectedPostcode = null;
+                      });
+                    },
+                    onCityChanged: (value) {
+                      setDialogState(() {
+                        selectedCity = value;
+                        selectedPostcode = null;
+                      });
+                    },
+                    onPostcodeChanged: (value) {
+                      setDialogState(() => selectedPostcode = value);
+                    },
                   ),
                   AppTextField(
                     controller: installment,
@@ -5369,24 +11962,56 @@ Future<Facility?> showAddFacilityDialog(BuildContext context) {
               child: const Text('Cancel'),
             ),
             FilledButton.icon(
-              onPressed: () {
+              onPressed: () async {
                 if (name.text.trim().isEmpty ||
-                    addressLine.text.trim().isEmpty ||
-                    postcode.text.trim().isEmpty ||
-                    city.text.trim().isEmpty ||
-                    state.text.trim().isEmpty) {
+                    addressLine1.text.trim().isEmpty ||
+                    selectedPostcode == null ||
+                    selectedCity == null ||
+                    selectedState == null) {
                   setDialogState(() {
                     validationMessage =
-                        'Facility name and complete address are required.';
+                        'Facility name, address line 1, state, city and postcode are required.';
                   });
                   return;
                 }
+                if (!isValidMalaysiaLocation(
+                  state: selectedState!,
+                  city: selectedCity!,
+                  postcode: selectedPostcode!,
+                )) {
+                  setDialogState(() {
+                    validationMessage =
+                        'Postcode, city and state do not match. Select a valid combination.';
+                  });
+                  return;
+                }
+                if (!isValidMoneyInput(installment.text) ||
+                    !isValidMoneyInput(maintenance.text) ||
+                    !isValidMoneyInput(insurance.text)) {
+                  setDialogState(() {
+                    validationMessage =
+                        'Installment, maintenance and insurance must be valid numbers.';
+                  });
+                  return;
+                }
+                final confirmed = await showActionConfirmation(
+                  dialogContext,
+                  title: 'Create this facility?',
+                  message:
+                      '${name.text.trim()} will be created with a monthly installment of ${money(parseMoney(installment.text))}.',
+                  confirmLabel: 'Create Facility',
+                );
+                if (!confirmed || !dialogContext.mounted) return;
                 final facility = store.addFacility(
                   name: name.text.trim(),
-                  addressLine: addressLine.text.trim(),
-                  postcode: postcode.text.trim(),
-                  city: city.text.trim(),
-                  state: state.text.trim(),
+                  addressLine: [
+                    addressLine1.text.trim(),
+                    if (addressLine2.text.trim().isNotEmpty)
+                      addressLine2.text.trim(),
+                  ].join(', '),
+                  postcode: selectedPostcode!,
+                  city: selectedCity!,
+                  state: selectedState!,
                   installmentAmount: parseMoney(installment.text),
                   maintenanceFee: parseMoney(maintenance.text),
                   insuranceFee: parseMoney(insurance.text),
@@ -5407,20 +12032,25 @@ Future<Facility?> showAddFacilityDialog(BuildContext context) {
 
 void showAddTenantDialog(BuildContext context, Facility facility) {
   final store = RentalStoreScope.of(context);
-  final fullName = TextEditingController(text: 'New Tenant');
-  final email = TextEditingController(text: 'tenant@example.com');
-  final originAddress = TextEditingController(text: 'Origin address');
-  final dateOfBirth = TextEditingController(text: '01/01/1995');
-  final sex = TextEditingController(text: 'Male');
-  final unitName = TextEditingController(text: 'Room / Unit');
-  final monthlyRent = TextEditingController(text: '800');
-  final leaseStart = TextEditingController(text: '01/01/2026');
-  final leaseEnd = TextEditingController(text: '31/12/2026');
-  final carParkDetails = TextEditingController(text: '1 car park bay');
+  final fullName = TextEditingController();
+  final email = TextEditingController();
+  final phoneNumber = TextEditingController();
+  final originAddressLine1 = TextEditingController();
+  final originAddressLine2 = TextEditingController();
+  final dateOfBirth = TextEditingController();
+  final sex = TextEditingController();
+  final unitName = TextEditingController();
+  final monthlyRent = TextEditingController();
+  final leaseStart = TextEditingController();
+  final leaseEnd = TextEditingController();
+  final carParkDetails = TextEditingController();
   var electricityIncluded = false;
   var waterIncluded = false;
   var internetIncluded = true;
   var carParkIncluded = false;
+  String? selectedOriginState;
+  String? selectedOriginCity;
+  String? selectedOriginPostcode;
 
   showDialog<void>(
     context: context,
@@ -5447,11 +12077,47 @@ void showAddTenantDialog(BuildContext context, Facility facility) {
                     style: TextStyle(color: Color(0xFF667085)),
                   ),
                   const SizedBox(height: 10),
-                  AppTextField(controller: fullName, label: 'Full Name'),
-                  AppTextField(controller: email, label: 'Email'),
                   AppTextField(
-                    controller: originAddress,
-                    label: 'Origin Address',
+                    controller: fullName,
+                    label: 'Full Name',
+                  ),
+                  AppTextField(
+                    controller: email,
+                    label: 'Email',
+                  ),
+                  AppTextField(
+                    controller: phoneNumber,
+                    label: 'WhatsApp / Phone Number',
+                    keyboardType: TextInputType.phone,
+                  ),
+                  AppTextField(
+                    controller: originAddressLine1,
+                    label: 'Origin address line 1 *',
+                  ),
+                  AppTextField(
+                    controller: originAddressLine2,
+                    label: 'Origin address line 2',
+                  ),
+                  MalaysiaAddressDropdowns(
+                    state: selectedOriginState,
+                    city: selectedOriginCity,
+                    postcode: selectedOriginPostcode,
+                    onStateChanged: (value) {
+                      setDialogState(() {
+                        selectedOriginState = value;
+                        selectedOriginCity = null;
+                        selectedOriginPostcode = null;
+                      });
+                    },
+                    onCityChanged: (value) {
+                      setDialogState(() {
+                        selectedOriginCity = value;
+                        selectedOriginPostcode = null;
+                      });
+                    },
+                    onPostcodeChanged: (value) {
+                      setDialogState(() => selectedOriginPostcode = value);
+                    },
                   ),
                   Row(
                     children: [
@@ -5464,7 +12130,10 @@ void showAddTenantDialog(BuildContext context, Facility facility) {
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: AppTextField(controller: sex, label: 'Sex'),
+                        child: AppTextField(
+                          controller: sex,
+                          label: 'Sex',
+                        ),
                       ),
                     ],
                   ),
@@ -5548,7 +12217,6 @@ void showAddTenantDialog(BuildContext context, Facility facility) {
                     AppTextField(
                       controller: carParkDetails,
                       label: 'Car Park Details',
-                      helperText: 'Example: Covered bay A-18',
                     ),
                 ],
               ),
@@ -5560,20 +12228,104 @@ void showAddTenantDialog(BuildContext context, Facility facility) {
               child: const Text('Cancel'),
             ),
             FilledButton.icon(
-              onPressed: () {
+              onPressed: () async {
+                if (!isValidHumanName(fullName.text)) {
+                  showValidationMessage(
+                    dialogContext,
+                    'Full name must contain letters only, no numbers.',
+                  );
+                  return;
+                }
+                if (!isValidEmailInput(email.text)) {
+                  showValidationMessage(dialogContext, 'Enter a valid email.');
+                  return;
+                }
+                if (phoneNumber.text.trim().isNotEmpty &&
+                    !isValidPhoneInput(phoneNumber.text)) {
+                  showValidationMessage(
+                    dialogContext,
+                    'Enter a valid WhatsApp / phone number.',
+                  );
+                  return;
+                }
+                if (originAddressLine1.text.trim().isEmpty ||
+                    selectedOriginState == null ||
+                    selectedOriginCity == null ||
+                    selectedOriginPostcode == null) {
+                  showValidationMessage(
+                    dialogContext,
+                    'Origin address line 1, state, city and postcode are required.',
+                  );
+                  return;
+                }
+                if (!isValidMalaysiaLocation(
+                  state: selectedOriginState!,
+                  city: selectedOriginCity!,
+                  postcode: selectedOriginPostcode!,
+                )) {
+                  showValidationMessage(
+                    dialogContext,
+                    'Origin postcode, city and state do not match.',
+                  );
+                  return;
+                }
+                final parsedDateOfBirth = parseDateInput(dateOfBirth.text);
+                if (parsedDateOfBirth == null) {
+                  showValidationMessage(
+                    dialogContext,
+                    'Date of birth must use DD/MM/YYYY.',
+                  );
+                  return;
+                }
+                if (!isValidMoneyInput(monthlyRent.text, allowZero: false)) {
+                  showValidationMessage(
+                    dialogContext,
+                    'Monthly rent must be a valid amount above RM 0.',
+                  );
+                  return;
+                }
+                final parsedLeaseStart = parseDateInput(leaseStart.text);
+                final parsedLeaseEnd = parseDateInput(leaseEnd.text);
+                if (parsedLeaseStart == null || parsedLeaseEnd == null) {
+                  showValidationMessage(
+                    dialogContext,
+                    'Lease start and lease end must use DD/MM/YYYY.',
+                  );
+                  return;
+                }
+                if (parsedLeaseEnd.isBefore(parsedLeaseStart)) {
+                  showValidationMessage(
+                    dialogContext,
+                    'Lease end cannot be before lease start.',
+                  );
+                  return;
+                }
+                final confirmed = await showActionConfirmation(
+                  dialogContext,
+                  title: 'Create this tenant?',
+                  message:
+                      '${fullName.text.trim()} will be added to ${facility.name}, ${unitName.text.trim()}, at ${money(parseMoney(monthlyRent.text))} monthly rent.',
+                  confirmLabel: 'Create Tenant',
+                );
+                if (!confirmed || !dialogContext.mounted) return;
                 store.addTenantToFacility(
                   facility: facility,
                   fullName: fullName.text.trim(),
                   email: email.text.trim(),
-                  originAddress: originAddress.text.trim(),
-                  dateOfBirth:
-                      parseDateInput(dateOfBirth.text) ?? DateTime(1995),
+                  phoneNumber: phoneNumber.text.trim(),
+                  originAddress: combineAddress(
+                    line1: originAddressLine1.text,
+                    line2: originAddressLine2.text,
+                    postcode: selectedOriginPostcode!,
+                    city: selectedOriginCity!,
+                    state: selectedOriginState!,
+                  ),
+                  dateOfBirth: parsedDateOfBirth,
                   sex: sex.text.trim(),
                   unitName: unitName.text.trim(),
                   monthlyRent: parseMoney(monthlyRent.text),
-                  leaseStart: parseDateInput(leaseStart.text) ?? DateTime(2026),
-                  leaseEnd:
-                      parseDateInput(leaseEnd.text) ?? DateTime(2026, 12, 31),
+                  leaseStart: parsedLeaseStart,
+                  leaseEnd: parsedLeaseEnd,
                   electricityPackage: electricityIncluded
                       ? UtilityPackage.included
                       : UtilityPackage.excluded,
@@ -5635,7 +12387,7 @@ void showSendInvitationDialog(BuildContext context, AppUser tenant) {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Text(
-                'Prototype mode: this records the invitation in the app. Connect Firebase Authentication and an email service to deliver real invitation emails.',
+                'Access is invitation-only. Supabase will email a secure account link to this exact tenancy address.',
               ),
             ),
             if (tenant.invitationSentAt != null) ...[
@@ -5663,48 +12415,97 @@ void showSendInvitationDialog(BuildContext context, AppUser tenant) {
           onPressed: () => Navigator.pop(dialogContext),
           child: const Text('Cancel'),
         ),
-        if (tenant.invitationSent && !tenant.accountCreated)
-          OutlinedButton.icon(
-            onPressed: () {
-              store.acceptTenantInvitation(tenant);
-              Navigator.pop(dialogContext);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    '${tenant.name} accepted the invitation and created an account.',
-                  ),
-                ),
-              );
-            },
-            icon: const Icon(Icons.how_to_reg_rounded),
-            label: const Text('Simulate Tenant Acceptance'),
-          ),
         FilledButton.icon(
-          onPressed: tenant.accountCreated
+          onPressed: tenant.accountCreated || tenant.invitationSent
               ? null
-              : () {
-                  store.sendTenantInvitation(tenant);
-                  Navigator.pop(dialogContext);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Invitation prepared for ${tenant.email}.',
-                      ),
-                    ),
+              : () async {
+                  final confirmed = await showActionConfirmation(
+                    dialogContext,
+                    title: 'Send secure invitation?',
+                    message:
+                        'Supabase will send a one-time account invitation to ${tenant.email}.',
+                    confirmLabel: 'Send Invitation',
                   );
+                  if (!confirmed || !dialogContext.mounted) return;
+                  try {
+                    await store.sendSecureTenantInvitation(tenant);
+                    if (!dialogContext.mounted) return;
+                    Navigator.pop(dialogContext);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Secure invitation sent to ${tenant.email}.',
+                        ),
+                      ),
+                    );
+                  } on AuthException catch (error) {
+                    if (!dialogContext.mounted) return;
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                      SnackBar(content: Text(error.message)),
+                    );
+                  }
                 },
           icon: const Icon(Icons.send_rounded),
           label: Text(
             tenant.accountCreated
                 ? 'Account Created'
                 : tenant.invitationSent
-                    ? 'Resend Invitation'
+                    ? 'Invitation Sent'
                     : 'Send Invitation',
           ),
         ),
       ],
     ),
   );
+}
+
+Future<bool> showActionConfirmation(
+  BuildContext context, {
+  required String title,
+  required String message,
+  String confirmLabel = 'Confirm',
+  bool destructive = false,
+}) async {
+  return await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: Icon(
+            destructive ? Icons.warning_amber_rounded : Icons.help_rounded,
+            color:
+                destructive ? const Color(0xFFC43D4B) : const Color(0xFF3156A3),
+          ),
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: destructive
+                  ? FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFC43D4B),
+                    )
+                  : null,
+              child: Text(confirmLabel),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+}
+
+Future<void> confirmLogout(BuildContext context) async {
+  final store = RentalStoreScope.of(context);
+  final confirmed = await showActionConfirmation(
+    context,
+    title: 'Log out?',
+    message: 'You will return to the login page.',
+    confirmLabel: 'Log Out',
+    destructive: true,
+  );
+  if (confirmed) await store.cloudLogout();
 }
 
 void showEditCostsDialog(BuildContext context, Facility facility) {
@@ -5729,6 +12530,22 @@ void showEditCostsDialog(BuildContext context, Facility facility) {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8EEFC),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Changes apply from ${monthLabel(store.currentMonth)}. Previous months remain unchanged.',
+                  style: const TextStyle(
+                    color: Color(0xFF24498F),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
               AppTextField(controller: installment, label: 'Installment'),
               AppTextField(
                 controller: extra,
@@ -5788,7 +12605,25 @@ void showEditCostsDialog(BuildContext context, Facility facility) {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
+              if (!isValidMoneyInput(installment.text) ||
+                  !isValidMoneyInput(extra.text) ||
+                  !isValidMoneyInput(maintenance.text) ||
+                  !isValidMoneyInput(insurance.text)) {
+                showValidationMessage(
+                  dialogContext,
+                  'All facility cost fields must be valid numbers.',
+                );
+                return;
+              }
+              final confirmed = await showActionConfirmation(
+                dialogContext,
+                title: 'Apply facility cost changes?',
+                message:
+                    'The new costs will apply from ${monthLabel(store.currentMonth)}. Previous-month calculations will not change.',
+                confirmLabel: 'Apply Changes',
+              );
+              if (!confirmed || !dialogContext.mounted) return;
               store.updateFacilityCosts(
                 facility,
                 installmentAmount: parseMoney(installment.text),
@@ -5800,7 +12635,7 @@ void showEditCostsDialog(BuildContext context, Facility facility) {
               );
               Navigator.pop(dialogContext);
             },
-            child: const Text('Save'),
+            child: const Text('Review & Apply'),
           ),
         ],
       ),
@@ -5808,75 +12643,319 @@ void showEditCostsDialog(BuildContext context, Facility facility) {
   );
 }
 
-void showFacilitySettingsDialog(BuildContext context, Facility facility) {
+void showPropertyExpenseEditorDialog(
+  BuildContext context,
+  Facility facility,
+) {
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text('${facility.name} Expenses'),
+      content: SizedBox(
+        width: 540,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const CircleAvatar(
+                  child: Icon(Icons.account_balance_rounded),
+                ),
+                title: const Text('Main facility costs'),
+                subtitle: const Text(
+                  'Installment, extra payment, maintenance and insurance',
+                ),
+                trailing: const Icon(Icons.edit_rounded),
+                onTap: () {
+                  Navigator.pop(dialogContext);
+                  showEditCostsDialog(context, facility);
+                },
+              ),
+              const Divider(),
+              if (facility.extraCommitments.isEmpty)
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('No additional recurring expenses'),
+                )
+              else
+                ...facility.extraCommitments.map(
+                  (commitment) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const CircleAvatar(
+                      child: Icon(Icons.receipt_long_rounded),
+                    ),
+                    title: Text(commitment.name),
+                    subtitle: Text(
+                      '${commitmentFrequencyText(commitment.frequency)} • ${moneyExact(commitment.amount)}',
+                    ),
+                    trailing: const Icon(Icons.edit_rounded),
+                    onTap: () {
+                      Navigator.pop(dialogContext);
+                      showEditRecurringCommitmentDialog(context, commitment);
+                    },
+                  ),
+                ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  showAddRecurringCommitmentDialog(context, facility);
+                },
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Add Recurring Expense'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('Close'),
+        ),
+      ],
+    ),
+  );
+}
+
+void showFacilityConfigurationDialog(BuildContext context) {
+  final store = RentalStoreScope.of(context);
+  final facilities = store.ownerFacilities;
+  if (facilities.isEmpty) return;
+  var facility = facilities.first;
+
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.apartment_rounded),
+            SizedBox(width: 10),
+            Text('Facility Configuration'),
+          ],
+        ),
+        content: SizedBox(
+          width: 500,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DropdownButtonFormField<Facility>(
+                  value: facility,
+                  decoration: const InputDecoration(
+                    labelText: 'Facility',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: facilities
+                      .map(
+                        (item) => DropdownMenuItem(
+                          value: item,
+                          child: Text(item.name),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() => facility = value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                ProfileInfoRow(label: 'Address', value: facility.address),
+                ProfileInfoRow(
+                  label: 'Status',
+                  value: facilityStatusText(facility),
+                ),
+                const Divider(height: 24),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.payments_rounded),
+                  title: const Text('Facility Costs'),
+                  subtitle: const Text(
+                      'Edit installment, maintenance and insurance.'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () {
+                    Navigator.pop(dialogContext);
+                    showEditCostsDialog(context, facility);
+                  },
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.history_rounded),
+                  title: const Text('Cost Change History'),
+                  subtitle: Text(
+                    '${facility.costHistory.length} configuration record(s)',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () {
+                    Navigator.pop(dialogContext);
+                    showFacilityCostHistoryDialog(context, facility);
+                  },
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.receipt_long_rounded),
+                  title: const Text('Recurring Commitments'),
+                  subtitle:
+                      const Text('Add or edit scheduled facility commitments.'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () {
+                    Navigator.pop(dialogContext);
+                    showRecurringCommitmentsSettingsDialog(
+                      context,
+                      initialFacility: facility,
+                    );
+                  },
+                ),
+                if (facility.status == FacilityStatus.active)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(
+                      Icons.sell_rounded,
+                      color: Color(0xFFD16432),
+                    ),
+                    title: const Text('Mark Facility as Sold'),
+                    subtitle: const Text(
+                      'Stops active tenancy tracking but keeps the records.',
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () {
+                      Navigator.pop(dialogContext);
+                      showMarkSoldDialog(context, facility);
+                    },
+                  ),
+                if (facility.status == FacilityStatus.sold)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(
+                      Icons.delete_forever_rounded,
+                      color: Color(0xFFC43D4B),
+                    ),
+                    title: const Text('Remove Sold Facility'),
+                    subtitle: const Text(
+                      'Available only after the facility is marked sold.',
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () {
+                      Navigator.pop(dialogContext);
+                      showRemoveFacilityDialog(context, facility);
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+List<String> facilityCostChanges(
+  FacilityCostVersion? previous,
+  FacilityCostVersion current,
+) {
+  if (previous == null) return ['Initial facility cost configuration'];
+  final changes = <String>[];
+  void addMoneyChange(String label, double before, double after) {
+    if (before != after) {
+      changes.add('$label: ${money(before)} → ${money(after)}');
+    }
+  }
+
+  addMoneyChange(
+      'Installment', previous.installmentAmount, current.installmentAmount);
+  addMoneyChange('Extra payment', previous.extraInstallmentPayment,
+      current.extraInstallmentPayment);
+  addMoneyChange(
+      'Maintenance', previous.maintenanceFee, current.maintenanceFee);
+  addMoneyChange('Fire insurance', previous.insuranceFee, current.insuranceFee);
+  if (previous.insuranceFrequency != current.insuranceFrequency) {
+    changes.add(
+      'Insurance frequency: ${insuranceFrequencyText(previous.insuranceFrequency)} → ${insuranceFrequencyText(current.insuranceFrequency)}',
+    );
+  }
+  if (previous.insuranceDueMonth != current.insuranceDueMonth) {
+    changes.add(
+      'Insurance month: ${FinancialChartPainter.monthNames[previous.insuranceDueMonth - 1]} → ${FinancialChartPainter.monthNames[current.insuranceDueMonth - 1]}',
+    );
+  }
+  return changes.isEmpty
+      ? ['Configuration saved with no value changes']
+      : changes;
+}
+
+void showFacilityCostHistoryDialog(BuildContext context, Facility facility) {
+  final versions = [...facility.costHistory]
+    ..sort((a, b) => a.effectiveMonth.compareTo(b.effectiveMonth));
   showDialog<void>(
     context: context,
     builder: (dialogContext) => AlertDialog(
       title: Row(
         children: [
-          const Icon(Icons.settings_rounded),
+          const Icon(Icons.history_rounded),
           const SizedBox(width: 10),
-          Expanded(child: Text('${facility.name} Settings')),
+          Expanded(child: Text('${facility.name} • Cost History')),
         ],
       ),
       content: SizedBox(
-        width: 460,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ProfileInfoRow(label: 'Facility', value: facility.name),
-            ProfileInfoRow(label: 'Address', value: facility.address),
-            ProfileInfoRow(
-              label: 'Status',
-              value: facilityStatusText(facility),
-            ),
-            const Divider(height: 28),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.edit_rounded),
-              title: const Text('Edit Facility Costs'),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () {
-                Navigator.pop(dialogContext);
-                showEditCostsDialog(context, facility);
-              },
-            ),
-            if (facility.status == FacilityStatus.active)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(
-                  Icons.sell_rounded,
-                  color: Color(0xFFD16432),
+        width: 620,
+        child: ListView.builder(
+          shrinkWrap: true,
+          itemCount: versions.length,
+          itemBuilder: (context, index) {
+            final version = versions[index];
+            final previous = index == 0 ? null : versions[index - 1];
+            final changes = facilityCostChanges(previous, version);
+            return Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            version.initial
+                                ? 'Initial Configuration'
+                                : 'Effective ${monthLabel(version.effectiveMonth)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        if (!version.initial)
+                          const StatusChipText(label: 'Scheduled'),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      version.initial
+                          ? 'Baseline record'
+                          : 'Configured ${dateTimeLabel(version.recordedAt)}',
+                      style: const TextStyle(color: Color(0xFF667085)),
+                    ),
+                    const Divider(height: 18),
+                    ...changes.map(
+                      (change) => Padding(
+                        padding: const EdgeInsets.only(bottom: 5),
+                        child: Text('• $change'),
+                      ),
+                    ),
+                  ],
                 ),
-                title: const Text('Mark Facility as Sold'),
-                subtitle: const Text(
-                  'Stops active tenancy tracking but keeps the records.',
-                ),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () {
-                  Navigator.pop(dialogContext);
-                  showMarkSoldDialog(context, facility);
-                },
               ),
-            if (facility.status == FacilityStatus.sold)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(
-                  Icons.delete_forever_rounded,
-                  color: Color(0xFFC43D4B),
-                ),
-                title: const Text('Remove Sold Facility'),
-                subtitle: const Text(
-                  'Available only after the facility is marked sold.',
-                ),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () {
-                  Navigator.pop(dialogContext);
-                  showRemoveFacilityDialog(context, facility);
-                },
-              ),
-          ],
+            );
+          },
         ),
       ),
       actions: [
@@ -5894,6 +12973,7 @@ void showMarkSoldDialog(BuildContext context, Facility facility) {
   showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
       title: Text('Mark ${facility.name} as sold?'),
       content: const Text(
         'This will keep the facility records but mark it inactive and stop active tenancy tracking. You can remove it only after it is marked sold.',
@@ -5943,138 +13023,490 @@ void showRemoveFacilityDialog(BuildContext context, Facility facility) {
   );
 }
 
-void showPaymentReviewDialog(BuildContext context, MonthlyBill bill) {
+void showPaymentReviewDialog(
+  BuildContext context,
+  MonthlyBill bill, {
+  bool readOnly = false,
+  DateTime? reviewedAt,
+  String? reviewReason,
+}) {
   final store = RentalStoreScope.of(context);
   final tenant = store.userFor(bill.tenantId);
   final facility = store.facilityFor(bill.facilityId);
-  final rejectReason = TextEditingController(
-    text: 'Slip amount or payment reference needs checking.',
-  );
-
   showDialog<void>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: const Text('Payment Attachment Review'),
-      content: SizedBox(
-        width: 560,
-        child: SingleChildScrollView(
+    builder: (dialogContext) {
+      final compact = MediaQuery.sizeOf(dialogContext).width < 600;
+      return Dialog(
+        insetPadding: compact
+            ? EdgeInsets.zero
+            : const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(compact ? 0 : 28),
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 430,
+            maxHeight: MediaQuery.sizeOf(dialogContext).height,
+          ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(28),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF4F7FC),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFD6DEEB)),
+              SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 16, 4),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        icon: const Icon(Icons.chevron_left_rounded),
+                      ),
+                      Text(
+                        readOnly ? 'Payment details' : 'Verify payment',
+                        style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Column(
-                  children: [
-                    const Icon(
-                      Icons.receipt_long_rounded,
-                      size: 72,
-                      color: Color(0xFF3156A3),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      bill.slipFileName ?? 'No attachment supplied',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [oceanSky, oceanBlue, oceanDeep],
                           ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Prototype attachment preview',
-                      style: TextStyle(color: Color(0xFF667085)),
-                    ),
-                  ],
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '${tenant.name} · ${facility.name} · ${monthLabel(bill.month)}',
+                                    style: const TextStyle(
+                                      color: Color(0xDDFFFFFF),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                                const _PaymentReviewPill(),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            const Text(
+                              'Amount claimed',
+                              style: TextStyle(
+                                color: Color(0xCCFFFFFF),
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              money(bill.amountPaid),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 34,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      const _ReviewSectionLabel('SUBMITTED PAY SLIP'),
+                      const SizedBox(height: 7),
+                      Material(
+                        color: const Color(0xFFF4F9FF),
+                        borderRadius: BorderRadius.circular(17),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(17),
+                          onTap: () => showPaymentSlipAttachmentDialog(
+                            dialogContext,
+                            bill,
+                          ),
+                          child: Container(
+                            height: 206,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(17),
+                              border:
+                                  Border.all(color: const Color(0xFFE4EEF8)),
+                            ),
+                            child: Column(
+                              children: [
+                                Expanded(
+                                  child: Center(
+                                    child: bill.slipBytes != null &&
+                                            isImageFileName(bill.slipFileName)
+                                        ? ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(13),
+                                            child: Image.memory(
+                                              bill.slipBytes!,
+                                              height: 128,
+                                              width: 190,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) =>
+                                                  _PaymentSlipPlaceholder(
+                                                fileName: bill.slipFileName,
+                                              ),
+                                            ),
+                                          )
+                                        : _PaymentSlipPlaceholder(
+                                            fileName: bill.slipFileName,
+                                          ),
+                                  ),
+                                ),
+                                Row(
+                                  children: [
+                                    const Expanded(
+                                      child: Text(
+                                        'Tap the button to review full attachment',
+                                        style: TextStyle(
+                                          color: oceanMuted,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ),
+                                    TextButton.icon(
+                                      onPressed: () =>
+                                          showPaymentSlipAttachmentDialog(
+                                        dialogContext,
+                                        bill,
+                                      ),
+                                      icon: const Icon(
+                                        Icons.open_in_full_rounded,
+                                        size: 16,
+                                      ),
+                                      label: const Text('Review'),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      const _ReviewSectionLabel('DETAILS FROM TENANT'),
+                      const SizedBox(height: 7),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 15),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(17),
+                        ),
+                        child: Column(
+                          children: [
+                            _ReviewDetailRow(
+                                'Amount paid', money(bill.amountPaid)),
+                            _ReviewDetailRow(
+                              'Date paid',
+                              bill.submittedAt == null
+                                  ? 'Not recorded'
+                                  : dateLabel(bill.submittedAt!),
+                            ),
+                            const _ReviewDetailRow('Method', 'Bank transfer'),
+                            _ReviewDetailRow(
+                                'Reference', bill.id.toUpperCase()),
+                            _ReviewDetailRow(
+                                'Status', paymentStatusLabel(bill.status)),
+                            if (reviewedAt != null)
+                              _ReviewDetailRow(
+                                'Reviewed at',
+                                dateTimeLabel(reviewedAt),
+                              ),
+                            if (reviewReason != null &&
+                                reviewReason.trim().isNotEmpty)
+                              _ReviewDetailRow('Review note', reviewReason),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 16),
-              ProfileInfoRow(label: 'Tenant', value: tenant.name),
-              ProfileInfoRow(label: 'Facility', value: facility.name),
-              ProfileInfoRow(
-                  label: 'Bill month', value: monthLabel(bill.month)),
-              ProfileInfoRow(
-                label: 'Submitted',
-                value: bill.submittedAt == null
-                    ? 'Not recorded'
-                    : dateTimeLabel(bill.submittedAt!),
-              ),
-              ProfileInfoRow(
-                label: 'Amount paid',
-                value: money(bill.amountPaid),
-              ),
-              ProfileInfoRow(
-                label: 'Amount due',
-                value: money(bill.totalAmount),
-              ),
-              const SizedBox(height: 12),
-              AppTextField(
-                controller: rejectReason,
-                label: 'Reason if rejected',
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                  child: readOnly
+                      ? FilledButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          child: const Text('Close'),
+                        )
+                      : Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFFFEE2E2),
+                                  foregroundColor: const Color(0xFFDC2626),
+                                ),
+                                onPressed: () async {
+                                  const reason =
+                                      'Slip amount or payment reference needs checking.';
+                                  final confirmed =
+                                      await showActionConfirmation(
+                                    dialogContext,
+                                    title: 'Reject this payment?',
+                                    message:
+                                        'Tenant: ${tenant.name}\nBill month: ${monthLabel(bill.month)}\nClaimed amount: ${money(bill.amountPaid)}\nReason: $reason\n\nThis will move the bill back to tenant action.',
+                                    confirmLabel: 'Reject Payment',
+                                  );
+                                  if (!confirmed || !dialogContext.mounted) {
+                                    return;
+                                  }
+                                  store.rejectBill(bill, reason);
+                                  Navigator.pop(dialogContext);
+                                },
+                                child: const Text('Reject'),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              flex: 2,
+                              child: FilledButton.icon(
+                                onPressed: () async {
+                                  final confirmed =
+                                      await showActionConfirmation(
+                                    dialogContext,
+                                    title: 'Confirm payment received?',
+                                    message:
+                                        'Tenant: ${tenant.name}\nBill month: ${monthLabel(bill.month)}\nAmount paid: ${money(bill.amountPaid)}\nFacility: ${facility.name}\n\nThis will approve the payment and update collection records.',
+                                    confirmLabel: 'Approve Payment',
+                                  );
+                                  if (!confirmed || !dialogContext.mounted) {
+                                    return;
+                                  }
+                                  store.approveBill(bill);
+                                  Navigator.pop(dialogContext);
+                                },
+                                icon: const Icon(Icons.check_rounded),
+                                label: const Text('Confirm received'),
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
               ),
             ],
           ),
         ),
+      );
+    },
+  );
+}
+
+class _PaymentReviewPill extends StatelessWidget {
+  const _PaymentReviewPill();
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.24),
+          borderRadius: BorderRadius.circular(99),
+        ),
+        child: const Text('Awaiting review',
+            style: TextStyle(
+                color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
+      );
+}
+
+class _PaymentSlipPlaceholder extends StatelessWidget {
+  const _PaymentSlipPlaceholder({required this.fileName});
+
+  final String? fileName;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(13),
+          boxShadow: [
+            BoxShadow(
+              color: oceanBlue.withOpacity(0.12),
+              blurRadius: 18,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.receipt_long_rounded,
+              color: oceanBlue,
+              size: 31,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              fileName ?? 'No attachment',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: oceanDeep,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+void showPaymentSlipAttachmentDialog(BuildContext context, MonthlyBill bill) {
+  showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Payment slip attachment'),
+      content: SizedBox(
+        width: 540,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              bill.slipFileName ?? 'No attachment',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            if (bill.slipBytes != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                fileSizeLabel(bill.slipBytes!.lengthInBytes),
+                style: const TextStyle(color: oceanMuted),
+              ),
+            ],
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: Container(
+                constraints: const BoxConstraints(maxHeight: 520),
+                color: oceanCanvas,
+                child:
+                    bill.slipBytes != null && isImageFileName(bill.slipFileName)
+                        ? Image.memory(
+                            bill.slipBytes!,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => const Padding(
+                              padding: EdgeInsets.all(36),
+                              child: Text(
+                                'The payslip image could not be opened.',
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          )
+                        : Padding(
+                            padding: const EdgeInsets.all(34),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  bill.slipFileName == null
+                                      ? Icons.image_not_supported_rounded
+                                      : Icons.picture_as_pdf_rounded,
+                                  color: oceanBlue,
+                                  size: 52,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  bill.slipFileName == null
+                                      ? 'No payment slip was uploaded for this record.'
+                                      : 'This slip is recorded as a file. Image preview is available for JPG, PNG and WebP uploads.',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(color: oceanMuted),
+                                ),
+                              ],
+                            ),
+                          ),
+              ),
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(dialogContext),
+          onPressed: () => Navigator.pop(context),
           child: const Text('Close'),
-        ),
-        OutlinedButton.icon(
-          onPressed: () {
-            store.rejectBill(bill, rejectReason.text.trim());
-            Navigator.pop(dialogContext);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Payment rejected and returned to the tenant for resubmission.',
-                ),
-              ),
-            );
-          },
-          icon: const Icon(Icons.close_rounded),
-          label: const Text('Reject'),
-        ),
-        FilledButton.icon(
-          onPressed: () {
-            store.approveBill(bill);
-            Navigator.pop(dialogContext);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Payment approved and moved to Review History.',
-                ),
-              ),
-            );
-          },
-          icon: const Icon(Icons.check_rounded),
-          label: const Text('Approve'),
         ),
       ],
     ),
   );
 }
 
+class _ReviewSectionLabel extends StatelessWidget {
+  const _ReviewSectionLabel(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) => Text(
+        text,
+        style: const TextStyle(
+          color: oceanMuted,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          letterSpacing: .7,
+        ),
+      );
+}
+
+class _ReviewDetailRow extends StatelessWidget {
+  const _ReviewDetailRow(this.label, this.value);
+  final String label;
+  final String value;
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+                child: Text(label, style: const TextStyle(color: oceanMuted))),
+            Text(value, style: const TextStyle(fontWeight: FontWeight.w800)),
+          ],
+        ),
+      );
+}
+
 void showUtilityDialog(BuildContext context, MonthlyBill bill) {
   final store = RentalStoreScope.of(context);
   final electricityUsage = TextEditingController(
-    text: bill.electricityUsageKwh.toStringAsFixed(1),
+    text: bill.electricityUsageKwh > 0
+        ? bill.electricityUsageKwh.toStringAsFixed(2)
+        : '',
   );
   final water =
       TextEditingController(text: bill.waterAmount.toStringAsFixed(0));
   final internet =
       TextEditingController(text: bill.internetAmount.toStringAsFixed(0));
+  final generalElectric = TextEditingController(
+      text: bill.generalElectricAmount.toStringAsFixed(0));
+  final parkingRental =
+      TextEditingController(text: bill.parkingRentalAmount.toStringAsFixed(0));
   var evidenceFileName = bill.utilityEvidenceFileName;
+  var evidenceBytes = bill.utilityEvidenceBytes;
+  var extractingReading = false;
+  var readingDetected = evidenceFileName != null;
+  String? readingError;
+  DetectedMeterReading? detectedReading;
   double electricityAmount =
-      bill.electricityUsageKwh * RentalStore.electricityRatePerKwh;
-  double totalUtilities =
-      electricityAmount + bill.waterAmount + bill.internetAmount;
+      (bill.electricityUsageKwh * RentalStore.electricityRatePerKwh * 100)
+              .round() /
+          100;
+  double totalUtilities = electricityAmount +
+      bill.generalElectricAmount +
+      bill.waterAmount +
+      bill.internetAmount +
+      bill.parkingRentalAmount;
 
   showDialog<void>(
     context: context,
@@ -6082,17 +13514,48 @@ void showUtilityDialog(BuildContext context, MonthlyBill bill) {
       builder: (context, setDialogState) {
         void recalculate() {
           final usage = parseMoney(electricityUsage.text);
-          electricityAmount = usage * RentalStore.electricityRatePerKwh;
+          electricityAmount =
+              (usage * RentalStore.electricityRatePerKwh * 100).round() / 100;
           totalUtilities = electricityAmount +
+              parseMoney(generalElectric.text) +
               parseMoney(water.text) +
-              parseMoney(internet.text);
+              parseMoney(internet.text) +
+              parseMoney(parkingRental.text);
           setDialogState(() {});
         }
 
         return AlertDialog(
-          title: Text('Utilities for ${monthLabel(bill.month)}'),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          backgroundColor: const Color(0xFFF4F7FC),
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 5,
+                  margin: const EdgeInsets.only(bottom: 18),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              Text(
+                'Utilities for ${monthLabel(bill.month)}',
+                style:
+                    const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
           content: SizedBox(
-            width: 540,
+            width: 380,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -6100,37 +13563,86 @@ void showUtilityDialog(BuildContext context, MonthlyBill bill) {
                 children: [
                   AppTextField(
                     controller: electricityUsage,
-                    label: 'Electricity Usage',
+                    label: 'Air-con Electricity Usage',
                     suffixText: 'kWh',
-                    helperText:
-                        'Automatic rate: RM ${RentalStore.electricityRatePerKwh.toStringAsFixed(3)} per kWh',
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    onChanged: (_) => recalculate(),
+                    onChanged: (value) {
+                      readingDetected = parseMoney(value) > 0;
+                      readingError = null;
+                      detectedReading = null;
+                      recalculate();
+                    },
+                    helperText: extractingReading
+                        ? 'Reading attachment with AI...'
+                        : readingError ??
+                            (detectedReading == null
+                                ? 'Upload for automatic detection, then review or correct the usage before generating.'
+                                : 'Detected automatically. Review and edit if needed${detectedReading!.previousReading == null || detectedReading!.currentReading == null ? '' : ': ${detectedReading!.previousReading!.toStringAsFixed(2)} → ${detectedReading!.currentReading!.toStringAsFixed(2)} kWh'}'),
                   ),
-                  AppTextField(
-                    controller: water,
-                    label: 'Water Charge',
-                    prefixText: 'RM ',
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    onChanged: (_) => recalculate(),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: AppTextField(
+                          controller: generalElectric,
+                          label: 'General Electricity',
+                          prefixText: 'RM ',
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          onChanged: (_) => recalculate(),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: AppTextField(
+                          controller: water,
+                          label: 'Water Charge',
+                          prefixText: 'RM ',
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          onChanged: (_) => recalculate(),
+                        ),
+                      ),
+                    ],
                   ),
-                  AppTextField(
-                    controller: internet,
-                    label: 'Internet Charge',
-                    prefixText: 'RM ',
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    onChanged: (_) => recalculate(),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: AppTextField(
+                          controller: internet,
+                          label: 'Internet Charge',
+                          prefixText: 'RM ',
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          onChanged: (_) => recalculate(),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: AppTextField(
+                          controller: parkingRental,
+                          label: 'Parking Rental',
+                          prefixText: 'RM ',
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          onChanged: (_) => recalculate(),
+                        ),
+                      ),
+                    ],
                   ),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF4F7FC),
-                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: const Color(0xFFD6DEEB)),
                     ),
                     child: Row(
@@ -6148,25 +13660,80 @@ void showUtilityDialog(BuildContext context, MonthlyBill bill) {
                               Text(
                                 evidenceFileName ?? 'No file uploaded',
                                 style: const TextStyle(
-                                  color: Color(0xFF667085),
+                                  color: oceanMuted,
                                   fontSize: 12,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        OutlinedButton.icon(
+                        OutlinedButton(
                           key: const Key('upload_meter_reading_button'),
-                          onPressed: () {
-                            setDialogState(() {
-                              evidenceFileName =
-                                  'meter_${monthLabel(bill.month).replaceAll(' ', '_')}.jpg';
-                            });
-                          },
-                          icon: const Icon(Icons.upload_file_rounded),
-                          label: Text(
-                            evidenceFileName == null ? 'Upload' : 'Replace',
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(84, 44),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            side: const BorderSide(color: oceanDeep),
                           ),
+                          onPressed: extractingReading
+                              ? null
+                              : () async {
+                                  PickedImageData? file;
+                                  try {
+                                    file = await pickImageForUpload();
+                                  } catch (error) {
+                                    setDialogState(() {
+                                      readingError =
+                                          'Your browser could not open the photo picker. Allow photo/file access, then try again.';
+                                    });
+                                    return;
+                                  }
+                                  if (file == null) return;
+                                  final selectedFile = file;
+                                  final bytes = Uint8List.fromList(
+                                    selectedFile.bytes,
+                                  );
+                                  setDialogState(() {
+                                    evidenceFileName = selectedFile.name;
+                                    evidenceBytes = bytes;
+                                    extractingReading = true;
+                                    readingDetected = false;
+                                    readingError = null;
+                                  });
+                                  try {
+                                    final reading = await LocalMeterOcr().read(
+                                      bytes: bytes,
+                                      fileName: selectedFile.name,
+                                    );
+                                    electricityUsage.text =
+                                        reading.usageKwh.toStringAsFixed(2);
+                                    detectedReading = reading;
+                                    readingDetected = true;
+                                    recalculate();
+                                  } catch (error) {
+                                    final raw = error
+                                        .toString()
+                                        .replaceFirst('Exception: ', '');
+                                    readingError = raw;
+                                    electricityUsage.clear();
+                                    detectedReading = null;
+                                    readingDetected = false;
+                                  } finally {
+                                    extractingReading = false;
+                                    setDialogState(() {});
+                                  }
+                                },
+                          child: extractingReading
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Text(
+                                  evidenceFileName == null
+                                      ? 'Upload'
+                                      : 'Replace',
+                                ),
                         ),
                       ],
                     ),
@@ -6175,31 +13742,36 @@ void showUtilityDialog(BuildContext context, MonthlyBill bill) {
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEAF7F3),
-                      borderRadius: BorderRadius.circular(14),
+                      color: const Color(0xFFF0F8EF),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Charge Summary',
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 8),
                         AmountRow(
-                          label: 'Electricity',
-                          value: electricityAmount,
+                            label: 'Air-con electricity',
+                            value: electricityAmount),
+                        AmountRow(
+                          label: 'General electricity',
+                          value: parseMoney(generalElectric.text),
                         ),
                         AmountRow(
-                          label: 'Water',
-                          value: parseMoney(water.text),
-                        ),
+                            label: 'Water', value: parseMoney(water.text)),
                         AmountRow(
                           label: 'Internet',
                           value: parseMoney(internet.text),
+                        ),
+                        AmountRow(
+                          label: 'Parking rental',
+                          value: parseMoney(parkingRental.text),
                         ),
                         const Divider(),
                         AmountRow(
@@ -6219,31 +13791,1250 @@ void showUtilityDialog(BuildContext context, MonthlyBill bill) {
               ),
             ),
           ),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          actionsAlignment: MainAxisAlignment.spaceBetween,
           actions: [
             TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: oceanMuted,
+                minimumSize: const Size(105, 52),
+              ),
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel'),
             ),
-            FilledButton.icon(
-              key: const Key('save_utility_charges_button'),
-              onPressed: evidenceFileName == null
-                  ? null
-                  : () {
-                      store.updateBillUtilities(
-                        bill,
-                        electricityUsageKwh: parseMoney(electricityUsage.text),
-                        waterAmount: parseMoney(water.text),
-                        internetAmount: parseMoney(internet.text),
-                        utilityEvidenceFileName: evidenceFileName!,
-                      );
-                      Navigator.pop(dialogContext);
-                    },
-              icon: const Icon(Icons.save_rounded),
-              label: const Text('Save Charges'),
+            SizedBox(
+              width: 225,
+              child: FilledButton.icon(
+                key: const Key('save_utility_charges_button'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                ),
+                onPressed: evidenceFileName == null ||
+                        !readingDetected ||
+                        extractingReading
+                    ? null
+                    : () {
+                        store.updateBillUtilities(
+                          bill,
+                          electricityUsageKwh:
+                              parseMoney(electricityUsage.text),
+                          waterAmount: parseMoney(water.text),
+                          internetAmount: parseMoney(internet.text),
+                          generalElectricAmount:
+                              parseMoney(generalElectric.text),
+                          parkingRentalAmount: parseMoney(parkingRental.text),
+                          utilityEvidenceFileName: evidenceFileName!,
+                          utilityEvidenceBytes: evidenceBytes,
+                        );
+                        Navigator.pop(dialogContext);
+                        Future<void>.delayed(Duration.zero, () {
+                          if (context.mounted) {
+                            showGeneratedInvoicePreview(context, bill);
+                          }
+                        });
+                      },
+                icon: const Icon(Icons.description_outlined, size: 19),
+                label: const Text('Generate Bill'),
+              ),
             ),
           ],
         );
       },
+    ),
+  );
+}
+
+RentalInvoice _rentalInvoiceFromBill(BuildContext context, MonthlyBill bill) {
+  final store = RentalStoreScope.of(context);
+  final tenancy = store.tenancies.firstWhere(
+    (item) =>
+        item.tenantId == bill.tenantId && item.facilityId == bill.facilityId,
+  );
+  final tenant = store.userFor(bill.tenantId);
+  final facility = store.facilityFor(bill.facilityId);
+  final usageMonth = DateTime(bill.month.year, bill.month.month - 1);
+  final phone = tenant.phoneNumber.trim().isNotEmpty
+      ? tenant.phoneNumber.trim()
+      : '+60100000000';
+  return RentalInvoice(
+    id: 'INV-${bill.id.toUpperCase()}',
+    tenant: TenantAccount(
+      id: tenant.id,
+      name: tenant.name,
+      email: tenant.email,
+      phone: phone,
+      property: facility.name,
+      unit: tenancy.unitName,
+      rent: bill.rentAmount,
+      water: bill.waterAmount,
+      internet: bill.internetAmount,
+    ),
+    period: monthLabel(bill.month),
+    usagePeriod: monthLabel(usageMonth),
+    previousReading: 0,
+    currentReading: bill.electricityUsageKwh,
+    evidenceName: bill.utilityEvidenceFileName ?? 'No meter evidence',
+    evidenceBytes: bill.utilityEvidenceBytes,
+    generalElectricAmount: bill.generalElectricAmount,
+    parkingRentalAmount: bill.parkingRentalAmount,
+    dueDate: DateTime(bill.month.year, bill.month.month, 6),
+  );
+}
+
+Future<Uri> _publishInvoiceForTenant(RentalInvoice invoice) async {
+  final pdfPath = 'invoices/${invoice.id}.pdf';
+  final pdfBytes = await invoicePdf(invoice);
+  final storage = Supabase.instance.client.storage.from(RentFlowStore.bucket);
+  await storage.uploadBinary(
+    pdfPath,
+    pdfBytes,
+    fileOptions: const FileOptions(
+      upsert: true,
+      contentType: 'application/pdf',
+    ),
+  );
+  await Supabase.instance.client.from('rentflow_test_invoices').upsert({
+    'id': invoice.id,
+    'tenant_id': invoice.tenant.id,
+    'tenant_name': invoice.tenant.name,
+    'tenant_email': invoice.tenant.email,
+    'tenant_phone': invoice.tenant.phone,
+    'property_name': invoice.tenant.property,
+    'unit_name': invoice.tenant.unit,
+    'rent': invoice.tenant.rent,
+    'water': invoice.tenant.water,
+    'internet': invoice.tenant.internet,
+    'period': invoice.period,
+    'usage_period': invoice.usagePeriod,
+    'previous_reading': invoice.previousReading,
+    'current_reading': invoice.currentReading,
+    'evidence_name': invoice.evidenceName,
+    'due_date': invoice.dueDate.toIso8601String(),
+    'status': invoice.status.name,
+  });
+  return Uri.parse(storage.getPublicUrl(pdfPath));
+}
+
+Future<void> showGeneratedInvoicePreview(
+  BuildContext context,
+  MonthlyBill bill,
+) async {
+  final invoice = _rentalInvoiceFromBill(context, bill);
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) {
+      final compact = MediaQuery.sizeOf(dialogContext).width < 600;
+      return Dialog(
+        insetPadding: compact
+            ? EdgeInsets.zero
+            : const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(compact ? 0 : 28),
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 460,
+            maxHeight: MediaQuery.sizeOf(dialogContext).height,
+          ),
+          child: Column(
+            children: [
+              SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 16, 4),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        icon: const Icon(Icons.chevron_left_rounded),
+                      ),
+                      const Text('Invoice preview',
+                          style: TextStyle(
+                              fontSize: 19, fontWeight: FontWeight.w900)),
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(17),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [oceanSky, oceanBlue, oceanDeep],
+                          ),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'INVOICE\n#${invoice.id}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                                const _PaymentReviewPill(),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            Text(
+                              'Bill to: ${invoice.tenant.name} · ${invoice.tenant.unit}\nDue ${dateLabel(invoice.dueDate)}',
+                              style: const TextStyle(
+                                color: Color(0xDDFFFFFF),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _InvoicePreviewCharge(
+                        label: 'Monthly rent',
+                        detail: invoice.period,
+                        amount: invoice.tenant.rent,
+                      ),
+                      _InvoicePreviewCharge(
+                        label: 'Water',
+                        detail: invoice.tenant.water == 0
+                            ? 'Included in rent'
+                            : 'Monthly charge',
+                        amount: invoice.tenant.water,
+                      ),
+                      _InvoicePreviewCharge(
+                        label: 'Internet',
+                        detail: invoice.tenant.internet == 0
+                            ? 'Included in rent'
+                            : 'Monthly charge',
+                        amount: invoice.tenant.internet,
+                      ),
+                      _InvoicePreviewCharge(
+                        label: 'General electricity',
+                        detail: 'Monthly charge',
+                        amount: invoice.generalElectricAmount,
+                      ),
+                      _InvoicePreviewCharge(
+                        label: 'Air-con electricity',
+                        detail:
+                            '${invoice.usagePeriod}: ${invoice.usage.toStringAsFixed(2)} kWh × RM 0.516',
+                        amount: invoice.electricity,
+                      ),
+                      _InvoicePreviewCharge(
+                        label: 'Parking rental',
+                        detail: 'Monthly parking charge',
+                        amount: invoice.parkingRentalAmount,
+                      ),
+                      const Divider(height: 22),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text('Total due',
+                                style: TextStyle(fontWeight: FontWeight.w900)),
+                          ),
+                          Text(
+                            rm(invoice.total),
+                            style: const TextStyle(
+                              color: oceanDeep,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEAF8EF),
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.check_circle_outline_rounded,
+                                color: Color(0xFF16A34A), size: 18),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Rent and utilities merged automatically from the saved reading.',
+                                style: TextStyle(
+                                    color: Color(0xFF15803D), fontSize: 11),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        onPressed: () =>
+                            showInvoicePdfPreview(dialogContext, invoice),
+                        icon: const Icon(Icons.picture_as_pdf_outlined),
+                        label: const Text('Review generated invoice PDF'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            Navigator.pop(dialogContext);
+                            Future<void>.delayed(Duration.zero, () {
+                              if (context.mounted) {
+                                showUtilityDialog(context, bill);
+                              }
+                            });
+                          },
+                          child: const Text('Edit'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 2,
+                        child: FilledButton.icon(
+                          onPressed: () async {
+                            final confirmed = await showActionConfirmation(
+                              dialogContext,
+                              title: 'Send invoice to tenant?',
+                              message:
+                                  '${invoice.tenant.name} will receive ${rm(invoice.total)} with a secure invoice link.',
+                              confirmLabel: 'Send WhatsApp',
+                            );
+                            if (!confirmed || !dialogContext.mounted) return;
+                            try {
+                              final pdfLink =
+                                  await _publishInvoiceForTenant(invoice);
+                              final link = Uri.base.replace(
+                                queryParameters: {'invoice': invoice.id},
+                                fragment: '',
+                              );
+                              await shareWhatsApp(
+                                invoice,
+                                link,
+                                pdfLink: pdfLink,
+                              );
+                            } catch (error) {
+                              if (!dialogContext.mounted) return;
+                              await showDialog<void>(
+                                context: dialogContext,
+                                builder: (errorContext) => AlertDialog(
+                                  title: const Text(
+                                    'Unable to open WhatsApp',
+                                  ),
+                                  content: Text(
+                                    'The invoice could not be prepared or WhatsApp could not be opened. $error',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(errorContext),
+                                      child: const Text('Close'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.send_rounded),
+                          label: const Text('Send via WhatsApp'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _InvoicePreviewCharge extends StatelessWidget {
+  const _InvoicePreviewCharge({
+    required this.label,
+    required this.detail,
+    required this.amount,
+  });
+  final String label;
+  final String detail;
+  final double amount;
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                  Text(detail,
+                      style: const TextStyle(color: oceanMuted, fontSize: 10)),
+                ],
+              ),
+            ),
+            Text(rm(amount),
+                style: const TextStyle(fontWeight: FontWeight.w900)),
+          ],
+        ),
+      );
+}
+
+// Retained temporarily as a design reference for the Figma meter-pair concept.
+// ignore: unused_element
+void _showUtilityDialogFigma(BuildContext context, MonthlyBill bill) {
+  final store = RentalStoreScope.of(context);
+  const waterRate = 2.30;
+  final tenancy = store.tenancies.firstWhere(
+    (item) =>
+        item.tenantId == bill.tenantId && item.facilityId == bill.facilityId,
+  );
+  final tenant = store.userFor(bill.tenantId);
+  final facility = store.facilityFor(bill.facilityId);
+  final electricityPrevious = TextEditingController(text: '8940');
+  final electricityCurrent = TextEditingController(
+    text: (8940 + bill.electricityUsageKwh).toStringAsFixed(0),
+  );
+  final waterPrevious = TextEditingController(text: '1204');
+  final waterCurrent = TextEditingController(
+    text: (1204 + (bill.waterAmount / waterRate)).toStringAsFixed(0),
+  );
+  var evidenceFileName = bill.utilityEvidenceFileName;
+
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) {
+        final electricityUsage = math
+            .max(
+              0,
+              parseMoney(electricityCurrent.text) -
+                  parseMoney(electricityPrevious.text),
+            )
+            .toDouble();
+        final waterUsage = math
+            .max(
+              0,
+              parseMoney(waterCurrent.text) - parseMoney(waterPrevious.text),
+            )
+            .toDouble();
+        final compact = MediaQuery.sizeOf(dialogContext).width < 600;
+        return Dialog(
+          insetPadding: compact
+              ? EdgeInsets.zero
+              : const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(compact ? 0 : 28),
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 430,
+              maxHeight: MediaQuery.sizeOf(dialogContext).height,
+            ),
+            child: Column(
+              children: [
+                SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 16, 4),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          icon: const Icon(Icons.chevron_left_rounded),
+                        ),
+                        const Text('New utility reading',
+                            style: TextStyle(
+                                fontSize: 19, fontWeight: FontWeight.w900)),
+                      ],
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          '${facility.name} · ${tenancy.unitName} · ${tenant.name} · ${monthLabel(bill.month)}',
+                          style:
+                              const TextStyle(color: oceanMuted, fontSize: 11),
+                        ),
+                        const SizedBox(height: 18),
+                        const _ReviewSectionLabel('ATTACH METER PHOTO'),
+                        const SizedBox(height: 7),
+                        InkWell(
+                          key: const Key('upload_meter_reading_button'),
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => setDialogState(() {
+                            evidenceFileName =
+                                'meter_${monthLabel(bill.month).replaceAll(' ', '_')}.jpg';
+                          }),
+                          child: Container(
+                            padding: const EdgeInsets.all(15),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF6FBFF),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                  color: const Color(0xFF90C2F0), width: 1.2),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                        colors: [oceanSky, oceanBlue]),
+                                    borderRadius: BorderRadius.circular(13),
+                                  ),
+                                  child: const Icon(Icons.camera_alt_outlined,
+                                      color: Colors.white),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        evidenceFileName ??
+                                            'Attach meter reading photo',
+                                        style: const TextStyle(
+                                            color: oceanDeep,
+                                            fontWeight: FontWeight.w800),
+                                      ),
+                                      Text(
+                                        evidenceFileName == null
+                                            ? 'Required before saving'
+                                            : 'Attached · reading auto-detected',
+                                        style: const TextStyle(
+                                            color: oceanMuted, fontSize: 10),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        _MeterReadingCard(
+                          label: 'WATER',
+                          unit: 'm³',
+                          previous: waterPrevious,
+                          current: waterCurrent,
+                          usage: waterUsage,
+                          rate: waterRate,
+                          onChanged: () => setDialogState(() {}),
+                        ),
+                        const SizedBox(height: 16),
+                        _MeterReadingCard(
+                          label: 'ELECTRICITY',
+                          unit: 'kWh',
+                          previous: electricityPrevious,
+                          current: electricityCurrent,
+                          usage: electricityUsage,
+                          rate: RentalStore.electricityRatePerKwh,
+                          onChanged: () => setDialogState(() {}),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        key: const Key('save_utility_charges_button'),
+                        onPressed: evidenceFileName == null
+                            ? null
+                            : () {
+                                store.updateBillUtilities(
+                                  bill,
+                                  electricityUsageKwh: electricityUsage,
+                                  waterAmount: waterUsage * waterRate,
+                                  internetAmount: bill.internetAmount,
+                                  generalElectricAmount:
+                                      bill.generalElectricAmount,
+                                  parkingRentalAmount: bill.parkingRentalAmount,
+                                  utilityEvidenceFileName: evidenceFileName!,
+                                );
+                                Navigator.pop(dialogContext);
+                              },
+                        icon: const Icon(Icons.check_rounded),
+                        label: const Text('Save utility reading'),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
+
+class _MeterReadingCard extends StatelessWidget {
+  const _MeterReadingCard({
+    required this.label,
+    required this.unit,
+    required this.previous,
+    required this.current,
+    required this.usage,
+    required this.rate,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String unit;
+  final TextEditingController previous;
+  final TextEditingController current;
+  final double usage;
+  final double rate;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _ReviewSectionLabel(label),
+          const SizedBox(height: 7),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(17),
+            ),
+            child: Column(
+              children: [
+                _MeterInputRow(
+                  label: 'Previous',
+                  controller: previous,
+                  unit: unit,
+                  onChanged: onChanged,
+                ),
+                const Divider(height: 1),
+                _MeterInputRow(
+                  label: 'Current',
+                  controller: current,
+                  unit: unit,
+                  emphasized: true,
+                  onChanged: onChanged,
+                ),
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  child: Row(
+                    children: [
+                      const Text('Usage',
+                          style: TextStyle(color: oceanMuted, fontSize: 12)),
+                      const Spacer(),
+                      Text(
+                        '${usage.toStringAsFixed(usage == usage.roundToDouble() ? 0 : 1)} $unit × RM ${rate.toStringAsFixed(rate < 1 ? 3 : 2)}',
+                        style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w800),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+}
+
+class _MeterInputRow extends StatelessWidget {
+  const _MeterInputRow({
+    required this.label,
+    required this.controller,
+    required this.unit,
+    required this.onChanged,
+    this.emphasized = false,
+  });
+  final String label;
+  final TextEditingController controller;
+  final String unit;
+  final VoidCallback onChanged;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Text(label,
+                style: const TextStyle(color: oceanMuted, fontSize: 12)),
+            const Spacer(),
+            SizedBox(
+              width: 150,
+              child: TextField(
+                controller: controller,
+                textAlign: TextAlign.right,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => onChanged(),
+                decoration: InputDecoration(
+                  isDense: true,
+                  suffixText: unit,
+                  filled: emphasized,
+                  fillColor:
+                      emphasized ? const Color(0xFFEFF6FF) : Colors.white,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: const OutlineInputBorder(
+                    borderSide: BorderSide(color: oceanBlue),
+                  ),
+                ),
+                style: TextStyle(
+                  color: emphasized ? oceanDeep : oceanText,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+void showUploadTenancyAgreementDialog(
+  BuildContext context, {
+  required AppUser tenant,
+  required Tenancy tenancy,
+}) {
+  final store = RentalStoreScope.of(context);
+  PickedImageData? selectedFile;
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        icon: const Icon(Icons.upload_file_rounded),
+        title: Text(
+          tenancy.agreementFileName == null
+              ? 'Upload Tenancy Agreement'
+              : 'Replace Tenancy Agreement',
+        ),
+        content: SizedBox(
+          width: 480,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Tenant: ${tenant.name}'),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: oceanCanvas,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFD7E1EF)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      selectedFile == null
+                          ? Icons.description_outlined
+                          : Icons.task_rounded,
+                      color: oceanDeep,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Agreement file',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          Text(
+                            selectedFile == null
+                                ? (tenancy.agreementFileName == null
+                                    ? 'No file selected'
+                                    : 'Current: ${tenancy.agreementFileName}')
+                                : '${selectedFile!.name} • ${fileSizeLabel(selectedFile!.bytes.length)}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: oceanMuted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  try {
+                    final picked = await pickDocumentForUpload();
+                    if (picked == null) return;
+                    setDialogState(() => selectedFile = picked);
+                  } catch (error) {
+                    if (!dialogContext.mounted) return;
+                    showValidationMessage(
+                      dialogContext,
+                      error.toString().replaceFirst('Bad state: ', ''),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.folder_open_rounded),
+                label:
+                    Text(selectedFile == null ? 'Choose File' : 'Replace File'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: selectedFile == null
+                ? null
+                : () async {
+                    final picked = selectedFile!;
+                    final confirmed = await showActionConfirmation(
+                      dialogContext,
+                      title: tenancy.agreementFileName == null
+                          ? 'Upload agreement?'
+                          : 'Replace existing agreement?',
+                      message:
+                          'Confirm ${picked.name} as the tenancy agreement for ${tenant.name}.',
+                      confirmLabel: tenancy.agreementFileName == null
+                          ? 'Upload Agreement'
+                          : 'Replace Agreement',
+                    );
+                    if (!confirmed || !dialogContext.mounted) return;
+                    store.updateTenancyAgreement(tenancy, picked.name);
+                    Navigator.pop(dialogContext);
+                  },
+            icon: const Icon(Icons.cloud_upload_rounded),
+            label: const Text('Save Agreement'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+void showReviewTenancyAgreementDialog(
+  BuildContext context, {
+  required AppUser tenant,
+  required Tenancy tenancy,
+  required Facility facility,
+}) {
+  final hasAgreement = tenancy.agreementFileName != null;
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      icon: Icon(
+        hasAgreement ? Icons.description_rounded : Icons.file_present_rounded,
+      ),
+      title: Text(hasAgreement ? 'Review Tenancy Agreement' : 'No Agreement'),
+      content: SizedBox(
+        width: 520,
+        child: hasAgreement
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ProfileInfoRow(label: 'Tenant', value: tenant.name),
+                  ProfileInfoRow(label: 'Facility', value: facility.name),
+                  ProfileInfoRow(label: 'Unit', value: tenancy.unitName),
+                  ProfileInfoRow(
+                    label: 'Lease period',
+                    value:
+                        '${dateLabel(tenancy.leaseStart)} – ${dateLabel(tenancy.leaseEnd)}',
+                  ),
+                  ProfileInfoRow(
+                    label: 'Agreement file',
+                    value: tenancy.agreementFileName!,
+                  ),
+                  ProfileInfoRow(
+                    label: 'Uploaded',
+                    value: tenancy.agreementUploadedAt == null
+                        ? 'Date unavailable'
+                        : dateTimeLabel(tenancy.agreementUploadedAt!),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.tonalIcon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.open_in_new_rounded),
+                    label: const Text('Open Agreement File'),
+                  ),
+                ],
+              )
+            : const Text(
+                'Upload the tenancy agreement first, then return here to review its contract details and file.',
+              ),
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('Close'),
+        ),
+      ],
+    ),
+  );
+}
+
+void showEditTenantProfileDialog(
+  BuildContext context,
+  AppUser tenant,
+  Tenancy tenancy,
+) {
+  final store = RentalStoreScope.of(context);
+  final name = TextEditingController(text: tenant.name);
+  final email = TextEditingController(text: tenant.email);
+  final phoneNumber = TextEditingController(text: tenant.phoneNumber);
+  final originAddressLine1 =
+      TextEditingController(text: tenant.originAddress ?? '');
+  final originAddressLine2 = TextEditingController();
+  final dateOfBirth = TextEditingController(
+    text: tenant.dateOfBirth == null ? '' : dateLabel(tenant.dateOfBirth!),
+  );
+  final sex = TextEditingController(text: tenant.sex ?? '');
+  final unitName = TextEditingController(text: tenancy.unitName);
+  final monthlyRent =
+      TextEditingController(text: tenancy.monthlyRent.toStringAsFixed(2));
+  final leaseStart = TextEditingController(text: dateLabel(tenancy.leaseStart));
+  final leaseEnd = TextEditingController(text: dateLabel(tenancy.leaseEnd));
+  final carParkDetails = TextEditingController(text: tenancy.carParkDetails);
+  var status = tenant.accountStatus;
+  var electricityIncluded =
+      tenancy.electricityPackage == UtilityPackage.included;
+  var waterIncluded = tenancy.waterPackage == UtilityPackage.included;
+  var internetIncluded = tenancy.internetPackage == UtilityPackage.included;
+  var carParkIncluded = tenancy.carParkIncluded;
+  String? selectedOriginState;
+  String? selectedOriginCity;
+  String? selectedOriginPostcode;
+
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: const Text('Edit Tenant Profile'),
+        content: SizedBox(
+          width: 560,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppTextField(controller: name, label: 'Full name'),
+                AppTextField(controller: email, label: 'Email'),
+                AppTextField(
+                  controller: phoneNumber,
+                  label: 'WhatsApp / Phone Number',
+                  helperText: 'Use international format, e.g. +60165666878',
+                  keyboardType: TextInputType.phone,
+                ),
+                AppTextField(
+                  controller: originAddressLine1,
+                  label: 'Origin address line 1 *',
+                ),
+                AppTextField(
+                  controller: originAddressLine2,
+                  label: 'Origin address line 2',
+                ),
+                MalaysiaAddressDropdowns(
+                  state: selectedOriginState,
+                  city: selectedOriginCity,
+                  postcode: selectedOriginPostcode,
+                  onStateChanged: (value) {
+                    setDialogState(() {
+                      selectedOriginState = value;
+                      selectedOriginCity = null;
+                      selectedOriginPostcode = null;
+                    });
+                  },
+                  onCityChanged: (value) {
+                    setDialogState(() {
+                      selectedOriginCity = value;
+                      selectedOriginPostcode = null;
+                    });
+                  },
+                  onPostcodeChanged: (value) {
+                    setDialogState(() => selectedOriginPostcode = value);
+                  },
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: AppTextField(
+                        controller: dateOfBirth,
+                        label: 'Date of birth',
+                        helperText: 'DD/MM/YYYY',
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: AppTextField(controller: sex, label: 'Sex'),
+                    ),
+                  ],
+                ),
+                DropdownButtonFormField<String>(
+                  value: status,
+                  decoration: const InputDecoration(
+                    labelText: 'Tenant status',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'Active', child: Text('Active')),
+                    DropdownMenuItem(
+                      value: 'Pending verification',
+                      child: Text('Pending verification'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Inactive',
+                      child: Text('Inactive'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => status = value);
+                  },
+                ),
+                const Divider(height: 30),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Contract & Package',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                AppTextField(controller: unitName, label: 'Unit / Room'),
+                AppTextField(
+                  controller: monthlyRent,
+                  label: 'Monthly rent',
+                  prefixText: 'RM ',
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: AppTextField(
+                        controller: leaseStart,
+                        label: 'Lease start',
+                        helperText: 'DD/MM/YYYY',
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: AppTextField(
+                        controller: leaseEnd,
+                        label: 'Lease end',
+                        helperText: 'DD/MM/YYYY',
+                      ),
+                    ),
+                  ],
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Electricity included'),
+                  value: electricityIncluded,
+                  onChanged: (value) =>
+                      setDialogState(() => electricityIncluded = value),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Water included'),
+                  value: waterIncluded,
+                  onChanged: (value) =>
+                      setDialogState(() => waterIncluded = value),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Internet included'),
+                  value: internetIncluded,
+                  onChanged: (value) =>
+                      setDialogState(() => internetIncluded = value),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Car park included'),
+                  value: carParkIncluded,
+                  onChanged: (value) =>
+                      setDialogState(() => carParkIncluded = value),
+                ),
+                if (carParkIncluded)
+                  AppTextField(
+                    controller: carParkDetails,
+                    label: 'Car park details',
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () async {
+              if (!isValidHumanName(name.text)) {
+                showValidationMessage(
+                  dialogContext,
+                  'Full name must contain letters only, no numbers.',
+                );
+                return;
+              }
+              if (!isValidEmailInput(email.text)) {
+                showValidationMessage(dialogContext, 'Enter a valid email.');
+                return;
+              }
+              if (phoneNumber.text.trim().isNotEmpty &&
+                  !isValidPhoneInput(phoneNumber.text)) {
+                showValidationMessage(
+                  dialogContext,
+                  'Enter a valid WhatsApp / phone number.',
+                );
+                return;
+              }
+              if (originAddressLine1.text.trim().isEmpty ||
+                  selectedOriginState == null ||
+                  selectedOriginCity == null ||
+                  selectedOriginPostcode == null) {
+                showValidationMessage(
+                  dialogContext,
+                  'Origin address line 1, state, city and postcode are required.',
+                );
+                return;
+              }
+              if (!isValidMalaysiaLocation(
+                state: selectedOriginState!,
+                city: selectedOriginCity!,
+                postcode: selectedOriginPostcode!,
+              )) {
+                showValidationMessage(
+                  dialogContext,
+                  'Origin postcode, city and state do not match.',
+                );
+                return;
+              }
+              final parsedDateOfBirth = dateOfBirth.text.trim().isEmpty
+                  ? null
+                  : parseDateInput(dateOfBirth.text);
+              if (dateOfBirth.text.trim().isNotEmpty &&
+                  parsedDateOfBirth == null) {
+                showValidationMessage(
+                  dialogContext,
+                  'Date of birth must use DD/MM/YYYY.',
+                );
+                return;
+              }
+              if (!isValidMoneyInput(monthlyRent.text, allowZero: false)) {
+                showValidationMessage(
+                  dialogContext,
+                  'Monthly rent must be a valid amount above RM 0.',
+                );
+                return;
+              }
+              final parsedLeaseStart = parseDateInput(leaseStart.text);
+              final parsedLeaseEnd = parseDateInput(leaseEnd.text);
+              if (parsedLeaseStart == null || parsedLeaseEnd == null) {
+                showValidationMessage(
+                  dialogContext,
+                  'Lease start and lease end must use DD/MM/YYYY.',
+                );
+                return;
+              }
+              if (parsedLeaseEnd.isBefore(parsedLeaseStart)) {
+                showValidationMessage(
+                  dialogContext,
+                  'Lease end cannot be before lease start.',
+                );
+                return;
+              }
+              final confirmed = await showActionConfirmation(
+                dialogContext,
+                title: 'Save tenant profile changes?',
+                message:
+                    'The updated details will apply to ${name.text.trim()}.',
+                confirmLabel: 'Save Changes',
+              );
+              if (!confirmed || !dialogContext.mounted) return;
+              store.updateTenantProfile(
+                tenant,
+                name: name.text,
+                email: email.text,
+                phoneNumber: phoneNumber.text,
+                originAddress: combineAddress(
+                  line1: originAddressLine1.text,
+                  line2: originAddressLine2.text,
+                  postcode: selectedOriginPostcode!,
+                  city: selectedOriginCity!,
+                  state: selectedOriginState!,
+                ),
+                dateOfBirth: parsedDateOfBirth,
+                sex: sex.text,
+                accountStatus: status,
+              );
+              store.updateTenantContract(
+                tenancy,
+                unitName: unitName.text,
+                monthlyRent: parseMoney(monthlyRent.text),
+                leaseStart: parsedLeaseStart,
+                leaseEnd: parsedLeaseEnd,
+                electricityPackage: electricityIncluded
+                    ? UtilityPackage.included
+                    : UtilityPackage.excluded,
+                waterPackage: waterIncluded
+                    ? UtilityPackage.included
+                    : UtilityPackage.excluded,
+                internetPackage: internetIncluded
+                    ? UtilityPackage.included
+                    : UtilityPackage.excluded,
+                carParkIncluded: carParkIncluded,
+                carParkDetails:
+                    carParkIncluded ? carParkDetails.text : 'Not included',
+              );
+              Navigator.pop(dialogContext);
+            },
+            icon: const Icon(Icons.save_rounded),
+            label: const Text('Save Changes'),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -6292,6 +15083,12 @@ void showTenantProfileDialog(
               ProfileInfoRow(label: 'Full name', value: tenant.name),
               ProfileInfoRow(label: 'Email', value: tenant.email),
               ProfileInfoRow(
+                label: 'WhatsApp / Phone',
+                value: tenant.phoneNumber.isEmpty
+                    ? 'Not provided'
+                    : tenant.phoneNumber,
+              ),
+              ProfileInfoRow(
                 label: 'Origin address',
                 value: tenant.originAddress ?? 'Not provided',
               ),
@@ -6304,7 +15101,7 @@ void showTenantProfileDialog(
               ProfileInfoRow(label: 'Sex', value: tenant.sex ?? 'Not provided'),
               ProfileInfoRow(
                 label: 'Status',
-                value: tenant.accountStatus,
+                value: tenantStatusText(tenant, tenancy),
               ),
               ProfileInfoRow(
                 label: 'Profile setup',
@@ -6315,6 +15112,95 @@ void showTenantProfileDialog(
                     : tenant.invitationSent
                         ? 'Invitation sent; awaiting acceptance'
                         : 'Invitation not sent',
+              ),
+              Container(
+                margin: const EdgeInsets.only(top: 8, bottom: 4),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF4F7FC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFD7E0EF)),
+                ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 500;
+                    final details = Row(
+                      children: [
+                        const CircleAvatar(
+                          child: Icon(Icons.description_rounded),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Tenancy agreement',
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                              Text(
+                                tenancy.agreementFileName ??
+                                    'No agreement uploaded',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFF667085),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                    final upload = OutlinedButton.icon(
+                      onPressed: () => showUploadTenancyAgreementDialog(
+                        context,
+                        tenant: tenant,
+                        tenancy: tenancy,
+                      ),
+                      icon: const Icon(Icons.upload_file_rounded),
+                      label: Text(
+                        tenancy.agreementFileName == null
+                            ? 'Upload'
+                            : 'Replace',
+                      ),
+                    );
+                    final review = FilledButton.tonalIcon(
+                      onPressed: () => showReviewTenancyAgreementDialog(
+                        context,
+                        tenant: tenant,
+                        tenancy: tenancy,
+                        facility: facility,
+                      ),
+                      icon: const Icon(Icons.visibility_rounded),
+                      label: const Text('Review'),
+                    );
+                    if (!compact) {
+                      return Row(
+                        children: [
+                          Expanded(child: details),
+                          upload,
+                          const SizedBox(width: 8),
+                          review,
+                        ],
+                      );
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        details,
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(child: upload),
+                            const SizedBox(width: 8),
+                            Expanded(child: review),
+                          ],
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
               if (!tenant.accountCreated)
                 Align(
@@ -6381,6 +15267,13 @@ void showTenantProfileDialog(
                   (bill) => Card(
                     color: const Color(0xFFF8FAFD),
                     child: ListTile(
+                      onTap: () => showPaymentReviewDialog(
+                        context,
+                        bill,
+                        readOnly: true,
+                        reviewedAt: bill.reviewedAt,
+                        reviewReason: bill.rejectReason,
+                      ),
                       leading: const Icon(Icons.receipt_long_rounded),
                       title: Text(
                         '${monthLabel(bill.month)} • ${money(bill.totalAmount)}',
@@ -6399,6 +15292,12 @@ void showTenantProfileDialog(
         ),
       ),
       actions: [
+        OutlinedButton.icon(
+          onPressed: () =>
+              showEditTenantProfileDialog(context, tenant, tenancy),
+          icon: const Icon(Icons.edit_rounded),
+          label: const Text('Edit Profile'),
+        ),
         FilledButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Close'),
@@ -6414,37 +15313,183 @@ void showSubmitSlipDialog(BuildContext context, MonthlyBill bill) {
       text: 'payment_slip_${monthLabel(bill.month).replaceAll(' ', '_')}.jpg');
   final amount =
       TextEditingController(text: bill.totalAmount.toStringAsFixed(0));
+  PickedImageData? proof;
 
   showDialog<void>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Submit Payment Slip'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AppTextField(controller: fileName, label: 'Slip File Name'),
-          AppTextField(controller: amount, label: 'Amount Paid'),
-          const SizedBox(height: 8),
-          const Text(
-            'Prototype note: real app will use image/PDF picker and Firebase Storage.',
+    builder: (context) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: const Text('Submit Payment Slip'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppTextField(controller: fileName, label: 'Slip File Name'),
+            AppTextField(controller: amount, label: 'Amount Paid'),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: oceanCanvas,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFD7E1EF)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.upload_file_rounded, color: oceanDeep),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      proof == null
+                          ? 'Attach JPG, PNG or PDF payment proof'
+                          : '${proof!.name} • ${fileSizeLabel(proof!.bytes.length)}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                  OutlinedButton(
+                    onPressed: () async {
+                      try {
+                        final picked = await pickPaymentProof();
+                        if (picked == null) return;
+                        final normalized = isImageFileName(picked.name)
+                            ? compressRequestPicture(picked)
+                            : picked;
+                        fileName.text = normalized.name;
+                        setDialogState(() => proof = normalized);
+                      } catch (error) {
+                        if (!context.mounted) return;
+                        showValidationMessage(
+                          context,
+                          error.toString().replaceFirst('Bad state: ', ''),
+                        );
+                      }
+                    },
+                    child: Text(proof == null ? 'Upload' : 'Replace'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              if (fileName.text.trim().isEmpty) {
+                showValidationMessage(context, 'Slip file name is required.');
+                return;
+              }
+              if (!isValidMoneyInput(amount.text, allowZero: false)) {
+                showValidationMessage(
+                  context,
+                  'Amount paid must be a valid amount above RM 0.',
+                );
+                return;
+              }
+              final confirmed = await showActionConfirmation(
+                context,
+                title: 'Submit payment slip?',
+                message:
+                    'Confirm the payment amount and attachment before sending.',
+                confirmLabel: 'Submit Payment',
+              );
+              if (!confirmed || !context.mounted) return;
+              store.submitPaymentSlip(
+                bill,
+                fileName.text,
+                parseMoney(amount.text),
+                slipBytes:
+                    proof == null ? null : Uint8List.fromList(proof!.bytes),
+              );
+              Navigator.pop(context);
+            },
+            child: const Text('Submit'),
           ),
         ],
+      ),
+    ),
+  );
+}
+
+void showTenantRequestAttachmentDialog(
+  BuildContext context,
+  TenantRequest request,
+  String tenantName,
+) {
+  final imageData = request.attachmentBase64;
+  showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Tenant picture'),
+      content: SizedBox(
+        width: 520,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '${request.title} • $tenantName',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              [
+                request.attachmentFileName ?? 'Attached picture',
+                if (request.attachmentSizeBytes != null)
+                  fileSizeLabel(request.attachmentSizeBytes!),
+              ].join(' • '),
+              style: const TextStyle(color: oceanMuted),
+            ),
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: Container(
+                constraints: const BoxConstraints(maxHeight: 420),
+                color: oceanCanvas,
+                child: imageData == null || imageData.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(36),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.image_not_supported_rounded,
+                              size: 54,
+                              color: oceanMuted,
+                            ),
+                            SizedBox(height: 12),
+                            Text(
+                              'Picture file name is recorded, but no preview data is available.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: oceanMuted),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Image.memory(
+                        base64Decode(imageData),
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Padding(
+                          padding: EdgeInsets.all(36),
+                          child: Text(
+                            'The picture preview could not be opened.',
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () {
-            store.submitPaymentSlip(
-              bill,
-              fileName.text,
-              parseMoney(amount.text),
-            );
-            Navigator.pop(context);
-          },
-          child: const Text('Submit'),
+          child: const Text('Close'),
         ),
       ],
     ),
@@ -6453,37 +15498,194 @@ void showSubmitSlipDialog(BuildContext context, MonthlyBill bill) {
 
 void showAddRequestDialog(BuildContext context) {
   final store = RentalStoreScope.of(context);
-  final title = TextEditingController(text: 'Repair request');
-  final message = TextEditingController(text: 'Please help check this issue.');
+  const requestTypes = [
+    'Repair & Maintenance',
+    'Extend Tenancy',
+    'Early Move-out',
+    'Agreement / Document',
+    'Utility / Billing',
+    'Access Card / Key',
+    'Parking',
+    'Neighbor / Noise',
+    'General Enquiry',
+  ];
+  var requestType = requestTypes.first;
+  final title = TextEditingController();
+  final message = TextEditingController();
+  PickedImageData? attachment;
 
   showDialog<void>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('New Tenant Request'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AppTextField(controller: title, label: 'Request Title'),
-          AppTextField(controller: message, label: 'Message'),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () {
-            store.addTenantRequest(
-              title: title.text,
-              message: message.text,
-            );
-            Navigator.pop(context);
-          },
-          child: const Text('Submit'),
-        ),
-      ],
-    ),
+    builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+              title: const Text('Create New Request'),
+              content: SizedBox(
+                width: 580,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: requestType,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: 'Request Type',
+                      ),
+                      items: requestTypes
+                          .map((item) =>
+                              DropdownMenuItem(value: item, child: Text(item)))
+                          .toList(),
+                      onChanged: (value) => setDialogState(
+                        () => requestType = value ?? requestType,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    AppTextField(controller: title, label: 'Request Title'),
+                    TextField(
+                      controller: message,
+                      minLines: 5,
+                      maxLines: 8,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: 'Describe what you need',
+                        alignLabelWithHint: true,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: oceanCanvas,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFD7E1EF)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            attachment == null
+                                ? Icons.add_photo_alternate_outlined
+                                : Icons.image_rounded,
+                            color: oceanDeep,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Request picture',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                Text(
+                                  attachment == null
+                                      ? 'Optional • maximum 1 picture • compressed below 2 MB'
+                                      : '${attachment!.name} • ${fileSizeLabel(attachment!.bytes.length)}',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: oceanMuted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton(
+                            onPressed: () async {
+                              try {
+                                final picked = await pickImageForUpload();
+                                if (picked == null) return;
+                                final compressed =
+                                    compressRequestPicture(picked);
+                                setDialogState(() => attachment = compressed);
+                                if (!context.mounted) return;
+                                final wasCompressed = compressed.bytes.length <
+                                    picked.bytes.length;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      wasCompressed
+                                          ? 'Picture compressed to ${fileSizeLabel(compressed.bytes.length)}.'
+                                          : 'Picture attached (${fileSizeLabel(compressed.bytes.length)}).',
+                                    ),
+                                  ),
+                                );
+                              } catch (error) {
+                                if (!context.mounted) return;
+                                showValidationMessage(
+                                  context,
+                                  error.toString().replaceFirst(
+                                        'Bad state: ',
+                                        '',
+                                      ),
+                                );
+                              }
+                            },
+                            child: Text(
+                              attachment == null ? 'Upload' : 'Replace',
+                            ),
+                          ),
+                          if (attachment != null)
+                            IconButton(
+                              tooltip: 'Remove picture',
+                              onPressed: () =>
+                                  setDialogState(() => attachment = null),
+                              icon: const Icon(Icons.close_rounded),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    if (title.text.trim().isEmpty) {
+                      showValidationMessage(
+                        context,
+                        'Request title is required.',
+                      );
+                      return;
+                    }
+                    if (message.text.trim().isEmpty) {
+                      showValidationMessage(
+                        context,
+                        'Please describe what you need.',
+                      );
+                      return;
+                    }
+                    final confirmed = await showActionConfirmation(
+                      context,
+                      title: 'Send this request?',
+                      message:
+                          'The owner will receive your $requestType request.',
+                      confirmLabel: 'Send Request',
+                    );
+                    if (!confirmed || !context.mounted) return;
+                    store.addTenantRequest(
+                      requestType: requestType,
+                      title: title.text,
+                      message: message.text,
+                      attachmentFileName: attachment?.name,
+                      attachmentBase64: attachment == null
+                          ? null
+                          : base64Encode(attachment!.bytes),
+                      attachmentSizeBytes: attachment?.bytes.length,
+                    );
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Submit'),
+                ),
+              ],
+            )),
   );
 }
 
@@ -6499,7 +15701,14 @@ void showAvatarPickerDialog(BuildContext context) {
         runSpacing: 14,
         children: List.generate(6, (index) {
           return InkWell(
-            onTap: () {
+            onTap: () async {
+              final confirmed = await showActionConfirmation(
+                context,
+                title: 'Change profile picture?',
+                message: 'Use this avatar for your account profile.',
+                confirmLabel: 'Change Avatar',
+              );
+              if (!confirmed || !context.mounted) return;
               store.updateAvatar(index);
               Navigator.pop(context);
             },
@@ -6530,6 +15739,320 @@ void showAvatarPickerDialog(BuildContext context) {
           child: const Text('Cancel'),
         ),
       ],
+    ),
+  );
+}
+
+void showOwnerAccountSetupDialog(BuildContext context) {
+  final store = RentalStoreScope.of(context);
+  final user = store.currentUser!;
+  final name = TextEditingController(text: user.name);
+  final email = TextEditingController(text: user.email);
+  final phone = TextEditingController(text: user.phoneNumber);
+  final businessName = TextEditingController(text: 'Platinum Victory');
+  final businessAddress = TextEditingController(text: user.originAddress ?? '');
+  final currentPassword = TextEditingController();
+  final newPassword = TextEditingController();
+  final confirmPassword = TextEditingController();
+  var avatarStyle = user.avatarStyle;
+  var changePassword = false;
+  var obscurePasswords = true;
+
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: const Text('Owner Account Setup'),
+        content: SizedBox(
+          width: 620,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [oceanSky, oceanBlue, oceanDeep],
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Row(
+                    children: [
+                      ProfileAvatar(
+                        user: user,
+                        radius: 34,
+                        overrideStyle: avatarStyle,
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Owner workspace',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '${store.ownerFacilities.length} properties • ${store.tenancies.where((item) => item.active).length} active units',
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Profile picture',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: List.generate(6, (index) {
+                    return InkWell(
+                      onTap: () => setDialogState(() => avatarStyle = index),
+                      borderRadius: BorderRadius.circular(40),
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: avatarStyle == index
+                                ? Theme.of(context).colorScheme.primary
+                                : Colors.transparent,
+                            width: 3,
+                          ),
+                        ),
+                        child: ProfileAvatar(
+                          user: user,
+                          radius: 24,
+                          overrideStyle: index,
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+                const Divider(height: 28),
+                Text(
+                  'Owner details',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 10),
+                AppTextField(
+                  controller: name,
+                  label: 'Full Name',
+                ),
+                AppTextField(
+                  controller: email,
+                  label: 'Email',
+                ),
+                AppTextField(
+                  controller: phone,
+                  label: 'WhatsApp / Phone Number',
+                ),
+                const Divider(height: 28),
+                Text(
+                  'Business / invoice identity',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 10),
+                AppTextField(
+                  controller: businessName,
+                  label: 'Business Name',
+                ),
+                AppTextField(
+                  controller: businessAddress,
+                  label: 'Business Address',
+                ),
+                const Divider(height: 28),
+                Text(
+                  'Security',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Change password'),
+                  subtitle:
+                      const Text('Update the password used on this device.'),
+                  value: changePassword,
+                  onChanged: (value) => setDialogState(() {
+                    changePassword = value;
+                    if (!value) {
+                      currentPassword.clear();
+                      newPassword.clear();
+                      confirmPassword.clear();
+                    }
+                  }),
+                ),
+                if (changePassword) ...[
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: currentPassword,
+                    obscureText: obscurePasswords,
+                    decoration: InputDecoration(
+                      labelText: 'Current password',
+                      suffixIcon: IconButton(
+                        onPressed: () => setDialogState(
+                          () => obscurePasswords = !obscurePasswords,
+                        ),
+                        icon: Icon(
+                          obscurePasswords
+                              ? Icons.visibility_rounded
+                              : Icons.visibility_off_rounded,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final twoColumns = constraints.maxWidth >= 520;
+                      final newField = TextField(
+                        controller: newPassword,
+                        obscureText: obscurePasswords,
+                        decoration: const InputDecoration(
+                          labelText: 'New password',
+                        ),
+                      );
+                      final confirmField = TextField(
+                        controller: confirmPassword,
+                        obscureText: obscurePasswords,
+                        decoration: const InputDecoration(
+                          labelText: 'Confirm new password',
+                        ),
+                      );
+                      if (!twoColumns) {
+                        return Column(
+                          children: [
+                            newField,
+                            const SizedBox(height: 10),
+                            confirmField,
+                          ],
+                        );
+                      }
+                      return Row(
+                        children: [
+                          Expanded(child: newField),
+                          const SizedBox(width: 10),
+                          Expanded(child: confirmField),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () async {
+              if (!isValidHumanName(name.text)) {
+                showValidationMessage(
+                  dialogContext,
+                  'Owner name must contain letters only, no numbers.',
+                );
+                return;
+              }
+              if (!isValidEmailInput(email.text)) {
+                showValidationMessage(dialogContext, 'Enter a valid email.');
+                return;
+              }
+              if (phone.text.trim().isNotEmpty &&
+                  !isValidPhoneInput(phone.text)) {
+                showValidationMessage(
+                  dialogContext,
+                  'Enter a valid WhatsApp / phone number.',
+                );
+                return;
+              }
+              if (changePassword) {
+                if (currentPassword.text.isEmpty) {
+                  showValidationMessage(
+                    dialogContext,
+                    'Enter your current password.',
+                  );
+                  return;
+                }
+                if (newPassword.text.length < 8) {
+                  showValidationMessage(
+                    dialogContext,
+                    'New password must be at least 8 characters.',
+                  );
+                  return;
+                }
+                if (newPassword.text != confirmPassword.text) {
+                  showValidationMessage(
+                    dialogContext,
+                    'New password and confirmation do not match.',
+                  );
+                  return;
+                }
+              }
+              final confirmed = await showActionConfirmation(
+                dialogContext,
+                title: 'Save owner account setup?',
+                message:
+                    'This updates your owner profile, contact details, avatar and reminder defaults.',
+                confirmLabel: 'Save Setup',
+              );
+              if (!confirmed || !dialogContext.mounted) return;
+              if (changePassword) {
+                try {
+                  store.changeLocalAccountPassword(
+                    email: user.email,
+                    role: user.role,
+                    currentPassword: currentPassword.text,
+                    newPassword: newPassword.text,
+                  );
+                } catch (error) {
+                  if (!dialogContext.mounted) return;
+                  showValidationMessage(
+                    dialogContext,
+                    error.toString().replaceFirst('Bad state: ', ''),
+                  );
+                  return;
+                }
+              }
+              store.updateOwnerAccount(
+                name: name.text,
+                email: email.text,
+                phoneNumber: phone.text,
+                originAddress: businessAddress.text,
+                avatarStyle: avatarStyle,
+                paymentReminderAfterDays: user.paymentReminderAfterDays,
+                paymentReminderFrequencyDays: user.paymentReminderFrequencyDays,
+              );
+              Navigator.pop(dialogContext);
+            },
+            icon: const Icon(Icons.save_rounded),
+            label: const Text('Save Setup'),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -6582,7 +16105,15 @@ void showReminderSettingsDialog(BuildContext context) {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
+              final confirmed = await showActionConfirmation(
+                context,
+                title: 'Save reminder settings?',
+                message:
+                    'The first reminder will be sent after $afterDays days and repeat every $frequencyDays days.',
+                confirmLabel: 'Save Settings',
+              );
+              if (!confirmed || !context.mounted) return;
               store.updateReminderSettings(
                 afterDays: afterDays,
                 frequencyDays: frequencyDays,
@@ -6598,121 +16129,1044 @@ void showReminderSettingsDialog(BuildContext context) {
 }
 
 void showAccountSettingsDialog(BuildContext context) {
-  final store = RentalStoreScope.of(context);
-  final user = store.currentUser!;
   showDialog<void>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: const Row(
-        children: [
-          Icon(Icons.settings_rounded),
-          SizedBox(width: 10),
-          Text('Settings'),
-        ],
-      ),
-      content: SizedBox(
-        width: 520,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Tenant Payment Reminder',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
+    builder: (_) => const _SettingsHubDialog(),
+  );
+}
+
+Future<void> showDataExportDialog(BuildContext context) async {
+  await Navigator.of(context).push(
+    MaterialPageRoute<void>(builder: (_) => const _DataBackupScreen()),
+  );
+}
+
+Future<void> _prepareDataExport(BuildContext context, String format) async {
+  final store = RentalStoreScope.of(context);
+  final confirmed = await showActionConfirmation(
+    context,
+    title: 'Prepare $format export?',
+    message: format == 'Share'
+        ? 'A backup summary will be copied so you can paste it into WhatsApp, email, or Drive.'
+        : 'A dated copy of the app records will be downloaded.',
+    confirmLabel: 'Prepare Export',
+  );
+  if (!confirmed || !context.mounted) return;
+  final now = DateTime.now();
+  final stamp =
+      '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+  try {
+    if (format == 'Excel') {
+      final fileName = 'rental_manager_detailed_export_$stamp.xls';
+      await downloadTextFile(
+        fileName: fileName,
+        mimeType: 'application/vnd.ms-excel;charset=utf-8',
+        content: store.exportExcelWorkbookXml(),
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$fileName downloaded.')),
+      );
+      return;
+    }
+    if (format == 'CSV') {
+      final fileName = 'rental_manager_summary_$stamp.csv';
+      await downloadTextFile(
+        fileName: fileName,
+        mimeType: 'text/csv;charset=utf-8',
+        content: store.exportCsv(),
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$fileName downloaded.')),
+      );
+      return;
+    }
+    final backupJson =
+        const JsonEncoder.withIndent('  ').convert(store.exportSnapshot());
+    if (format == 'Share') {
+      await Clipboard.setData(ClipboardData(text: backupJson));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Backup copied. Paste it where needed.')),
+      );
+      return;
+    }
+    final fileName = 'rental_manager_backup_$stamp.sqlite.json';
+    await downloadTextFile(
+      fileName: fileName,
+      mimeType: 'application/json;charset=utf-8',
+      content: backupJson,
+    );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$fileName downloaded.')),
+    );
+  } catch (error) {
+    if (!context.mounted) return;
+    showValidationMessage(
+      context,
+      error.toString().replaceFirst('Unsupported operation: ', ''),
+    );
+  }
+}
+
+class _DataBackupScreen extends StatefulWidget {
+  const _DataBackupScreen();
+
+  @override
+  State<_DataBackupScreen> createState() => _DataBackupScreenState();
+}
+
+class _DataBackupScreenState extends State<_DataBackupScreen> {
+  String location = 'internal';
+  bool autoBackup = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    final recordCount = store.facilities.length +
+        store.tenancies.length +
+        store.bills.length +
+        store.tenantRequests.length;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Data & backup')),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 18),
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [oceanSky, oceanBlue, oceanDeep],
                   ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Push reminders are sent when a tenant has not submitted payment.',
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: _ReminderSettingTile(
-                    label: 'First reminder after',
-                    value: '${user.paymentReminderAfterDays} days',
-                    icon: Icons.schedule_rounded,
-                  ),
+                  borderRadius: BorderRadius.circular(18),
                 ),
-                const SizedBox(width: 10),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(.2),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: const Icon(Icons.storage_rounded,
+                          color: Colors.white),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Local database',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800)),
+                          Text(
+                            'rental_manager.db · $recordCount records',
+                            style: const TextStyle(
+                                color: Color(0xDDFFFFFF), fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEAF8EF),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(color: const Color(0xFFBCE8CA)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.check_circle_outline_rounded,
+                        color: Color(0xFF16A34A), size: 18),
+                    SizedBox(width: 8),
+                    Text('Last backup: today 08:40 · internal storage',
+                        style:
+                            TextStyle(color: Color(0xFF15803D), fontSize: 11)),
+                  ],
+                ),
+              ),
+              const _BackupSectionLabel('EXPORT'),
+              _BackupCard(
+                children: [
+                  _BackupAction(
+                    icon: Icons.phone_iphone_rounded,
+                    title: 'Export SQLite database',
+                    subtitle: '.db file — full backup',
+                    trailing: Icons.download_rounded,
+                    onTap: () => _prepareDataExport(context, 'SQLite'),
+                  ),
+                  _BackupAction(
+                    icon: Icons.table_view_rounded,
+                    title: 'Export detailed Excel workbook',
+                    subtitle: 'Dashboard, tenants, bills, cashflow, expenses',
+                    trailing: Icons.download_rounded,
+                    onTap: () => _prepareDataExport(context, 'Excel'),
+                  ),
+                  _BackupAction(
+                    icon: Icons.ios_share_rounded,
+                    title: 'Share backup',
+                    subtitle: 'WhatsApp, email, Drive',
+                    onTap: () => _prepareDataExport(context, 'Share'),
+                  ),
+                ],
+              ),
+              const _BackupSectionLabel('BACKUP LOCATION'),
+              _BackupCard(
+                children: [
+                  RadioListTile<String>(
+                    value: 'internal',
+                    groupValue: location,
+                    onChanged: (value) => setState(() => location = value!),
+                    title: const Text('Internal storage'),
+                    secondary: const Icon(Icons.phone_iphone_rounded,
+                        color: oceanBlue),
+                  ),
+                  RadioListTile<String>(
+                    value: 'drive',
+                    groupValue: location,
+                    onChanged: (value) => setState(() => location = value!),
+                    title: const Text('Google Drive'),
+                    secondary:
+                        const Icon(Icons.cloud_outlined, color: oceanMuted),
+                  ),
+                ],
+              ),
+              TextButton(
+                onPressed: () {},
+                child: const Text('Restore from file...'),
+              ),
+              _BackupCard(
+                children: [
+                  SwitchListTile(
+                    value: autoBackup,
+                    onChanged: (value) => setState(() => autoBackup = value),
+                    title: const Text('Auto-backup daily'),
+                    subtitle: const Text('02:00 · to selected location'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                      colors: [oceanSky, oceanBlue, oceanDeep]),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                  ),
+                  onPressed: () => _prepareDataExport(context, 'SQLite'),
+                  child: const Text('Back up now'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BackupSectionLabel extends StatelessWidget {
+  const _BackupSectionLabel(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(2, 18, 2, 7),
+        child: Text(text,
+            style: const TextStyle(
+                color: oceanMuted,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: .7)),
+      );
+}
+
+class _BackupCard extends StatelessWidget {
+  const _BackupCard({required this.children});
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+            color: Colors.white, borderRadius: BorderRadius.circular(17)),
+        child: Column(children: children),
+      );
+}
+
+class _BackupAction extends StatelessWidget {
+  const _BackupAction({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.trailing = Icons.chevron_right_rounded,
+  });
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final IconData trailing;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => ListTile(
+        leading: Icon(icon, color: oceanBlue),
+        title: Text(title),
+        subtitle: Text(subtitle),
+        trailing: Icon(trailing, color: oceanBlue, size: 18),
+        onTap: onTap,
+      );
+}
+
+enum _SettingsSection { overview, reminders, facilities, income, dataExport }
+
+class _SettingsHubDialog extends StatefulWidget {
+  const _SettingsHubDialog();
+
+  @override
+  State<_SettingsHubDialog> createState() => _SettingsHubDialogState();
+}
+
+class _SettingsHubDialogState extends State<_SettingsHubDialog> {
+  _SettingsSection section = _SettingsSection.overview;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final height = math.min(size.height - 40, 680.0);
+    return Dialog(
+      insetPadding: const EdgeInsets.all(20),
+      backgroundColor: Colors.transparent,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 920),
+        child: SizedBox(
+          height: height,
+          child: Material(
+            color: const Color(0xFFF7F9FC),
+            borderRadius: BorderRadius.circular(26),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                _SettingsHeader(onClose: () => Navigator.pop(context)),
                 Expanded(
-                  child: _ReminderSettingTile(
-                    label: 'Repeat frequency',
-                    value: 'Every ${user.paymentReminderFrequencyDays} days',
-                    icon: Icons.repeat_rounded,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact = constraints.maxWidth < 700;
+                      if (compact) {
+                        return Column(
+                          children: [
+                            _SettingsCompactNavigation(
+                              selected: section,
+                              onSelected: (value) {
+                                setState(() => section = value);
+                              },
+                            ),
+                            const Divider(height: 1),
+                            Expanded(child: _buildContent(context)),
+                          ],
+                        );
+                      }
+                      return Row(
+                        children: [
+                          SizedBox(
+                            width: 225,
+                            child: _SettingsNavigation(
+                              selected: section,
+                              onSelected: (value) {
+                                setState(() => section = value);
+                              },
+                            ),
+                          ),
+                          const VerticalDivider(width: 1),
+                          Expanded(child: _buildContent(context)),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
-            FilledButton.icon(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                showReminderSettingsDialog(context);
-              },
-              icon: const Icon(Icons.tune_rounded),
-              label: const Text('Edit Reminder Schedule'),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
+    return switch (section) {
+      _SettingsSection.overview => _SettingsOverview(
+          onSelect: (value) => setState(() => section = value),
+        ),
+      _SettingsSection.reminders => const _ReminderSettingsPanel(),
+      _SettingsSection.facilities => const _FacilitySettingsPanel(),
+      _SettingsSection.income => const _IncomeSettingsPanel(),
+      _SettingsSection.dataExport => const _DataExportSettingsPanel(),
+    };
+  }
+}
+
+class _SettingsHeader extends StatelessWidget {
+  const _SettingsHeader({required this.onClose});
+
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 86,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF17233C), Color(0xFF3156A3)],
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(14),
             ),
-            const SizedBox(height: 18),
-            Text(
-              'Facility Recurring Commitments',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
+            child: const Icon(Icons.tune_rounded, color: Color(0xFFDDE7FF)),
+          ),
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Settings',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
                   ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Control your portfolio from one organized workspace',
+                  style: TextStyle(color: Color(0xFFB8CAD5)),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
-            const Text(
-              'Select, add, or edit any recurring facility commitment.',
+          ),
+          IconButton(
+            tooltip: 'Close settings',
+            onPressed: onClose,
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.white.withOpacity(0.1),
             ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                showRecurringCommitmentsSettingsDialog(context);
-              },
-              icon: const Icon(Icons.receipt_long_rounded),
-              label: const Text('Manage Facility Commitments'),
+            icon: const Icon(Icons.close_rounded, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsNavigation extends StatelessWidget {
+  const _SettingsNavigation({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final _SettingsSection selected;
+  final ValueChanged<_SettingsSection> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(10, 8, 10, 12),
+              child: Text(
+                'CONFIGURATION',
+                style: TextStyle(
+                  color: Color(0xFF98A2B3),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1,
+                ),
+              ),
             ),
-            const SizedBox(height: 18),
-            Text(
-              'Other Monthly Income',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Record extra monthly collections such as parking, deposits, or other income.',
-            ),
-            const SizedBox(height: 12),
-            FilledButton.tonalIcon(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                showAddIncomeDialog(context);
-              },
-              icon: const Icon(Icons.add_circle_outline_rounded),
-              label: const Text('Add Other Monthly Income'),
-            ),
+            for (final item in _SettingsSection.values)
+              _SettingsNavigationItem(
+                section: item,
+                selected: item == selected,
+                onTap: () => onSelected(item),
+              ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(dialogContext),
-          child: const Text('Close'),
-        ),
-      ],
-    ),
-  );
+    );
+  }
 }
 
-void showRecurringCommitmentsSettingsDialog(BuildContext context) {
+class _SettingsCompactNavigation extends StatelessWidget {
+  const _SettingsCompactNavigation({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final _SettingsSection selected;
+  final ValueChanged<_SettingsSection> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 66,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        scrollDirection: Axis.horizontal,
+        itemCount: _SettingsSection.values.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final item = _SettingsSection.values[index];
+          return ChoiceChip(
+            selected: item == selected,
+            avatar: Icon(_settingsIcon(item), size: 17),
+            label: Text(_settingsLabel(item)),
+            onSelected: (_) => onSelected(item),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SettingsNavigationItem extends StatelessWidget {
+  const _SettingsNavigationItem({
+    required this.section,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _SettingsSection section;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: selected ? const Color(0xFFE8EEFC) : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: ListTile(
+          dense: true,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          leading: Icon(
+            _settingsIcon(section),
+            color: selected ? const Color(0xFF3156A3) : const Color(0xFF667085),
+          ),
+          title: Text(
+            _settingsLabel(section),
+            style: TextStyle(
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+              color:
+                  selected ? const Color(0xFF24498F) : const Color(0xFF344054),
+            ),
+          ),
+          onTap: onTap,
+        ),
+      ),
+    );
+  }
+}
+
+String _settingsLabel(_SettingsSection section) => switch (section) {
+      _SettingsSection.overview => 'Overview',
+      _SettingsSection.reminders => 'Reminders',
+      _SettingsSection.facilities => 'Facilities',
+      _SettingsSection.income => 'Other Income',
+      _SettingsSection.dataExport => 'Data Export',
+    };
+
+IconData _settingsIcon(_SettingsSection section) => switch (section) {
+      _SettingsSection.overview => Icons.grid_view_rounded,
+      _SettingsSection.reminders => Icons.notifications_active_rounded,
+      _SettingsSection.facilities => Icons.apartment_rounded,
+      _SettingsSection.income => Icons.add_card_rounded,
+      _SettingsSection.dataExport => Icons.storage_rounded,
+    };
+
+class _SettingsPanelScaffold extends StatelessWidget {
+  const _SettingsPanelScaffold({
+    required this.eyebrow,
+    required this.title,
+    required this.description,
+    required this.child,
+  });
+
+  final String eyebrow;
+  final String title;
+  final String description;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            eyebrow.toUpperCase(),
+            style: const TextStyle(
+              color: Color(0xFF3156A3),
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF17233C),
+                ),
+          ),
+          const SizedBox(height: 6),
+          Text(description, style: const TextStyle(color: Color(0xFF667085))),
+          const SizedBox(height: 22),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsOverview extends StatelessWidget {
+  const _SettingsOverview({required this.onSelect});
+
+  final ValueChanged<_SettingsSection> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    final user = store.currentUser!;
+    return _SettingsPanelScaffold(
+      eyebrow: 'Workspace',
+      title: 'Everything in its place',
+      description:
+          'Choose a configuration area below. Changes apply across your owner workspace.',
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: const Color(0xFF17233C),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(
+              children: [
+                ProfileAvatar(user: user, radius: 28),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 17,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${user.email} • ${store.ownerFacilities.length} facilities',
+                        style: const TextStyle(color: Color(0xFFB8CAD5)),
+                      ),
+                    ],
+                  ),
+                ),
+                const StatusChipText(label: 'Owner'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          _SettingsActionCard(
+            icon: Icons.notifications_active_rounded,
+            color: const Color(0xFF3156A3),
+            title: 'Payment reminders',
+            description: 'Control first notice and repeat frequency.',
+            value: '${user.paymentReminderAfterDays} day start',
+            onTap: () => onSelect(_SettingsSection.reminders),
+          ),
+          _SettingsActionCard(
+            icon: Icons.apartment_rounded,
+            color: const Color(0xFF3156A3),
+            title: 'Facility configuration',
+            description: 'Costs, commitments and facility lifecycle.',
+            value: '${store.ownerFacilities.length} facilities',
+            onTap: () => onSelect(_SettingsSection.facilities),
+          ),
+          _SettingsActionCard(
+            icon: Icons.add_card_rounded,
+            color: const Color(0xFFD16432),
+            title: 'Other monthly income',
+            description: 'Record parking, deposits or extra collections.',
+            value: 'Add record',
+            onTap: () => onSelect(_SettingsSection.income),
+          ),
+          _SettingsActionCard(
+            icon: Icons.storage_rounded,
+            color: const Color(0xFF16856B),
+            title: 'Data export',
+            description: 'Extract detailed Excel, SQLite backup or share copy.',
+            value: 'Excel / SQLite',
+            onTap: () => onSelect(_SettingsSection.dataExport),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DataExportSettingsPanel extends StatelessWidget {
+  const _DataExportSettingsPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    return _SettingsPanelScaffold(
+      eyebrow: 'Data portability',
+      title: 'Extract your app records',
+      description:
+          'Prepare a portable copy of the internal mobile data for backup, audit or spreadsheet analysis.',
+      child: Column(
+        children: [
+          const Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: CircleAvatar(child: Icon(Icons.storage_rounded)),
+                  title: Text('Mobile SQLite backup'),
+                  subtitle:
+                      Text('Full structured record copy for restoration.'),
+                ),
+                Divider(height: 1),
+                ListTile(
+                  leading: CircleAvatar(child: Icon(Icons.table_view_rounded)),
+                  title: Text('Detailed Excel workbook'),
+                  subtitle: Text('Dashboard, tenants, bills and cashflow.'),
+                ),
+              ],
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: Icon(
+                store.persistenceError == null
+                    ? Icons.verified_rounded
+                    : Icons.error_outline_rounded,
+                color: store.persistenceError == null
+                    ? const Color(0xFF16856B)
+                    : Theme.of(context).colorScheme.error,
+              ),
+              title: Text(
+                store.persistenceError == null
+                    ? 'Automatic persistence active'
+                    : 'Storage needs attention',
+              ),
+              subtitle: Text(
+                store.persistenceError ?? store.storageDescription,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _SettingsPrimaryAction(
+            icon: Icons.file_download_rounded,
+            label: 'Prepare Data Export',
+            onPressed: () => showDataExportDialog(context),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReminderSettingsPanel extends StatelessWidget {
+  const _ReminderSettingsPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final user = RentalStoreScope.of(context).currentUser!;
+    return _SettingsPanelScaffold(
+      eyebrow: 'Automation',
+      title: 'Tenant payment reminders',
+      description:
+          'Keep follow-ups consistent without manually checking every due bill.',
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _ReminderSettingTile(
+                  label: 'First reminder',
+                  value: '${user.paymentReminderAfterDays} days after due',
+                  icon: Icons.schedule_rounded,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _ReminderSettingTile(
+                  label: 'Repeat frequency',
+                  value: 'Every ${user.paymentReminderFrequencyDays} days',
+                  icon: Icons.repeat_rounded,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _SettingsPrimaryAction(
+            icon: Icons.tune_rounded,
+            label: 'Edit Reminder Schedule',
+            onPressed: () => showReminderSettingsDialog(context),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FacilitySettingsPanel extends StatelessWidget {
+  const _FacilitySettingsPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    return _SettingsPanelScaffold(
+      eyebrow: 'Portfolio',
+      title: 'Facility configuration',
+      description:
+          'A single source of truth for costs, recurring commitments, and facility status.',
+      child: Column(
+        children: [
+          for (final facility in store.ownerFacilities)
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE4EAF4)),
+              ),
+              child: Row(
+                children: [
+                  const CircleAvatar(
+                    backgroundColor: Color(0xFFE8EEFC),
+                    foregroundColor: Color(0xFF3156A3),
+                    child: Icon(Icons.apartment_rounded),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          facility.name,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '${facility.extraCommitments.length + 4} cost categories • ${facilityStatusText(facility)}',
+                          style: const TextStyle(color: Color(0xFF667085)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        money(store.monthlyFacilityOutflow(facility)),
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      TextButton.icon(
+                        onPressed: () =>
+                            showFacilityCostHistoryDialog(context, facility),
+                        icon: const Icon(Icons.history_rounded, size: 17),
+                        label: Text('History (${facility.costHistory.length})'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 6),
+          _SettingsPrimaryAction(
+            icon: Icons.settings_suggest_rounded,
+            label: 'Manage Facility Configuration',
+            onPressed: () => showFacilityConfigurationDialog(context),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IncomeSettingsPanel extends StatelessWidget {
+  const _IncomeSettingsPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return _SettingsPanelScaffold(
+      eyebrow: 'Collections',
+      title: 'Other monthly income',
+      description:
+          'Capture income outside standard rent while keeping monthly reporting accurate.',
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFFF4EA), Color(0xFFFFFBF7)],
+              ),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFF2D6BF)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.lightbulb_rounded, color: Color(0xFFD16432)),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Use this for parking fees, forfeited deposits, access cards, or any one-off collection.',
+                    style: TextStyle(color: Color(0xFF7A472E), height: 1.4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          _SettingsPrimaryAction(
+            icon: Icons.add_circle_outline_rounded,
+            label: 'Add Other Monthly Income',
+            onPressed: () => showAddIncomeDialog(context),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsActionCard extends StatelessWidget {
+  const _SettingsActionCard({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.description,
+    required this.value,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String description;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: Icon(icon, color: color),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+        subtitle: Text(description),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(value,
+                style: TextStyle(color: color, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 2),
+            const Icon(Icons.arrow_forward_rounded, size: 18),
+          ],
+        ),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _SettingsPrimaryAction extends StatelessWidget {
+  const _SettingsPrimaryAction({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon),
+        label: Text(label),
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFF3156A3),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+        ),
+      ),
+    );
+  }
+}
+
+void showRecurringCommitmentsSettingsDialog(
+  BuildContext context, {
+  Facility? initialFacility,
+}) {
   final store = RentalStoreScope.of(context);
   final facilities = store.ownerFacilities;
   if (facilities.isEmpty) return;
-  var selectedFacility = facilities.first;
+  var selectedFacility =
+      initialFacility != null && facilities.contains(initialFacility)
+          ? initialFacility
+          : facilities.first;
   RecurringCommitment? selectedCommitment =
       selectedFacility.extraCommitments.isEmpty
           ? null
@@ -6923,7 +17377,29 @@ Future<bool?> showAddRecurringCommitmentDialog(
             child: const Text('Cancel'),
           ),
           FilledButton.icon(
-            onPressed: () {
+            onPressed: () async {
+              if (name.text.trim().isEmpty) {
+                showValidationMessage(
+                  dialogContext,
+                  'Commitment name is required.',
+                );
+                return;
+              }
+              if (!isValidMoneyInput(amount.text, allowZero: false)) {
+                showValidationMessage(
+                  dialogContext,
+                  'Amount must be a valid number above RM 0.',
+                );
+                return;
+              }
+              final confirmed = await showActionConfirmation(
+                dialogContext,
+                title: 'Add recurring commitment?',
+                message:
+                    '${name.text.trim()} at ${money(parseMoney(amount.text))} will be added to ${facility.name}.',
+                confirmLabel: 'Add Commitment',
+              );
+              if (!confirmed || !dialogContext.mounted) return;
               store.addRecurringCommitment(
                 facility: facility,
                 name: name.text,
@@ -7014,7 +17490,29 @@ Future<bool?> showEditRecurringCommitmentDialog(
             child: const Text('Cancel'),
           ),
           FilledButton.icon(
-            onPressed: () {
+            onPressed: () async {
+              if (name.text.trim().isEmpty) {
+                showValidationMessage(
+                  dialogContext,
+                  'Commitment name is required.',
+                );
+                return;
+              }
+              if (!isValidMoneyInput(amount.text, allowZero: false)) {
+                showValidationMessage(
+                  dialogContext,
+                  'Amount must be a valid number above RM 0.',
+                );
+                return;
+              }
+              final confirmed = await showActionConfirmation(
+                dialogContext,
+                title: 'Save commitment changes?',
+                message:
+                    '${commitment.name} will be updated to ${money(parseMoney(amount.text))} on a ${commitmentFrequencyText(frequency).toLowerCase()} schedule.',
+                confirmLabel: 'Save Changes',
+              );
+              if (!confirmed || !dialogContext.mounted) return;
               store.updateRecurringCommitment(
                 commitment,
                 name: name.text,
@@ -7033,12 +17531,12 @@ Future<bool?> showEditRecurringCommitmentDialog(
   );
 }
 
-void showAddIncomeDialog(BuildContext context) {
+void showAddIncomeDialog(BuildContext context, [Facility? initialFacility]) {
   final store = RentalStoreScope.of(context);
   final facilities = store.ownerFacilities;
   if (facilities.isEmpty) return;
-  Facility selectedFacility = facilities.first;
-  DateTime selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
+  Facility selectedFacility = initialFacility ?? facilities.first;
+  final selectedMonth = store.currentMonth;
   final category = TextEditingController(text: 'Other income');
   final amount = TextEditingController(text: '0');
   final note = TextEditingController(text: 'One-off monthly collection');
@@ -7072,24 +17570,9 @@ void showAddIncomeDialog(BuildContext context) {
                   },
                 ),
                 const SizedBox(height: 10),
-                DropdownButtonFormField<int>(
-                  value: selectedMonth.month,
-                  decoration: const InputDecoration(labelText: 'Month'),
-                  items: List.generate(
-                    12,
-                    (index) => DropdownMenuItem(
-                      value: index + 1,
-                      child: Text(
-                          monthLabel(DateTime(selectedMonth.year, index + 1))),
-                    ),
-                  ),
-                  onChanged: (month) {
-                    if (month != null) {
-                      setDialogState(() {
-                        selectedMonth = DateTime(selectedMonth.year, month);
-                      });
-                    }
-                  },
+                ProfileInfoRow(
+                  label: 'Month',
+                  value: '${monthLabel(selectedMonth)} • current month only',
                 ),
                 const SizedBox(height: 10),
                 AppTextField(controller: category, label: 'Income Category'),
@@ -7109,7 +17592,26 @@ void showAddIncomeDialog(BuildContext context) {
             child: const Text('Cancel'),
           ),
           FilledButton.icon(
-            onPressed: () {
+            onPressed: () async {
+              if (category.text.trim().isEmpty) {
+                showValidationMessage(context, 'Income category is required.');
+                return;
+              }
+              if (!isValidMoneyInput(amount.text, allowZero: false)) {
+                showValidationMessage(
+                  context,
+                  'Income amount must be a valid amount above RM 0.',
+                );
+                return;
+              }
+              final confirmed = await showActionConfirmation(
+                context,
+                title: 'Add this income record?',
+                message:
+                    '${category.text.trim()} of ${money(parseMoney(amount.text))} will be recorded for ${monthLabel(selectedMonth)}.',
+                confirmLabel: 'Add Income',
+              );
+              if (!confirmed || !context.mounted) return;
               store.addAdditionalIncome(
                 facility: selectedFacility,
                 month: selectedMonth,
@@ -7128,47 +17630,238 @@ void showAddIncomeDialog(BuildContext context) {
   );
 }
 
+void showAddExpenseDialog(BuildContext context, Facility facility) {
+  final store = RentalStoreScope.of(context);
+  final category = TextEditingController(text: 'One-time expense');
+  final amount = TextEditingController(text: '0');
+  final note = TextEditingController(text: 'Current month expense');
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Add One-time Expense'),
+      content: SizedBox(
+        width: 480,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ProfileInfoRow(label: 'Facility', value: facility.name),
+            ProfileInfoRow(
+              label: 'Month',
+              value: '${monthLabel(store.currentMonth)} • current month only',
+            ),
+            AppTextField(controller: category, label: 'Expense Category'),
+            AppTextField(
+                controller: amount, label: 'Amount', prefixText: 'RM '),
+            AppTextField(controller: note, label: 'Note'),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('Cancel'),
+        ),
+        FilledButton.icon(
+          onPressed: () async {
+            if (category.text.trim().isEmpty) {
+              showValidationMessage(
+                dialogContext,
+                'Expense category is required.',
+              );
+              return;
+            }
+            if (!isValidMoneyInput(amount.text, allowZero: false)) {
+              showValidationMessage(
+                dialogContext,
+                'Expense amount must be a valid amount above RM 0.',
+              );
+              return;
+            }
+            final confirmed = await showActionConfirmation(
+              dialogContext,
+              title: 'Add this expense?',
+              message:
+                  '${category.text.trim()} of ${money(parseMoney(amount.text))} will be recorded for ${monthLabel(store.currentMonth)}.',
+              confirmLabel: 'Add Expense',
+            );
+            if (!confirmed || !dialogContext.mounted) return;
+            store.addAdditionalExpense(
+              facility: facility,
+              category: category.text,
+              amount: parseMoney(amount.text),
+              note: note.text,
+            );
+            Navigator.pop(dialogContext);
+          },
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('Review & Add'),
+        ),
+      ],
+    ),
+  );
+}
+
 void showNotifications(BuildContext context) {
   final store = RentalStoreScope.of(context);
   showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
     builder: (context) {
-      return ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text('Notifications', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          if (store.notifications.isEmpty)
-            const ListTile(title: Text('No notifications yet')),
-          ...store.notifications.map(
-            (notification) => ListTile(
-              leading: Icon(
-                notification.isRead
-                    ? Icons.notifications_none_rounded
-                    : Icons.notifications_active_rounded,
-                color: notification.isRead
-                    ? const Color(0xFF98A2B3)
-                    : Theme.of(context).colorScheme.primary,
-              ),
-              title: Text(
-                notification.message,
-                style: TextStyle(
-                  fontWeight:
-                      notification.isRead ? FontWeight.w400 : FontWeight.w700,
+      return AnimatedBuilder(
+        animation: store,
+        builder: (context, _) {
+          final unread = store.unreadNotificationCount;
+          final grouped = <String, List<AppNotification>>{};
+          for (final notification in store.notifications) {
+            final category = notificationCategoryFor(notification.message);
+            grouped.putIfAbsent(category, () => []).add(notification);
+          }
+          const categoryOrder = [
+            'Bill review',
+            'Payment proof',
+            'Tenant related',
+            'Property changes',
+            'Profile & settings',
+            'Utility reading',
+            'Requests',
+            'System',
+          ];
+          final categories = [
+            ...categoryOrder.where(grouped.containsKey),
+            ...grouped.keys.where((item) => !categoryOrder.contains(item)),
+          ];
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text('Notifications',
+                  style: Theme.of(context).textTheme.titleLarge),
+              if (store.notifications.isNotEmpty)
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: unread == 0,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: const Text(
+                    'Mark all as read',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    unread == 0
+                        ? 'All notifications have been read'
+                        : '$unread unread notification${unread == 1 ? '' : 's'}',
+                  ),
+                  onChanged: unread == 0
+                      ? null
+                      : (_) => store.markAllNotificationsRead(),
                 ),
-              ),
-              subtitle: Text(dateTimeLabel(notification.createdAt)),
-              onTap: () {
-                store.markNotificationRead(notification);
-                Navigator.pop(context);
-              },
-            ),
-          ),
-        ],
+              const Divider(),
+              if (store.notifications.isEmpty)
+                const ListTile(title: Text('No notifications yet')),
+              for (final category in categories) ...[
+                _NotificationCategoryHeader(
+                  category: category,
+                  notifications: grouped[category]!,
+                ),
+                ...grouped[category]!.map(
+                  (notification) => _NotificationTile(
+                    notification: notification,
+                    onTap: () => store.markNotificationRead(notification),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ],
+          );
+        },
       );
     },
   );
+}
+
+class _NotificationCategoryHeader extends StatelessWidget {
+  const _NotificationCategoryHeader({
+    required this.category,
+    required this.notifications,
+  });
+
+  final String category;
+  final List<AppNotification> notifications;
+
+  @override
+  Widget build(BuildContext context) {
+    final unread = notifications.where((item) => !item.isRead).length;
+    final color = notificationCategoryColor(category);
+    return Padding(
+      padding: const EdgeInsets.only(top: 14, bottom: 6),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(notificationCategoryIcon(category),
+                color: color, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              category,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(
+              color: unread > 0 ? color.withOpacity(0.12) : oceanCanvas,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              unread > 0 ? '$unread unread' : '${notifications.length} read',
+              style: TextStyle(
+                color: unread > 0 ? color : oceanMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NotificationTile extends StatelessWidget {
+  const _NotificationTile({
+    required this.notification,
+    required this.onTap,
+  });
+
+  final AppNotification notification;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final category = notificationCategoryFor(notification.message);
+    final color = notificationCategoryColor(category);
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+      leading: Icon(
+        notification.isRead
+            ? Icons.notifications_none_rounded
+            : Icons.notifications_active_rounded,
+        color: notification.isRead ? const Color(0xFF98A2B3) : color,
+      ),
+      title: Text(
+        notification.message,
+        style: TextStyle(
+          fontWeight: notification.isRead ? FontWeight.w400 : FontWeight.w700,
+        ),
+      ),
+      subtitle: Text(dateTimeLabel(notification.createdAt)),
+      onTap: onTap,
+    );
+  }
 }
 
 class ProfileAvatar extends StatelessWidget {
@@ -7289,37 +17982,186 @@ class AppTextField extends StatelessWidget {
     required this.controller,
     required this.label,
     this.helperText,
+    this.hintText,
     this.prefixText,
     this.suffixText,
     this.keyboardType,
     this.onChanged,
+    this.readOnly = false,
+    this.inputFormatters,
     super.key,
   });
 
   final TextEditingController controller;
   final String label;
   final String? helperText;
+  final String? hintText;
   final String? prefixText;
   final String? suffixText;
   final TextInputType? keyboardType;
   final ValueChanged<String>? onChanged;
+  final bool readOnly;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
+    final resolvedKeyboardType = keyboardType ?? _keyboardTypeFor(label);
+    final resolvedFormatters = inputFormatters ?? _formattersFor(label);
+    final resolvedHintText =
+        hintText?.trim().startsWith('Example:') == true ? null : hintText;
+    final resolvedHelperText =
+        helperText?.trim().startsWith('Example:') == true ? null : helperText;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: TextField(
         controller: controller,
-        keyboardType: keyboardType,
+        readOnly: readOnly,
+        keyboardType: resolvedKeyboardType,
+        inputFormatters: resolvedFormatters,
         onChanged: onChanged,
         decoration: InputDecoration(
           border: const OutlineInputBorder(),
           labelText: label,
-          helperText: helperText,
+          hintText: resolvedHintText,
+          helperText: resolvedHelperText,
+          helperMaxLines: 3,
           prefixText: prefixText,
           suffixText: suffixText,
         ),
       ),
+    );
+  }
+
+  static TextInputType? _keyboardTypeFor(String label) {
+    final normalized = label.toLowerCase();
+    if (_isMoneyLabel(normalized) || normalized.contains('usage')) {
+      return const TextInputType.numberWithOptions(decimal: true);
+    }
+    if (_isDateLabel(normalized)) return TextInputType.datetime;
+    if (normalized.contains('phone') || normalized.contains('whatsapp')) {
+      return TextInputType.phone;
+    }
+    if (normalized == 'email' || normalized.contains('email')) {
+      return TextInputType.emailAddress;
+    }
+    return null;
+  }
+
+  static List<TextInputFormatter>? _formattersFor(String label) {
+    final normalized = label.toLowerCase();
+    if (_isDateLabel(normalized)) {
+      return [FilteringTextInputFormatter.allow(RegExp(r'[0-9/]'))];
+    }
+    if (_isMoneyLabel(normalized) || normalized.contains('usage')) {
+      return [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))];
+    }
+    if (normalized.contains('phone') || normalized.contains('whatsapp')) {
+      return [FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-() ]'))];
+    }
+    if (_isHumanNameLabel(normalized)) {
+      return [FilteringTextInputFormatter.deny(RegExp(r'[0-9]'))];
+    }
+    if (normalized == 'sex' || normalized == 'city' || normalized == 'state') {
+      return [FilteringTextInputFormatter.deny(RegExp(r'[0-9]'))];
+    }
+    return null;
+  }
+
+  static bool _isDateLabel(String normalized) =>
+      normalized.contains('date') ||
+      normalized.contains('birth') ||
+      normalized.contains('lease start') ||
+      normalized.contains('lease end');
+
+  static bool _isMoneyLabel(String normalized) =>
+      normalized.contains('rent') ||
+      normalized.contains('amount') ||
+      normalized.contains('installment') ||
+      normalized.contains('maintenance') ||
+      normalized.contains('insurance') ||
+      normalized.contains('charge') ||
+      normalized.contains('premium') ||
+      normalized.contains('payment');
+
+  static bool _isHumanNameLabel(String normalized) =>
+      normalized == 'full name' ||
+      normalized == 'full name *' ||
+      normalized == 'tenant' ||
+      normalized == 'beneficiary';
+}
+
+class MalaysiaAddressDropdowns extends StatelessWidget {
+  const MalaysiaAddressDropdowns({
+    required this.state,
+    required this.city,
+    required this.postcode,
+    required this.onStateChanged,
+    required this.onCityChanged,
+    required this.onPostcodeChanged,
+    super.key,
+  });
+
+  final String? state;
+  final String? city;
+  final String? postcode;
+  final ValueChanged<String?> onStateChanged;
+  final ValueChanged<String?> onCityChanged;
+  final ValueChanged<String?> onPostcodeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final states = malaysiaStates();
+    final cities = malaysiaCitiesForState(state);
+    final postcodes = malaysiaPostcodesFor(state, city);
+    return Column(
+      children: [
+        DropdownButtonFormField<String>(
+          value: state,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            labelText: 'State',
+          ),
+          items: states
+              .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+              .toList(),
+          onChanged: onStateChanged,
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                value: cities.contains(city) ? city : null,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'City',
+                ),
+                items: cities
+                    .map((item) =>
+                        DropdownMenuItem(value: item, child: Text(item)))
+                    .toList(),
+                onChanged: state == null ? null : onCityChanged,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                value: postcodes.contains(postcode) ? postcode : null,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Postcode',
+                ),
+                items: postcodes
+                    .map((item) =>
+                        DropdownMenuItem(value: item, child: Text(item)))
+                    .toList(),
+                onChanged: city == null ? null : onPostcodeChanged,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+      ],
     );
   }
 }
@@ -7424,6 +18266,352 @@ String money(double value) {
   return '${sign}RM ${buffer.toString()}';
 }
 
+String tr(BuildContext context, String key) {
+  final language = RentalStoreScope.of(context).appLanguage;
+  if (language == AppLanguage.english) return key;
+  const chinese = <String, String>{
+    'Home': '主页',
+    'Properties': '房产',
+    'Payments': '付款',
+    'Requests': '请求',
+    'Profile': '账户',
+    'Notifications': '通知',
+    'Logout': '登出',
+    'Portfolio overview': '投资组合概览',
+    'Total Rental Collection': '租金总收入',
+    'Total Expenses': '总支出',
+    'Properties count': '房产数量',
+    'Active units': '使用中单位',
+    'Utility readings left': '待处理水电读数',
+    'Occupancy': '出租率',
+    'Inflow / outflow': '收入／支出',
+    'ROI': '投资回报率',
+    'Account details': '账户资料',
+    'Payment methods': '付款方式',
+    'Payment reminders': '付款提醒',
+    'Facility configuration': '房产设置',
+    'Other monthly income': '其他每月收入',
+    'Activity history': '操作记录',
+    'Data & backup': '数据与备份',
+    'Language': '语言',
+    'Help & support': '帮助与支持',
+    'Log out': '登出',
+    'Apply': '应用',
+    'Applies across the whole app': '应用于整个应用程序',
+  };
+  const malay = <String, String>{
+    'Home': 'Utama',
+    'Properties': 'Hartanah',
+    'Payments': 'Bayaran',
+    'Requests': 'Permintaan',
+    'Profile': 'Akaun',
+    'Notifications': 'Notifikasi',
+    'Logout': 'Log keluar',
+    'Portfolio overview': 'Ringkasan portfolio',
+    'Total Rental Collection': 'Jumlah kutipan sewa',
+    'Total Expenses': 'Jumlah perbelanjaan',
+    'Properties count': 'Hartanah',
+    'Active units': 'Unit aktif',
+    'Utility readings left': 'Bacaan utiliti belum selesai',
+    'Occupancy': 'Penghunian',
+    'Inflow / outflow': 'Aliran masuk / keluar',
+    'ROI': 'Pulangan pelaburan',
+    'Account details': 'Butiran akaun',
+    'Payment methods': 'Kaedah bayaran',
+    'Payment reminders': 'Peringatan bayaran',
+    'Facility configuration': 'Konfigurasi hartanah',
+    'Other monthly income': 'Pendapatan bulanan lain',
+    'Activity history': 'Sejarah aktiviti',
+    'Data & backup': 'Data & sandaran',
+    'Language': 'Bahasa',
+    'Help & support': 'Bantuan & sokongan',
+    'Log out': 'Log keluar',
+    'Apply': 'Gunakan',
+    'Applies across the whole app': 'Digunakan di seluruh aplikasi',
+  };
+  const chineseOverride = <String, String>{
+    'Owner': '业主',
+    'Property Agent': '物业代理',
+    'properties': '房产',
+    'property': '房产',
+    'records': '记录',
+    'record': '记录',
+    'Home': '主页',
+    'Properties': '房产',
+    'Payments': '付款',
+    'Requests': '请求',
+    'Profile': '个人资料',
+    'Notifications': '通知',
+    'Logout': '退出登录',
+    'Log out': '退出登录',
+    'Portfolio overview': '资产概览',
+    'Total Rental Collection': '租金总收入',
+    'Total Expenses': '总支出',
+    'Properties count': '房产数量',
+    'Active units': '活跃单位',
+    'Readings left': '待处理读数',
+    'Utility readings left': '待处理水电读数',
+    'Occupancy': '入住率',
+    'Inflow / outflow': '收入 / 支出',
+    'ROI': '投资回报率',
+    'Account details': '账户资料',
+    'Payment methods': '付款方式',
+    'Payment reminders': '付款提醒',
+    'Facility configuration': '房产配置',
+    'Other monthly income': '其他月收入',
+    'Activity history': '操作记录',
+    'Data & backup': '数据与备份',
+    'Language': '语言',
+    'Help & support': '帮助与支持',
+    'Apply': '应用',
+    'Applies across the whole app': '应用于整个应用',
+    'English': '英语',
+    'Chinese (Simplified)': '简体中文',
+    'Malay': '马来语',
+    'Bahasa Melayu': '马来语',
+    'Good evening': '晚上好',
+    'Good morning': '早上好',
+    'Good afternoon': '下午好',
+    'Tap a facility for performance': '点击房产查看表现',
+    'Rental Collection': '租金收入',
+    'Facility Expenses': '房产支出',
+    'Net Rental Income': '净租金收入',
+    'Monthly Recurring Commitment': '每月固定承诺',
+    'Installment': '分期付款',
+    'Extra Payment': '额外付款',
+    'Maintenance': '维修费',
+    'Fire Insurance': '火灾保险',
+    'Indah Water': '英达丽水',
+    'DBKL Assessment': '市政评估费',
+    'Tenants': '租户',
+    'All Tenants': '全部租户',
+    'New Tenant': '新增租户',
+    'Add': '新增',
+    'Edit': '编辑',
+    'Save': '保存',
+    'Cancel': '取消',
+    'Close': '关闭',
+    'Accept': '接受',
+    'Reject': '拒绝',
+    'Approve': '批准',
+    'Active': '活跃',
+    'Inactive': '非活跃',
+    'Pending verification': '待验证',
+    'Approved': '已批准',
+    'Rejected': '已拒绝',
+    'Pending Action': '待处理',
+    'History': '历史',
+    'Open': '打开',
+    'Closed': '已关闭',
+    'Accepted': '已接受',
+    'In Progress': '处理中',
+    'Pending': '待处理',
+    'Pending Owner Utilities': '待业主填写水电',
+    'Pending Tenant Payment': '待租户付款',
+    'Bill Performance': '账单表现',
+    'Due': '应付',
+    'Paid': '已付',
+    'Amount': '金额',
+    'Amount Paid': '已付金额',
+    'Status': '状态',
+    'Facility': '房产',
+    'Month': '月份',
+    'Full Name': '姓名',
+    'Email': '电邮',
+    'WhatsApp / Phone Number': 'WhatsApp / 电话号码',
+    'Origin Address': '原住址',
+    'Date of Birth': '出生日期',
+    'Sex': '性别',
+    'Room / Unit': '房间 / 单位',
+    'Monthly Rent': '月租',
+    'Lease Start': '租约开始',
+    'Lease End': '租约结束',
+    'Create Tenant': '创建租户',
+  };
+  const malayOverride = <String, String>{
+    'Owner': 'Pemilik',
+    'Property Agent': 'Ejen hartanah',
+    'properties': 'hartanah',
+    'property': 'hartanah',
+    'records': 'rekod',
+    'record': 'rekod',
+    'English': 'Inggeris',
+    'Chinese (Simplified)': 'Cina (Ringkas)',
+    'Malay': 'Melayu',
+    'Bahasa Melayu': 'Bahasa Melayu',
+    'Good evening': 'Selamat petang',
+    'Good morning': 'Selamat pagi',
+    'Good afternoon': 'Selamat tengah hari',
+    'Tap a facility for performance': 'Tekan hartanah untuk prestasi',
+    'Rental Collection': 'Kutipan sewa',
+    'Facility Expenses': 'Perbelanjaan hartanah',
+    'Net Rental Income': 'Pendapatan sewa bersih',
+    'Monthly Recurring Commitment': 'Komitmen bulanan berulang',
+    'Installment': 'Ansuran',
+    'Extra Payment': 'Bayaran tambahan',
+    'Maintenance': 'Penyelenggaraan',
+    'Fire Insurance': 'Insurans kebakaran',
+    'Indah Water': 'Indah Water',
+    'DBKL Assessment': 'Cukai taksiran DBKL',
+    'Tenants': 'Penyewa',
+    'All Tenants': 'Semua penyewa',
+    'New Tenant': 'Penyewa baru',
+    'Add': 'Tambah',
+    'Edit': 'Edit',
+    'Save': 'Simpan',
+    'Cancel': 'Batal',
+    'Close': 'Tutup',
+    'Accept': 'Terima',
+    'Reject': 'Tolak',
+    'Approve': 'Lulus',
+    'Active': 'Aktif',
+    'Inactive': 'Tidak aktif',
+    'Pending verification': 'Menunggu pengesahan',
+    'Approved': 'Diluluskan',
+    'Rejected': 'Ditolak',
+    'Pending Action': 'Tindakan tertunda',
+    'History': 'Sejarah',
+    'Open': 'Buka',
+    'Closed': 'Ditutup',
+    'Accepted': 'Diterima',
+    'In Progress': 'Sedang diproses',
+    'Pending': 'Tertunda',
+    'Pending Owner Utilities': 'Menunggu utiliti pemilik',
+    'Pending Tenant Payment': 'Menunggu bayaran penyewa',
+    'Bill Performance': 'Prestasi bil',
+    'Due': 'Perlu dibayar',
+    'Paid': 'Dibayar',
+    'Amount': 'Jumlah',
+    'Amount Paid': 'Jumlah dibayar',
+    'Status': 'Status',
+    'Facility': 'Hartanah',
+    'Month': 'Bulan',
+    'Full Name': 'Nama penuh',
+    'Email': 'E-mel',
+    'WhatsApp / Phone Number': 'WhatsApp / Nombor telefon',
+    'Origin Address': 'Alamat asal',
+    'Date of Birth': 'Tarikh lahir',
+    'Sex': 'Jantina',
+    'Room / Unit': 'Bilik / Unit',
+    'Monthly Rent': 'Sewa bulanan',
+    'Lease Start': 'Mula sewa',
+    'Lease End': 'Tamat sewa',
+    'Create Tenant': 'Cipta penyewa',
+  };
+  final override =
+      language == AppLanguage.chinese ? chineseOverride : malayOverride;
+  final base = language == AppLanguage.chinese ? chinese : malay;
+  return override[key] ?? base[key] ?? key;
+}
+
+String trCount(
+  BuildContext context,
+  int count,
+  String singularKey,
+  String pluralKey,
+) {
+  final language = RentalStoreScope.of(context).appLanguage;
+  if (language == AppLanguage.chinese) {
+    final unit = switch (pluralKey) {
+      'properties' => '房产',
+      'records' => '记录',
+      _ => tr(context, pluralKey),
+    };
+    return '$count $unit';
+  }
+  if (language == AppLanguage.malay) {
+    return '$count ${tr(context, pluralKey)}';
+  }
+  return '$count ${count == 1 ? singularKey : pluralKey}';
+}
+
+String trDayStart(BuildContext context, int days) {
+  final language = RentalStoreScope.of(context).appLanguage;
+  if (language == AppLanguage.chinese) return '$days 天开始';
+  if (language == AppLanguage.malay) return '$days hari mula';
+  return '$days day start';
+}
+
+String moneyExact(double value) {
+  final sign = value < 0 ? '-' : '';
+  final parts = value.abs().toStringAsFixed(2).split('.');
+  final digits = parts.first;
+  final buffer = StringBuffer();
+  for (var i = 0; i < digits.length; i++) {
+    final remaining = digits.length - i;
+    buffer.write(digits[i]);
+    if (remaining > 1 && remaining % 3 == 1) buffer.write(',');
+  }
+  return '${sign}RM ${buffer.toString()}.${parts.last}';
+}
+
+const int requestPictureMaxBytes = 2 * 1024 * 1024;
+
+PickedImageData compressRequestPicture(PickedImageData picked) {
+  final originalBytes = Uint8List.fromList(picked.bytes);
+  if (originalBytes.lengthInBytes <= requestPictureMaxBytes) {
+    return picked;
+  }
+
+  final decoded = image_tools.decodeImage(originalBytes);
+  if (decoded == null) {
+    throw StateError(
+      'This picture is larger than 2 MB and cannot be compressed. Please choose a JPG, PNG or WebP photo.',
+    );
+  }
+
+  var width = decoded.width;
+  var height = decoded.height;
+  var quality = 82;
+  var working = decoded;
+  var output = Uint8List.fromList(
+    image_tools.encodeJpg(working, quality: quality),
+  );
+
+  while (output.lengthInBytes > requestPictureMaxBytes &&
+      (quality > 45 || math.max(width, height) > 900)) {
+    if (quality > 45) {
+      quality -= 8;
+    } else {
+      width = math.max(640, (width * 0.84).round());
+      height = math.max(640, (height * 0.84).round());
+      working = image_tools.copyResize(
+        decoded,
+        width: width,
+        height: height,
+        interpolation: image_tools.Interpolation.average,
+      );
+      quality = 78;
+    }
+    output = Uint8List.fromList(
+      image_tools.encodeJpg(working, quality: quality),
+    );
+  }
+
+  if (output.lengthInBytes > requestPictureMaxBytes) {
+    throw StateError(
+      'This picture is still above 2 MB after compression. Please choose a clearer smaller photo.',
+    );
+  }
+
+  final baseName = picked.name.replaceAll(RegExp(r'\.[^.]+$'), '');
+  return PickedImageData(name: '$baseName-compressed.jpg', bytes: output);
+}
+
+String fileSizeLabel(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
+}
+
+bool isImageFileName(String? fileName) {
+  final lower = (fileName ?? '').toLowerCase();
+  return lower.endsWith('.jpg') ||
+      lower.endsWith('.jpeg') ||
+      lower.endsWith('.png') ||
+      lower.endsWith('.webp');
+}
+
 String monthLabel(DateTime date) {
   const months = [
     'Jan',
@@ -7492,10 +18680,107 @@ String dateTimeLabel(DateTime date) {
   return '${dateLabel(date)} $hour:$minute';
 }
 
+String notificationCategoryFor(String message) {
+  final lower = message.toLowerCase();
+  if (lower.contains('approved') ||
+      lower.contains('rejected') ||
+      lower.contains('review') ||
+      lower.contains('resubmit') ||
+      lower.contains('pending tenant payment')) {
+    return 'Bill review';
+  }
+  if (lower.contains('payment slip') ||
+      lower.contains('slip') ||
+      lower.contains('paid') ||
+      lower.contains('payment proof')) {
+    return 'Payment proof';
+  }
+  if (lower.contains('profile') ||
+      lower.contains('avatar') ||
+      lower.contains('account') ||
+      lower.contains('settings') ||
+      lower.contains('reminder') ||
+      lower.contains('language')) {
+    return 'Profile & settings';
+  }
+  if (lower.contains('utility') ||
+      lower.contains('reading') ||
+      lower.contains('bill') ||
+      lower.contains('invoice')) {
+    return 'Utility reading';
+  }
+  if (lower.contains('facility') ||
+      lower.contains('property') ||
+      lower.contains('commitment') ||
+      lower.contains('cost') ||
+      lower.contains('expense') ||
+      lower.contains('income') ||
+      lower.contains('sold') ||
+      lower.contains('removed')) {
+    return 'Property changes';
+  }
+  if (lower.contains('request')) return 'Requests';
+  if (lower.contains('tenant') ||
+      lower.contains('agreement') ||
+      lower.contains('invitation')) {
+    return 'Tenant related';
+  }
+  return 'System';
+}
+
+IconData notificationCategoryIcon(String category) {
+  return switch (category) {
+    'Bill review' => Icons.fact_check_rounded,
+    'Payment proof' => Icons.payments_rounded,
+    'Tenant related' => Icons.people_alt_rounded,
+    'Property changes' => Icons.apartment_rounded,
+    'Profile & settings' => Icons.manage_accounts_rounded,
+    'Utility reading' => Icons.receipt_long_rounded,
+    'Requests' => Icons.handyman_rounded,
+    _ => Icons.notifications_rounded,
+  };
+}
+
+Color notificationCategoryColor(String category) {
+  return switch (category) {
+    'Bill review' => const Color(0xFF2563EB),
+    'Payment proof' => const Color(0xFF0F766E),
+    'Tenant related' => const Color(0xFF6B5CB8),
+    'Property changes' => const Color(0xFF3156A3),
+    'Profile & settings' => const Color(0xFF64748B),
+    'Utility reading' => const Color(0xFF0E7490),
+    'Requests' => const Color(0xFFD25B2A),
+    _ => const Color(0xFF64748B),
+  };
+}
+
 double parseMoney(String text) {
   return double.tryParse(
           text.replaceAll(',', '').replaceAll('\$', '').trim()) ??
       0;
+}
+
+bool isValidMoneyInput(String text, {bool allowZero = true}) {
+  final cleaned = text.replaceAll(',', '').replaceAll('\$', '').trim();
+  if (cleaned.isEmpty) return false;
+  final value = double.tryParse(cleaned);
+  if (value == null) return false;
+  return allowZero ? value >= 0 : value > 0;
+}
+
+bool isValidHumanName(String text) {
+  final value = text.trim();
+  if (value.length < 2) return false;
+  return !RegExp(r'[0-9]').hasMatch(value);
+}
+
+bool isValidEmailInput(String text) {
+  return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(text.trim());
+}
+
+bool isValidPhoneInput(String text) {
+  final digits = text.replaceAll(RegExp(r'\D'), '');
+  return digits.length >= 8 && digits.length <= 15;
 }
 
 DateTime? parseDateInput(String text) {
@@ -7505,5 +18790,18 @@ DateTime? parseDateInput(String text) {
   final month = int.tryParse(parts[1]);
   final year = int.tryParse(parts[2]);
   if (day == null || month == null || year == null) return null;
-  return DateTime(year, month, day);
+  if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1) {
+    return null;
+  }
+  final parsed = DateTime(year, month, day);
+  if (parsed.year != year || parsed.month != month || parsed.day != day) {
+    return null;
+  }
+  return parsed;
+}
+
+void showValidationMessage(BuildContext context, String message) {
+  ScaffoldMessenger.maybeOf(context)
+    ?..clearSnackBars()
+    ..showSnackBar(SnackBar(content: Text(message)));
 }

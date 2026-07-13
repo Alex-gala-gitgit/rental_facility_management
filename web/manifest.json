@@ -1,12 +1,14 @@
 {
-    "name": "rental_facility_management",
-    "short_name": "rental_facility_management",
+    "name": "RentFlow Property Manager",
+    "short_name": "RentFlow",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#F2F2F7",
+    "theme_color": "#007AFF",
+    "description": "Property billing, invoices and tenant payment tracking.",
+    "orientation": "any",
+    "scope": "/",
+    "lang": "en-MY",
     "prefer_related_applications": false,
     "icons": [
         {

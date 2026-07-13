@@ -9,6 +9,15 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  cupertino_icons: 1.0.6
+  path: ^1.8.3
+  sqflite_common_ffi: ^2.3.0
+  supabase_flutter: ^2.8.4
+  file_picker: 6.1.1
+  image: 4.3.0
+  pdf: 3.10.7
+  printing: 5.11.1
+  url_launcher: 6.2.4
 
 dev_dependencies:
   flutter_test:
@@ -16,3 +25,10 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope-Variable.ttf
+    - family: Outfit
+      fonts:
+        - asset: assets/fonts/Outfit-Variable.ttf

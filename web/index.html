@@ -18,19 +18,73 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="RentFlow property billing, invoices and tenant payment tracking.">
+  <meta name="theme-color" content="#007AFF">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
   <!-- iOS meta tags & icons -->
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="rental_facility_management">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="RentFlow">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>rental_facility_management</title>
+  <title>RentFlow</title>
   <link rel="manifest" href="manifest.json">
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script>
+    window.readMeterText = async function(dataUrl) {
+      if (!window.Tesseract) throw new Error('Local OCR could not be loaded. Check the internet connection.');
+      const prepared = await new Promise(function(resolve, reject) {
+        const image = new Image();
+        image.onload = function() {
+          const scale = Math.max(2, Math.min(4, 1600 / image.width));
+          function region(x, y, width, height, threshold) {
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.floor(width * scale);
+            canvas.height = Math.floor(height * scale);
+            const context = canvas.getContext('2d', { willReadFrequently: true });
+            context.filter = 'grayscale(1) contrast(1.8)';
+            context.drawImage(image, x, y, width, height, 0, 0, canvas.width, canvas.height);
+            if (threshold) {
+              const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+              for (let index = 0; index < pixels.data.length; index += 4) {
+                const value = pixels.data[index] < 175 ? 0 : 255;
+                pixels.data[index] = value;
+                pixels.data[index + 1] = value;
+                pixels.data[index + 2] = value;
+              }
+              context.putImageData(pixels, 0, 0);
+            }
+            return canvas.toDataURL('image/png');
+          }
+          // Most meter-app screenshots place the usage near the upper-left.
+          // Exclude the phone status bar and lower chart values from the first pass.
+          const focusY = Math.floor(image.height * 0.10);
+          const focusHeight = Math.max(1, Math.floor(image.height * 0.25));
+          const focusWidth = Math.max(1, Math.floor(image.width * 0.82));
+          resolve({
+            focused: region(0, focusY, focusWidth, focusHeight, true),
+            broad: region(0, 0, image.width, Math.max(1, Math.floor(image.height * 0.48)), false)
+          });
+        };
+        image.onerror = () => reject(new Error('The selected image could not be opened.'));
+        image.src = dataUrl;
+      });
+      const focused = await window.Tesseract.recognize(prepared.focused, 'eng', {
+        tessedit_pageseg_mode: 6,
+        preserve_interword_spaces: '1'
+      });
+      const broad = await window.Tesseract.recognize(prepared.broad, 'eng', {
+        tessedit_pageseg_mode: 11,
+        preserve_interword_spaces: '1'
+      });
+      return 'FOCUSED READING\n' + (focused.data.text || '') +
+        '\nFULL CONTEXT\n' + (broad.data.text || '');
+    };
+  </script>
 
   <script>
     // The value below is injected by flutter build, do not touch.

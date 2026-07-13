@@ -31,6 +31,15 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+dist/
+output/
+outputs/
+tmp/
+.agents/
+.wrangler/
+*.log
+flutter_server*.log
+flutter_web.*.log
 
 # Symbolication related
 app.*.symbols
