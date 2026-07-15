@@ -18,6 +18,10 @@ const _sky = Color(0xFF38BDF8);
 const _canvas = Color(0xFFF4F7FB);
 const _label = Color(0xFF0F172A);
 const _secondary = Color(0xFF64748B);
+const tenantPortalBaseUrl = 'https://facility-billing-management.pages.dev/';
+
+Uri tenantInvoiceLink(String invoiceId) => Uri.parse(tenantPortalBaseUrl)
+    .replace(queryParameters: {'invoice': invoiceId}, fragment: '');
 
 class RentFlowApp extends StatefulWidget {
   const RentFlowApp({super.key});
@@ -144,6 +148,10 @@ class RentalInvoice {
     this.evidenceBytes,
     this.generalElectricAmount = 0,
     this.parkingRentalAmount = 0,
+    this.electricityTariffName = 'TNB default tariff',
+    this.electricityRatePerKwh = 0.516,
+    this.electricityAmountOverride,
+    this.electricityTariffSummary,
     required this.dueDate,
     this.status = InvoiceStatus.sent,
     this.slipName,
@@ -160,13 +168,19 @@ class RentalInvoice {
   final Uint8List? evidenceBytes;
   final double generalElectricAmount;
   final double parkingRentalAmount;
+  final String electricityTariffName;
+  final double electricityRatePerKwh;
+  final double? electricityAmountOverride;
+  final String? electricityTariffSummary;
   final DateTime dueDate;
   InvoiceStatus status;
   String? slipName;
   String? slipPath;
 
   double get usage => math.max(0, currentReading - previousReading);
-  double get electricity => (usage * 0.516 * 100).round() / 100;
+  double get electricity =>
+      electricityAmountOverride ??
+      (usage * electricityRatePerKwh * 100).round() / 100;
   double get total =>
       tenant.rent +
       tenant.water +
@@ -1816,8 +1830,7 @@ Future<void> showCreateInvoice(BuildContext context) async {
 Future<void> showInvoiceActions(
     BuildContext context, RentalInvoice invoice) async {
   final store = RentFlowScope.of(context);
-  final base =
-      Uri.base.replace(queryParameters: {'invoice': invoice.id}, fragment: '');
+  final base = tenantInvoiceLink(invoice.id);
   await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -2078,7 +2091,7 @@ pw.Page _noticePage(RentalInvoice invoice) {
                 muted),
             _pdfChargeRow(
                 'Air-con electricity',
-                '${invoice.usagePeriod} usage: ${invoice.usage.toStringAsFixed(2)} kWh x RM 0.516\nRounded to ${rm(invoice.electricity)}',
+                '${invoice.usagePeriod} usage: ${invoice.usage.toStringAsFixed(2)} kWh\n${invoice.electricityTariffSummary ?? '${invoice.electricityTariffName} RM ${invoice.electricityRatePerKwh.toStringAsFixed(3)} / kWh'}\nRounded to ${rm(invoice.electricity)}',
                 rm(invoice.electricity),
                 false,
                 line,
