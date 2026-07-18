@@ -96,27 +96,6 @@
 <body>
   <script>
     window.addEventListener('load', function(ev) {
-      // Always load the current Cloudflare deployment. Older Flutter service
-      // workers can keep an iPhone on a stale build after a production update.
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          return Promise.all(registrations.map(function(registration) {
-            return registration.unregister();
-          }));
-        }).then(function() {
-          return navigator.serviceWorker.register(
-            'flutter_service_worker_recovery.js',
-            { scope: './' }
-          );
-        });
-      }
-      if ('caches' in window) {
-        caches.keys().then(function(keys) {
-          keys.forEach(function(key) {
-            if (key.indexOf('flutter-app-cache') === 0) caches.delete(key);
-          });
-        });
-      }
       // Download main.dart.js
       _flutter.loader.loadEntrypoint({
         onEntrypointLoaded: function(engineInitializer) {
