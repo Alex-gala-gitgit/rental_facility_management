@@ -35,6 +35,7 @@ dist/
 output/
 outputs/
 tmp/
+web/downloads/*.apk
 .agents/
 .wrangler/
 *.log

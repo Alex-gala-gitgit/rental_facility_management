@@ -8,3 +8,12 @@
 
 /flutter_service_worker.js
   Cache-Control: no-cache
+
+/updates/version.json
+  Cache-Control: no-store, no-cache, must-revalidate
+  Content-Type: application/json; charset=utf-8
+
+/downloads/*.apk
+  Cache-Control: public, max-age=3600
+  Content-Type: application/vnd.android.package-archive
+  Content-Disposition: attachment

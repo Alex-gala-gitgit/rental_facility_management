@@ -20,6 +20,7 @@ import 'file_upload/payment_proof_picker.dart';
 import 'file_download/file_downloader.dart';
 import 'local_ocr/local_meter_ocr.dart';
 import 'persistence/persistence_contract.dart';
+import 'update/app_update_gate.dart';
 
 const oceanSky = Color(0xFF4EA8EC);
 const oceanBlue = Color(0xFF2E86E0);
@@ -474,6 +475,7 @@ String _excelCell(Object? value) {
 
 xlsx.CellValue? _xlsxCell(Object? value) {
   if (value == null) return null;
+  if (value is String && value.isEmpty) return null;
   if (value is int) return xlsx.IntCellValue(value);
   if (value is double) return xlsx.DoubleCellValue(value);
   if (value is num) return xlsx.DoubleCellValue(value.toDouble());
@@ -860,6 +862,8 @@ class MonthlyBill {
     this.slipFileName,
     this.slipBytes,
     this.amountPaid = 0,
+    this.paymentDate,
+    this.paymentReference,
     this.submittedAt,
     this.rejectReason,
     this.reviewedAt,
@@ -882,6 +886,8 @@ class MonthlyBill {
   String? slipFileName;
   Uint8List? slipBytes;
   double amountPaid;
+  DateTime? paymentDate;
+  String? paymentReference;
   DateTime? submittedAt;
   String? rejectReason;
   DateTime? reviewedAt;
@@ -1092,6 +1098,7 @@ class RentalStore extends ChangeNotifier {
   final SupabaseWorkspaceService? cloudWorkspace;
   Timer? _saveTimer;
   Timer? _cloudSaveTimer;
+  Timer? _publicPaymentSyncTimer;
   bool _restoring = false;
   bool _cloudRestoring = false;
   String? _tenantSnapshotOwnerId;
@@ -1711,9 +1718,11 @@ class RentalStore extends ChangeNotifier {
  </Worksheet>''';
     }
 
-    final totalIn = facilityReports.fold<double>(0, (sum, r) => sum + r.inflow);
+    final currentYearReports = facilityReportsForYear(_now.year);
+    final totalIn =
+        currentYearReports.fold<double>(0, (sum, r) => sum + r.inflow);
     final totalOut =
-        facilityReports.fold<double>(0, (sum, r) => sum + r.outflow);
+        currentYearReports.fold<double>(0, (sum, r) => sum + r.outflow);
     final dashboardRows = <List<Object?>>[
       ['Rental Facility Management Export'],
       ['Generated', dateTimeLabel(DateTime.now())],
@@ -1726,7 +1735,7 @@ class RentalStore extends ChangeNotifier {
       ['Active Tenants', tenancies.where((item) => item.active).length],
       [],
       ['Facility', 'Tenants', 'Inflow', 'Outflow', 'Net Cashflow', 'Margin %'],
-      ...facilityReports.map((report) => [
+      ...currentYearReports.map((report) => [
             report.facility.name,
             tenancies
                 .where((tenancy) => tenancy.facilityId == report.facility.id)
@@ -1818,6 +1827,8 @@ class RentalStore extends ChangeNotifier {
         'Total Utilities',
         'Total Due',
         'Amount Paid',
+        'Payment Date',
+        'Payment Reference',
         'Status',
         'Submitted At',
         'Reviewed At',
@@ -1863,6 +1874,8 @@ class RentalStore extends ChangeNotifier {
           bill.totalUtilityAmount,
           bill.totalAmount,
           bill.amountPaid,
+          bill.paymentDate == null ? '' : dateLabel(bill.paymentDate!),
+          bill.paymentReference ?? '',
           paymentStatusLabel(bill.status),
           bill.submittedAt == null ? '' : dateTimeLabel(bill.submittedAt!),
           bill.reviewedAt == null ? '' : dateTimeLabel(bill.reviewedAt!),
@@ -1984,9 +1997,11 @@ class RentalStore extends ChangeNotifier {
     }.toList()
       ..sort();
 
-    final totalIn = facilityReports.fold<double>(0, (sum, r) => sum + r.inflow);
+    final currentYearReports = facilityReportsForYear(_now.year);
+    final totalIn =
+        currentYearReports.fold<double>(0, (sum, r) => sum + r.inflow);
     final totalOut =
-        facilityReports.fold<double>(0, (sum, r) => sum + r.outflow);
+        currentYearReports.fold<double>(0, (sum, r) => sum + r.outflow);
     final dashboardRows = <List<Object?>>[
       ['Rental Facility Management Export'],
       ['Generated', dateTimeLabel(DateTime.now())],
@@ -1999,7 +2014,7 @@ class RentalStore extends ChangeNotifier {
       ['Active Tenants', tenancies.where((item) => item.active).length],
       [],
       ['Facility', 'Tenants', 'Inflow', 'Outflow', 'Net Cashflow', 'Margin %'],
-      ...facilityReports.map((report) => [
+      ...currentYearReports.map((report) => [
             report.facility.name,
             tenancies
                 .where((tenancy) => tenancy.facilityId == report.facility.id)
@@ -2091,6 +2106,8 @@ class RentalStore extends ChangeNotifier {
         'Total Utilities',
         'Total Due',
         'Amount Paid',
+        'Payment Date',
+        'Payment Reference',
         'Status',
         'Submitted At',
         'Reviewed At',
@@ -2136,6 +2153,8 @@ class RentalStore extends ChangeNotifier {
           bill.totalUtilityAmount,
           bill.totalAmount,
           bill.amountPaid,
+          bill.paymentDate == null ? '' : dateLabel(bill.paymentDate!),
+          bill.paymentReference ?? '',
           paymentStatusLabel(bill.status),
           bill.submittedAt == null ? '' : dateTimeLabel(bill.submittedAt!),
           bill.reviewedAt == null ? '' : dateTimeLabel(bill.reviewedAt!),
@@ -2468,7 +2487,7 @@ class RentalStore extends ChangeNotifier {
       items.add(
         FinancialBreakdownItem(
           label:
-              '${userFor(bill.tenantId).name} â€¢ ${tenancy.unitName} â€¢ ${facilityFor(bill.facilityId).name}',
+              '${userFor(bill.tenantId).name} • ${tenancy.unitName} • ${facilityFor(bill.facilityId).name}',
           amount: bill.totalAmount,
         ),
       );
@@ -2480,8 +2499,7 @@ class RentalStore extends ChangeNotifier {
     })) {
       items.add(
         FinancialBreakdownItem(
-          label:
-              '${income.category} â€¢ ${facilityFor(income.facilityId).name}',
+          label: '${income.category} • ${facilityFor(income.facilityId).name}',
           amount: income.amount,
         ),
       );
@@ -2525,7 +2543,7 @@ class RentalStore extends ChangeNotifier {
       for (final cost in costs.where((cost) => cost.$2 > 0)) {
         items.add(
           FinancialBreakdownItem(
-            label: '${facility.name} â€¢ ${cost.$1}',
+            label: '${facility.name} • ${cost.$1}',
             amount: cost.$2,
           ),
         );
@@ -2537,6 +2555,7 @@ class RentalStore extends ChangeNotifier {
   void loginAs(UserRole role) {
     currentUser = users.firstWhere((user) => user.role == role);
     currentUser!.lastLoginAt = DateTime.now();
+    _startPublicPaymentSync();
     notifyListeners();
   }
 
@@ -2566,6 +2585,7 @@ class RentalStore extends ChangeNotifier {
     currentUser = userMatches.first;
     currentUser!.lastLoginAt = DateTime.now();
     _recordActivity('${currentUser!.name} signed in.');
+    _startPublicPaymentSync();
     notifyListeners();
     return true;
   }
@@ -2606,6 +2626,7 @@ class RentalStore extends ChangeNotifier {
     );
     currentUser = owner;
     currentUser!.lastLoginAt = DateTime.now();
+    _startPublicPaymentSync();
     _notify('Owner account was created for ${owner.email}.');
     notifyListeners();
   }
@@ -2746,6 +2767,7 @@ class RentalStore extends ChangeNotifier {
             template?.paymentReminderFrequencyDays ?? 2,
       );
     }
+    _startPublicPaymentSync();
     notifyListeners();
   }
 
@@ -2800,6 +2822,8 @@ class RentalStore extends ChangeNotifier {
             carParkIncluded ? carParkDetails : 'Not included in agreement',
       ),
     );
+    _ensureCurrentMonthUtilityBills();
+    _ensureMonthlyInvoicePreparationNotification();
     _notify('$fullName was added to ${facility.name}, $unitName.');
     notifyListeners();
   }
@@ -2832,6 +2856,7 @@ class RentalStore extends ChangeNotifier {
   }
 
   void logout() {
+    _publicPaymentSyncTimer?.cancel();
     currentUser = null;
     cloudProfile = null;
     notifyListeners();
@@ -3070,6 +3095,100 @@ class RentalStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _startPublicPaymentSync() {
+    _publicPaymentSyncTimer?.cancel();
+    if (!isOwner || !cloudAuthEnabled) return;
+    unawaited(syncPublicInvoicePayments());
+    _publicPaymentSyncTimer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => unawaited(syncPublicInvoicePayments()),
+    );
+  }
+
+  Future<void> syncPublicInvoicePayments() async {
+    if (!isOwner || !cloudAuthEnabled) return;
+    try {
+      final rows = await Supabase.instance.client
+          .from('rentflow_test_invoices')
+          .select(
+            'id,status,slip_name,slip_path,amount_paid,payment_date,payment_reference,slip_submitted_at',
+          )
+          .eq('status', 'slipSubmitted');
+      var changed = false;
+      for (final row in rows) {
+        final invoiceId = row['id'] as String?;
+        if (invoiceId == null) continue;
+        final matches = bills.where(
+          (bill) => 'INV-${bill.id.toUpperCase()}' == invoiceId,
+        );
+        if (matches.isEmpty) continue;
+        final bill = matches.first;
+        final slipName = row['slip_name'] as String?;
+        if (bill.status == PaymentStatus.pendingApproval &&
+            bill.slipFileName == slipName) {
+          continue;
+        }
+        final slipPath = row['slip_path'] as String?;
+        Uint8List? slipBytes;
+        if (slipPath != null && slipPath.isNotEmpty) {
+          slipBytes = await Supabase.instance.client.storage
+              .from(RentFlowStore.bucket)
+              .download(slipPath);
+        }
+        bill
+          ..slipFileName = slipName
+          ..slipBytes = slipBytes
+          ..amountPaid = (row['amount_paid'] as num?)?.toDouble() ?? 0
+          ..paymentDate = row['payment_date'] == null
+              ? null
+              : DateTime.tryParse(row['payment_date'] as String)
+          ..paymentReference = row['payment_reference'] as String?
+          ..submittedAt = row['slip_submitted_at'] == null
+              ? DateTime.now()
+              : DateTime.tryParse(row['slip_submitted_at'] as String)
+          ..status = PaymentStatus.pendingApproval
+          ..rejectReason = null;
+        final tenant = userFor(bill.tenantId);
+        _notify(
+          '${tenant.name} submitted payment proof for ${monthLabel(bill.month)}. Review is required.',
+        );
+        changed = true;
+      }
+      if (changed) notifyListeners();
+    } catch (error) {
+      persistenceError = 'Payment sync: $error';
+      super.notifyListeners();
+    }
+  }
+
+  Future<void> _updatePublicInvoiceStatus(
+    MonthlyBill bill,
+    String status, {
+    bool clearSlip = false,
+  }) async {
+    if (!cloudAuthEnabled) return;
+    try {
+      final values = <String, dynamic>{'status': status};
+      if (clearSlip) {
+        values.addAll({
+          'slip_name': null,
+          'slip_path': null,
+          'amount_paid': null,
+          'payment_date': null,
+          'payment_reference': null,
+          'slip_submitted_at': null,
+        });
+      }
+      await Supabase.instance.client
+          .from('rentflow_test_invoices')
+          .update(values)
+          .eq('id', 'INV-${bill.id.toUpperCase()}');
+    } catch (error) {
+      persistenceError = 'Invoice status sync: $error';
+      super.notifyListeners();
+    }
+  }
+
   void approveBill(MonthlyBill bill) {
     bill.status = PaymentStatus.approved;
     bill.rejectReason = null;
@@ -3084,6 +3203,7 @@ class RentalStore extends ChangeNotifier {
     );
     final tenant = users.firstWhere((user) => user.id == bill.tenantId);
     _notify('Payment approved for ${tenant.name}, ${monthLabel(bill.month)}.');
+    unawaited(_updatePublicInvoiceStatus(bill, 'paid'));
     notifyListeners();
   }
 
@@ -3103,6 +3223,9 @@ class RentalStore extends ChangeNotifier {
     final tenant = users.firstWhere((user) => user.id == bill.tenantId);
     _notify(
       'Payment rejected for ${tenant.name}. Please resubmit: $reason',
+    );
+    unawaited(
+      _updatePublicInvoiceStatus(bill, 'sent', clearSlip: true),
     );
     notifyListeners();
   }
@@ -3331,6 +3454,10 @@ class RentalStore extends ChangeNotifier {
           _restoring = false;
         }
       }
+      if (profile.role == 'owner') {
+        _ensureCurrentMonthUtilityBills();
+        _ensureMonthlyInvoicePreparationNotification();
+      }
       _applyCloudProfile(profile);
       await flushPersistence();
     } finally {
@@ -3452,6 +3579,8 @@ class RentalStore extends ChangeNotifier {
       );
       bill.slipFileName = item['slipFileName'] as String?;
       bill.amountPaid = _number(item['amountPaid']);
+      bill.paymentDate = _parseDate(item['paymentDate']);
+      bill.paymentReference = item['paymentReference'] as String?;
       bill.submittedAt = _parseDate(item['submittedAt']);
       bill.rejectReason = item['rejectReason'] as String?;
       bill.reviewedAt = _parseDate(item['reviewedAt']);
@@ -3503,6 +3632,7 @@ class RentalStore extends ChangeNotifier {
       }
       _ensureDemoPendingUtilityReadings();
       _ensureCurrentMonthUtilityBills();
+      _ensureMonthlyInvoicePreparationNotification();
       _ensureDemoRequestHistory();
       _persistenceReady = true;
     } catch (error) {
@@ -3565,6 +3695,7 @@ class RentalStore extends ChangeNotifier {
   void dispose() {
     _saveTimer?.cancel();
     _cloudSaveTimer?.cancel();
+    _publicPaymentSyncTimer?.cancel();
     final persistence = _persistence;
     if (persistence != null) {
       unawaited(flushPersistence().whenComplete(persistence.close));
@@ -3695,6 +3826,8 @@ class RentalStore extends ChangeNotifier {
                       ? null
                       : base64Encode(bill.slipBytes!),
                   'amountPaid': bill.amountPaid,
+                  'paymentDate': _date(bill.paymentDate),
+                  'paymentReference': bill.paymentReference,
                   'submittedAt': _date(bill.submittedAt),
                   'rejectReason': bill.rejectReason,
                   'reviewedAt': _date(bill.reviewedAt),
@@ -3941,6 +4074,8 @@ class RentalStore extends ChangeNotifier {
                     base64Decode(item['slipBytesBase64'] as String),
                   ),
             amountPaid: _number(item['amountPaid']),
+            paymentDate: _parseDate(item['paymentDate']),
+            paymentReference: item['paymentReference'] as String?,
             submittedAt: _parseDate(item['submittedAt']),
             rejectReason: item['rejectReason'] as String?,
             reviewedAt: _parseDate(item['reviewedAt']),
@@ -4513,6 +4648,7 @@ class RentalStore extends ChangeNotifier {
 
     _ensureDemoPendingUtilityReadings();
     _ensureCurrentMonthUtilityBills();
+    _ensureMonthlyInvoicePreparationNotification();
     _ensureDemoRequestHistory();
 
     _notify('Tenant 1B submitted payment slip for Jan 2026.');
@@ -4529,8 +4665,8 @@ class RentalStore extends ChangeNotifier {
         requestType: 'Repair & Maintenance',
         attachmentFileName: 'aircon_service_photo.png',
         attachmentBase64:
-            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
-        attachmentSizeBytes: 68,
+            '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',
+        attachmentSizeBytes: 5102,
       ),
     );
     _upgradeDemoFacilityNames();
@@ -4593,9 +4729,13 @@ class RentalStore extends ChangeNotifier {
   }
 
   void _ensureCurrentMonthUtilityBills() {
-    if (_now.day < 1) return;
     for (final tenancy in tenancies.where((item) {
-      return item.active && !item.utilitiesFullyIncluded;
+      final monthStart = currentMonth;
+      final leaseStart = DateTime(item.leaseStart.year, item.leaseStart.month);
+      final leaseEnd = DateTime(item.leaseEnd.year, item.leaseEnd.month);
+      return item.active &&
+          !leaseStart.isAfter(monthStart) &&
+          !leaseEnd.isBefore(monthStart);
     })) {
       final alreadyCreated = bills.any((bill) {
         return bill.facilityId == tenancy.facilityId &&
@@ -4619,10 +4759,44 @@ class RentalStore extends ChangeNotifier {
           internetAmount: tenancy.internetPackage == UtilityPackage.excluded
               ? tenancy.internetCharge
               : 0,
-          status: PaymentStatus.notSubmitted,
+          status: tenancy.utilitiesFullyIncluded
+              ? PaymentStatus.pendingTenantPayment
+              : PaymentStatus.notSubmitted,
         ),
       );
     }
+  }
+
+  void _ensureMonthlyInvoicePreparationNotification() {
+    final notificationId =
+        'invoice_preparation_${currentMonth.year}_${currentMonth.month}';
+    if (notifications.any((item) => item.id == notificationId)) return;
+
+    final pendingReadings = bills.where((bill) {
+      return bill.month.year == currentMonth.year &&
+          bill.month.month == currentMonth.month &&
+          bill.status == PaymentStatus.notSubmitted;
+    }).length;
+    if (pendingReadings == 0) return;
+
+    final message =
+        '${monthLabel(currentMonth)} invoices are ready to prepare. $pendingReadings utility reading${pendingReadings == 1 ? '' : 's'} pending.';
+    final timestamp = DateTime(
+      currentMonth.year,
+      currentMonth.month,
+      1,
+      8,
+    );
+    notifications.insert(
+      0,
+      AppNotification(
+        id: notificationId,
+        message: message,
+        createdAt: timestamp,
+        category: 'Utility reading',
+      ),
+    );
+    _recordActivity(message, timestamp: timestamp);
   }
 
   void _ensureDemoRequestHistory() {
@@ -4694,9 +4868,22 @@ class _RentalFacilityAppState extends State<RentalFacilityApp> {
       child: AnimatedBuilder(
         animation: store,
         builder: (context, _) {
+          final usesSystemCjkFont = store.appLanguage == AppLanguage.chinese;
+          final appFontFamily = usesSystemCjkFont ? null : 'Manrope';
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             title: 'Rental Facility Manager',
+            builder: (context, child) {
+              final mediaQuery = MediaQuery.of(context);
+              final safeTextScale =
+                  mediaQuery.textScaleFactor.clamp(0.85, 1.20).toDouble();
+              return MediaQuery(
+                data: mediaQuery.copyWith(textScaleFactor: safeTextScale),
+                child: AppUpdateGate(
+                  child: child ?? const SizedBox.shrink(),
+                ),
+              );
+            },
             theme: ThemeData(
               colorScheme: const ColorScheme.light(
                 primary: oceanBlue,
@@ -4705,9 +4892,9 @@ class _RentalFacilityAppState extends State<RentalFacilityApp> {
                 background: oceanCanvas,
                 error: Color(0xFFC43D4B),
               ),
-              fontFamily: 'Manrope',
+              fontFamily: appFontFamily,
               textTheme: Typography.material2021().black.apply(
-                    fontFamily: 'Manrope',
+                    fontFamily: appFontFamily,
                     bodyColor: oceanText,
                     displayColor: oceanText,
                   ),
@@ -5095,7 +5282,7 @@ class _BrandSplash extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Â© 2026 Platinum Victory',
+                    '© 2026 Platinum Victory',
                     style: TextStyle(
                       color: oceanMuted.withOpacity(0.58),
                       fontSize: 10,
@@ -5552,7 +5739,7 @@ class _CompactRoleLoginState extends State<_CompactRoleLogin> {
                       Text(
                         createAccount
                             ? 'Already have an account? '
-                            : 'Donâ€™t have an account? ',
+                            : 'Don’t have an account? ',
                         style: const TextStyle(
                           color: oceanMuted,
                           fontSize: 12,
@@ -6001,7 +6188,7 @@ class _LoginExperience extends StatelessWidget {
                       ),
                       const SizedBox(height: 18),
                       const Text(
-                        'Collections â€¢ Expenses â€¢ Utilities â€¢ Tenants',
+                        'Collections • Expenses • Utilities • Tenants',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Color(0xFF667085),
@@ -6849,7 +7036,7 @@ class _OwnerReportTabState extends State<OwnerReportTab> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
       children: [
-        OceanBreezeOwnerHero(store: store),
+        OceanBreezeOwnerHero(store: store, year: reportYear),
         const SizedBox(height: 16),
         YearlyFinancialChart(
           year: reportYear,
@@ -6861,7 +7048,7 @@ class _OwnerReportTabState extends State<OwnerReportTab> {
         ),
         const SizedBox(height: 20),
         Text(
-          '${tr(context, 'Tap a facility for performance')} Â· $reportYear',
+          '${tr(context, 'Tap a facility for performance')} \u00b7 $reportYear',
           style: Theme.of(context)
               .textTheme
               .titleMedium
@@ -6872,27 +7059,25 @@ class _OwnerReportTabState extends State<OwnerReportTab> {
           final index = entry.$1;
           final report = entry.$2;
           final colors = facilityCardColors(index);
-          return Card(
-            elevation: 0,
-            color: colors.$1,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-              side: BorderSide(color: colors.$2.withOpacity(0.24)),
-            ),
-            child: ListTile(
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => FacilityMasterDetailScreen(
-                      facility: report.facility,
-                      year: reportYear,
-                    ),
-                  ),
-                );
-              },
-              leading: Container(
+          void openFacility() {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => FacilityMasterDetailScreen(
+                  facility: report.facility,
+                  year: reportYear,
+                ),
+              ),
+            );
+          }
+
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 430;
+              final cardShape = RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+                side: BorderSide(color: colors.$2.withOpacity(0.24)),
+              );
+              final facilityIcon = Container(
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
@@ -6904,39 +7089,124 @@ class _OwnerReportTabState extends State<OwnerReportTab> {
                   color: Colors.white,
                   size: 22,
                 ),
-              ),
-              title: Text(
-                report.facility.name,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              subtitle: Text(
-                '${report.facility.address} â€¢ ${facilityStatusText(report.facility)}',
-              ),
-              trailing: SizedBox(
-                width: 108,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      money(report.netCashflow),
-                      style: TextStyle(
-                        color: report.netCashflow >= 0
-                            ? Colors.green.shade700
-                            : Colors.red.shade700,
-                        fontWeight: FontWeight.w700,
+              );
+              if (!compact) {
+                return Card(
+                  elevation: 0,
+                  color: colors.$1,
+                  shape: cardShape,
+                  child: ListTile(
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                    onTap: openFacility,
+                    leading: facilityIcon,
+                    title: Text(
+                      report.facility.name,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Text(
+                      '${report.facility.address} \u2022 ${facilityStatusText(report.facility)}',
+                    ),
+                    trailing: SizedBox(
+                      width: 108,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            money(report.netCashflow),
+                            style: TextStyle(
+                              color: report.netCashflow >= 0
+                                  ? Colors.green.shade700
+                                  : Colors.red.shade700,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            '${money(report.inflow)} / ${money(report.outflow)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
                       ),
                     ),
-                    Text(
-                      '${money(report.inflow)} / ${money(report.outflow)}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                );
+              }
+              return Card(
+                elevation: 0,
+                color: colors.$1,
+                shape: cardShape,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: openFacility,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        facilityIcon,
+                        const SizedBox(width: 11),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                report.facility.name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${report.facility.address} \u2022 ${facilityStatusText(report.facility)}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 82,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerRight,
+                                child: Text(
+                                  money(report.netCashflow),
+                                  style: TextStyle(
+                                    color: report.netCashflow >= 0
+                                        ? Colors.green.shade700
+                                        : Colors.red.shade700,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '+ ${money(report.inflow)}',
+                                maxLines: 1,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                              Text(
+                                '- ${money(report.outflow)}',
+                                maxLines: 1,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           );
         }),
       ],
@@ -6945,9 +7215,14 @@ class _OwnerReportTabState extends State<OwnerReportTab> {
 }
 
 class OceanBreezeOwnerHero extends StatelessWidget {
-  const OceanBreezeOwnerHero({required this.store, super.key});
+  const OceanBreezeOwnerHero({
+    required this.store,
+    required this.year,
+    super.key,
+  });
 
   final RentalStore store;
+  final int year;
 
   @override
   Widget build(BuildContext context) {
@@ -6957,6 +7232,11 @@ class OceanBreezeOwnerHero extends StatelessWidget {
         .toList();
     final activeTenancies =
         portfolioTenancies.where((item) => item.active).length;
+    final reports = store.facilityReportsForYear(year);
+    final totalInflow =
+        reports.fold<double>(0, (sum, report) => sum + report.inflow);
+    final totalOutflow =
+        reports.fold<double>(0, (sum, report) => sum + report.outflow);
     return Container(
       constraints: const BoxConstraints(maxWidth: 960),
       padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
@@ -7008,11 +7288,12 @@ class OceanBreezeOwnerHero extends StatelessWidget {
               Expanded(
                 child: _OceanFinancialTotal(
                   label: tr(context, 'Total Rental Collection'),
-                  value: money(store.totalInflow),
+                  value: money(totalInflow),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => const FinancialDetailsScreen(
+                      builder: (_) => FinancialDetailsScreen(
                         mode: FinancialDetailMode.collection,
+                        year: year,
                       ),
                     ),
                   ),
@@ -7027,11 +7308,12 @@ class OceanBreezeOwnerHero extends StatelessWidget {
               Expanded(
                 child: _OceanFinancialTotal(
                   label: tr(context, 'Total Expenses'),
-                  value: money(store.totalOutflow),
+                  value: money(totalOutflow),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => const FinancialDetailsScreen(
+                      builder: (_) => FinancialDetailsScreen(
                         mode: FinancialDetailMode.expenses,
+                        year: year,
                       ),
                     ),
                   ),
@@ -7520,9 +7802,9 @@ class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
                       : Icons.meeting_room_rounded,
                   color: selected ? const Color(0xFF3156A3) : null,
                 ),
-                title: Text('${tenant.name} â€¢ ${tenancy.unitName}'),
+                title: Text('${tenant.name} • ${tenancy.unitName}'),
                 subtitle: Text(
-                  'Rent ${money(tenancy.monthlyRent)} â€¢ Lease ${dateLabel(tenancy.leaseStart)} to ${dateLabel(tenancy.leaseEnd)}',
+                  'Rent ${money(tenancy.monthlyRent)} • Lease ${dateLabel(tenancy.leaseStart)} to ${dateLabel(tenancy.leaseEnd)}',
                 ),
                 trailing: IconButton(
                   tooltip: 'View tenant profile',
@@ -7539,8 +7821,8 @@ class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
           const SizedBox(height: 16),
           Text(
             selectedTenant == null
-                ? '${tr(context, 'Bill Performance')} â€¢ ${tr(context, 'All Tenants')}'
-                : '${tr(context, 'Bill Performance')} â€¢ ${selectedTenant.name}',
+                ? '${tr(context, 'Bill Performance')} • ${tr(context, 'All Tenants')}'
+                : '${tr(context, 'Bill Performance')} • ${selectedTenant.name}',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 8),
@@ -7563,8 +7845,8 @@ class _FacilityDetailScreenState extends State<FacilityDetailScreen> {
                       child: ListTile(
                         onTap: () => confirmAndShowInvoicePdf(context, bill),
                         leading: const Icon(Icons.receipt_long_rounded),
-                        title: Text(
-                            '${tenant.name} â€¢ ${monthLabel(bill.month)}'),
+                        title:
+                            Text('${tenant.name} • ${monthLabel(bill.month)}'),
                         subtitle: Text(
                           'Due ${money(bill.totalAmount)}\n'
                           'Payment date: ${bill.submittedAt == null ? 'Not paid yet' : dateTimeLabel(bill.submittedAt!)}\n'
@@ -7945,7 +8227,7 @@ class _FacilityPerformanceSidebar extends StatelessWidget {
                             subtitle: narrow
                                 ? null
                                 : Text(
-                                    '${tenancy.unitName} â€¢ ${money(tenancy.monthlyRent)}',
+                                    '${tenancy.unitName} • ${money(tenancy.monthlyRent)}',
                                   ),
                           ),
                         );
@@ -8002,9 +8284,13 @@ class _CompactSummaryMetric extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final veryNarrow = constraints.maxWidth < 76;
+        final phoneCompact = constraints.maxWidth < 110;
         return Container(
           constraints: const BoxConstraints(minHeight: 74),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          padding: EdgeInsets.symmetric(
+            horizontal: phoneCompact ? 7 : 10,
+            vertical: 10,
+          ),
           decoration: BoxDecoration(
             color: color.withOpacity(0.07),
             borderRadius: BorderRadius.circular(14),
@@ -8016,15 +8302,16 @@ class _CompactSummaryMetric extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Container(
-                      width: 28,
-                      height: 28,
+                      width: phoneCompact ? 24 : 28,
+                      height: phoneCompact ? 24 : 28,
                       decoration: BoxDecoration(
                         color: color.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(9),
                       ),
-                      child: Icon(icon, color: color, size: 16),
+                      child: Icon(icon,
+                          color: color, size: phoneCompact ? 14 : 16),
                     ),
-                    const SizedBox(width: 7),
+                    SizedBox(width: phoneCompact ? 5 : 7),
                     Expanded(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -8032,11 +8319,11 @@ class _CompactSummaryMetric extends StatelessWidget {
                         children: [
                           Text(
                             title,
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Color(0xFF667085),
-                              fontSize: 10,
+                              fontSize: phoneCompact ? 9 : 10,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -8080,7 +8367,7 @@ class _CollapsedSidebarIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: '$tooltip â€¢ click to expand',
+      message: '$tooltip • click to expand',
       child: IconButton(
         onPressed: onTap,
         icon: Icon(icon, color: color, size: 23),
@@ -8128,8 +8415,8 @@ class _FacilityBillPerformance extends StatelessWidget {
         const SizedBox(height: 22),
         Text(
           selectedTenant == null
-              ? '${tr(context, 'Bill Performance')} â€¢ ${tr(context, 'All Tenants')}'
-              : '${tr(context, 'Bill Performance')} â€¢ ${selectedTenant!.name}',
+              ? '${tr(context, 'Bill Performance')} • ${tr(context, 'All Tenants')}'
+              : '${tr(context, 'Bill Performance')} • ${selectedTenant!.name}',
           key: const Key('bill_performance_detail'),
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
@@ -8152,8 +8439,7 @@ class _FacilityBillPerformance extends StatelessWidget {
                     return ListTile(
                       onTap: () => confirmAndShowInvoicePdf(context, bill),
                       leading: const Icon(Icons.receipt_long_rounded),
-                      title:
-                          Text('${tenant.name} â€¢ ${monthLabel(bill.month)}'),
+                      title: Text('${tenant.name} • ${monthLabel(bill.month)}'),
                       subtitle: Text(
                         'Due ${money(bill.totalAmount)}\n'
                         'Payment date: ${bill.submittedAt == null ? 'Not paid yet' : dateTimeLabel(bill.submittedAt!)}\n'
@@ -8175,7 +8461,7 @@ class _FacilityBillPerformance extends StatelessWidget {
                             const SizedBox(width: 9),
                             Expanded(
                               child: Text(
-                                '${tenant.name} â€¢ ${monthLabel(bill.month)}',
+                                '${tenant.name} • ${monthLabel(bill.month)}',
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -8317,15 +8603,15 @@ class _CompactFacilityPerformance extends StatelessWidget {
               leading: TenantGenderAvatar(tenant: tenant, radius: 18),
               title: Text(tenant.name),
               subtitle:
-                  Text('${tenancy.unitName} â€¢ ${money(tenancy.monthlyRent)}'),
+                  Text('${tenancy.unitName} • ${money(tenancy.monthlyRent)}'),
             ),
           );
         }),
         const SizedBox(height: 14),
         Text(
           selectedTenant == null
-              ? '${tr(context, 'Bill Performance')} â€¢ ${tr(context, 'All Tenants')}'
-              : '${tr(context, 'Bill Performance')} â€¢ ${selectedTenant.name}',
+              ? '${tr(context, 'Bill Performance')} • ${tr(context, 'All Tenants')}'
+              : '${tr(context, 'Bill Performance')} • ${selectedTenant.name}',
           key: const Key('bill_performance_detail'),
           style: Theme.of(context)
               .textTheme
@@ -8339,7 +8625,7 @@ class _CompactFacilityPerformance extends StatelessWidget {
             child: ListTile(
               onTap: () => confirmAndShowInvoicePdf(context, bill),
               leading: const Icon(Icons.receipt_long_rounded),
-              title: Text('${tenant.name} â€¢ ${monthLabel(bill.month)}'),
+              title: Text('${tenant.name} • ${monthLabel(bill.month)}'),
               subtitle: Text(
                 'Due ${money(bill.totalAmount)}\n'
                 'Payment date: ${bill.submittedAt == null ? 'Not paid yet' : dateTimeLabel(bill.submittedAt!)}\n'
@@ -8359,9 +8645,14 @@ class _CompactFacilityPerformance extends StatelessWidget {
 enum FinancialDetailMode { collection, expenses, netIncome }
 
 class FinancialDetailsScreen extends StatefulWidget {
-  const FinancialDetailsScreen({required this.mode, super.key});
+  const FinancialDetailsScreen({
+    required this.mode,
+    required this.year,
+    super.key,
+  });
 
   final FinancialDetailMode mode;
+  final int year;
 
   @override
   State<FinancialDetailsScreen> createState() => _FinancialDetailsScreenState();
@@ -8397,10 +8688,15 @@ class _FinancialDetailsScreenState extends State<FinancialDetailsScreen> {
       FinancialDetailMode.expenses => 'Expense Details',
       FinancialDetailMode.netIncome => 'Net Rental Income Details',
     };
+    final reports = store.facilityReportsForYear(widget.year);
+    final yearInflow =
+        reports.fold<double>(0, (sum, report) => sum + report.inflow);
+    final yearOutflow =
+        reports.fold<double>(0, (sum, report) => sum + report.outflow);
     final total = switch (mode) {
-      FinancialDetailMode.collection => store.totalInflow,
-      FinancialDetailMode.expenses => store.totalOutflow,
-      FinancialDetailMode.netIncome => store.netCashflow,
+      FinancialDetailMode.collection => yearInflow,
+      FinancialDetailMode.expenses => yearOutflow,
+      FinancialDetailMode.netIncome => yearInflow - yearOutflow,
     };
 
     return Scaffold(
@@ -8450,7 +8746,7 @@ class _FinancialDetailsScreenState extends State<FinancialDetailsScreen> {
                     FinancialDetailMode.expenses => Icons.receipt_long_rounded,
                     FinancialDetailMode.netIncome => Icons.savings_rounded,
                   }),
-                  title: const Text('All Facilities Total'),
+                  title: Text('All Facilities Total · ${widget.year}'),
                   trailing: Text(money(total),
                       style: const TextStyle(
                           fontSize: 20, fontWeight: FontWeight.w900)),
@@ -8458,12 +8754,18 @@ class _FinancialDetailsScreenState extends State<FinancialDetailsScreen> {
               ),
               const SizedBox(height: 8),
               switch (mode) {
-                FinancialDetailMode.collection =>
-                  _CollectionFacilitySection(facility: selectedFacility),
-                FinancialDetailMode.expenses =>
-                  _ExpenseFacilitySection(facility: selectedFacility),
-                FinancialDetailMode.netIncome =>
-                  _NetFacilitySection(facility: selectedFacility),
+                FinancialDetailMode.collection => _CollectionFacilitySection(
+                    facility: selectedFacility,
+                    year: widget.year,
+                  ),
+                FinancialDetailMode.expenses => _ExpenseFacilitySection(
+                    facility: selectedFacility,
+                    year: widget.year,
+                  ),
+                FinancialDetailMode.netIncome => _NetFacilitySection(
+                    facility: selectedFacility,
+                    year: widget.year,
+                  ),
               },
             ],
           );
@@ -8602,9 +8904,13 @@ class _FinancialFacilitySidebar extends StatelessWidget {
 }
 
 class _CollectionFacilitySection extends StatelessWidget {
-  const _CollectionFacilitySection({required this.facility});
+  const _CollectionFacilitySection({
+    required this.facility,
+    required this.year,
+  });
 
   final Facility facility;
+  final int year;
 
   @override
   Widget build(BuildContext context) {
@@ -8613,12 +8919,14 @@ class _CollectionFacilitySection extends StatelessWidget {
         .facilityBills(facility.id)
         .where((bill) =>
             bill.status == PaymentStatus.approved &&
+            bill.month.year == year &&
             store.isCurrentOrPastMonth(bill.month))
         .toList();
     final tenantIds = approvedBills.map((bill) => bill.tenantId).toSet();
     final otherIncome = store.additionalIncomes
         .where((income) =>
             income.facilityId == facility.id &&
+            income.month.year == year &&
             store.isCurrentOrPastMonth(income.month))
         .toList()
       ..sort((a, b) => b.month.compareTo(a.month));
@@ -8630,7 +8938,7 @@ class _CollectionFacilitySection extends StatelessWidget {
         title: Text(facility.name),
         subtitle: Text(facility.address),
         trailing: Text(
-          money(store.facilityInflow(facility.id)),
+          money(store.facilityInflowForYear(facility.id, year)),
           style: const TextStyle(
             color: Color(0xFF16856B),
             fontWeight: FontWeight.w800,
@@ -8660,7 +8968,7 @@ class _CollectionFacilitySection extends StatelessWidget {
                 color: const Color(0xFFF8FAFD),
                 child: ExpansionTile(
                   leading: TenantGenderAvatar(tenant: tenant, radius: 18),
-                  title: Text('${tenant.name} â€¢ ${tenancy.unitName}'),
+                  title: Text('${tenant.name} • ${tenancy.unitName}'),
                   subtitle: Text('${tenantBills.length} approved payment(s)'),
                   trailing: Text(
                     money(tenantTotal),
@@ -8696,8 +9004,7 @@ class _CollectionFacilitySection extends StatelessWidget {
             ...otherIncome.map(
               (income) => ListTile(
                 leading: const Icon(Icons.payments_outlined),
-                title:
-                    Text('${income.category} â€¢ ${monthLabel(income.month)}'),
+                title: Text('${income.category} • ${monthLabel(income.month)}'),
                 subtitle: Text(income.note),
                 trailing: Text(
                   money(income.amount),
@@ -8713,19 +9020,24 @@ class _CollectionFacilitySection extends StatelessWidget {
 }
 
 class _ExpenseFacilitySection extends StatelessWidget {
-  const _ExpenseFacilitySection({required this.facility});
+  const _ExpenseFacilitySection({
+    required this.facility,
+    required this.year,
+  });
 
   final Facility facility;
+  final int year;
 
   @override
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
-    final elapsedMonths = store.elapsedMonthsThisYear;
+    final elapsedMonths =
+        year == store.currentMonth.year ? store.elapsedMonthsThisYear : 12;
     final versions = List.generate(
       elapsedMonths,
       (index) => store.costVersionForMonth(
         facility,
-        DateTime(store.currentMonth.year, index + 1),
+        DateTime(year, index + 1),
       ),
     );
     final items = <(String, double, IconData)>[
@@ -8772,10 +9084,10 @@ class _ExpenseFacilitySection extends StatelessWidget {
               commitment.amount,
           Icons.receipt_long_rounded,
         ),
-      for (final expense in store.additionalExpenses
-          .where((expense) => expense.facilityId == facility.id))
+      for (final expense in store.additionalExpenses.where((expense) =>
+          expense.facilityId == facility.id && expense.month.year == year))
         (
-          '${expense.category} â€¢ ${monthLabel(expense.month)}',
+          '${expense.category} • ${monthLabel(expense.month)}',
           expense.amount,
           Icons.add_circle_outline_rounded,
         ),
@@ -8787,10 +9099,10 @@ class _ExpenseFacilitySection extends StatelessWidget {
         leading: const CircleAvatar(child: Icon(Icons.apartment_rounded)),
         title: Text(facility.name),
         subtitle: Text(
-          '${facility.address} â€¢ January to ${FinancialChartPainter.monthNames[elapsedMonths - 1]}',
+          '${facility.address} • $year • January to ${FinancialChartPainter.monthNames[elapsedMonths - 1]}',
         ),
         trailing: Text(
-          money(store.facilityOutflow(facility)),
+          money(store.facilityOutflowForYear(facility, year)),
           style: const TextStyle(
             color: Color(0xFFD16432),
             fontWeight: FontWeight.w800,
@@ -8812,15 +9124,19 @@ class _ExpenseFacilitySection extends StatelessWidget {
 }
 
 class _NetFacilitySection extends StatelessWidget {
-  const _NetFacilitySection({required this.facility});
+  const _NetFacilitySection({
+    required this.facility,
+    required this.year,
+  });
 
   final Facility facility;
+  final int year;
 
   @override
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
-    final collection = store.facilityInflow(facility.id);
-    final expenses = store.facilityOutflow(facility);
+    final collection = store.facilityInflowForYear(facility.id, year);
+    final expenses = store.facilityOutflowForYear(facility, year);
     final net = collection - expenses;
 
     return Card(
@@ -9304,7 +9620,7 @@ class _FacilityWorkspace extends StatelessWidget {
                     tenancy: tenancy,
                   ),
                   leading: TenantGenderAvatar(tenant: tenant),
-                  title: Text('${tenant.name} â€¢ ${tenancy.unitName}'),
+                  title: Text('${tenant.name} • ${tenancy.unitName}'),
                   subtitle: Text(
                       '${tr(context, 'Rent')} ${money(tenancy.monthlyRent)}'),
                   trailing: TenantStatusChip(
@@ -9348,11 +9664,11 @@ class PaymentApprovalsTab extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${tenant.name} â€¢ ${monthLabel(bill.month)}',
+                  '${tenant.name} • ${monthLabel(bill.month)}',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 4),
-                Text('${facility.name} â€¢ ${bill.slipFileName}'),
+                Text('${facility.name} • ${bill.slipFileName}'),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 16,
@@ -9832,15 +10148,15 @@ class _PendingReviewList extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    '${tenant.name} â€¢ ${monthLabel(bill.month)}',
+                    '${tenant.name} • ${monthLabel(bill.month)}',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
                   ),
-                  Text('${facility.name} â€¢ ${bill.slipFileName}'),
+                  Text('${facility.name} • ${bill.slipFileName}'),
                   const SizedBox(height: 8),
                   Text(
-                    'Paid ${money(bill.amountPaid)} â€¢ Due ${money(bill.totalAmount)} â€¢ ${bill.submittedAt == null ? 'Time not recorded' : dateTimeLabel(bill.submittedAt!)}',
+                    'Paid ${money(bill.amountPaid)} • Due ${money(bill.totalAmount)} • ${bill.submittedAt == null ? 'Time not recorded' : dateTimeLabel(bill.submittedAt!)}',
                   ),
                   const SizedBox(height: 12),
                   FilledButton.icon(
@@ -9874,7 +10190,7 @@ class _PendingReviewList extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                   ),
-                  Text('${tenant.name} â€¢ ${facility.name}'),
+                  Text('${tenant.name} • ${facility.name}'),
                   const SizedBox(height: 6),
                   Text(request.message),
                   const SizedBox(height: 6),
@@ -9934,9 +10250,9 @@ class _ReviewHistoryList extends StatelessWidget {
               reviewReason: event.reason,
             ),
             leading: const Icon(Icons.receipt_long_rounded),
-            title: Text('${tenant.name} â€¢ ${monthLabel(bill.month)}'),
+            title: Text('${tenant.name} • ${monthLabel(bill.month)}'),
             subtitle: Text(
-              'PAYMENT SLIP â€¢ ${dateTimeLabel(event.timestamp)}${event.reason == null ? '' : '\n${event.reason}'}',
+              'PAYMENT SLIP • ${dateTimeLabel(event.timestamp)}${event.reason == null ? '' : '\n${event.reason}'}',
             ),
             trailing: StatusChip(status: event.status),
           ),
@@ -9951,7 +10267,7 @@ class _ReviewHistoryList extends StatelessWidget {
             leading: const Icon(Icons.handyman_rounded),
             title: Text(request.title),
             subtitle: Text(
-              'TENANT REQUEST â€¢ ${tenant.name}\n${dateTimeLabel(time)}',
+              'TENANT REQUEST • ${tenant.name}\n${dateTimeLabel(time)}',
             ),
             trailing: StatusChipText(label: request.status),
           ),
@@ -10374,13 +10690,13 @@ class _PendingUtilityList extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  '${tenant.name} â€¢ ${monthLabel(bill.month)}',
+                  '${tenant.name} • ${monthLabel(bill.month)}',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                 ),
                 Text(
-                    '${tenancy.unitName} â€¢ Meter reading and attachment required'),
+                    '${tenancy.unitName} • Meter reading and attachment required'),
                 const SizedBox(height: 12),
                 FilledButton.icon(
                   onPressed: () => showUtilityDialog(context, bill),
@@ -10421,6 +10737,7 @@ class _UtilityHistoryList extends StatelessWidget {
         final included = tenancy.utilitiesFullyIncluded;
         return Card(
           child: ListTile(
+            onTap: () => showGeneratedInvoicePreview(context, bill),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 10,
@@ -10428,11 +10745,11 @@ class _UtilityHistoryList extends StatelessWidget {
             leading: const CircleAvatar(
               child: Icon(Icons.electric_meter_rounded),
             ),
-            title: Text('${tenant.name} â€¢ ${monthLabel(bill.month)}'),
+            title: Text('${tenant.name} • ${monthLabel(bill.month)}'),
             subtitle: Text(
               included
-                  ? '${tenancy.unitName} â€¢ Utilities included in package â€¢ No attachment required'
-                  : '${tenancy.unitName} â€¢ ${bill.electricityUsageKwh.toStringAsFixed(1)} kWh â€¢ Utilities ${money(bill.totalUtilityAmount)}\nAttachment: ${bill.utilityEvidenceFileName}',
+                  ? '${tenancy.unitName} • Utilities included in package • No attachment required'
+                  : '${tenancy.unitName} • ${bill.electricityUsageKwh.toStringAsFixed(1)} kWh • Utilities ${money(bill.totalUtilityAmount)}\nAttachment: ${bill.utilityEvidenceFileName}',
             ),
             isThreeLine: !included,
             trailing: StatusChip(status: bill.status),
@@ -10474,7 +10791,7 @@ class _LegacyUtilitiesTab extends StatelessWidget {
               ),
               title: Text(facility.name),
               subtitle: Text(
-                '${facility.address} â€¢ ${facilityTenancies.length} tenants',
+                '${facility.address} • ${facilityTenancies.length} tenants',
               ),
               childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               children: facilityTenancies.map((tenancy) {
@@ -10491,7 +10808,7 @@ class _LegacyUtilitiesTab extends StatelessWidget {
                   color: const Color(0xFFF8FAFD),
                   child: ExpansionTile(
                     leading: TenantGenderAvatar(tenant: tenant, radius: 18),
-                    title: Text('${tenant.name} â€¢ ${tenancy.unitName}'),
+                    title: Text('${tenant.name} • ${tenancy.unitName}'),
                     subtitle: Text(
                       '${tenantBills.length} bill${tenantBills.length == 1 ? '' : 's'} awaiting utility entry',
                     ),
@@ -10506,7 +10823,7 @@ class _LegacyUtilitiesTab extends StatelessWidget {
                               leading: const Icon(Icons.electric_meter_rounded),
                               title: Text(monthLabel(bill.month)),
                               subtitle: Text(
-                                '${bill.electricityUsageKwh.toStringAsFixed(1)} kWh = ${money(bill.electricityAmount)} â€¢ Total utilities ${money(bill.totalUtilityAmount)}',
+                                '${bill.electricityUsageKwh.toStringAsFixed(1)} kWh = ${money(bill.electricityAmount)} • Total utilities ${money(bill.totalUtilityAmount)}',
                               ),
                               trailing: OutlinedButton.icon(
                                 onPressed: () =>
@@ -10708,7 +11025,7 @@ class _OwnerRequestList extends StatelessWidget {
                         fontSize: 16, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 3),
                 Text(
-                  '${tenant.name} â€¢ ${dateTimeLabel(request.createdAt)}',
+                  '${tenant.name} • ${dateTimeLabel(request.createdAt)}',
                   style: const TextStyle(color: oceanMuted, fontSize: 11),
                 ),
                 const SizedBox(height: 9),
@@ -10753,7 +11070,7 @@ class _OwnerRequestList extends StatelessWidget {
                                       fileSizeLabel(
                                         request.attachmentSizeBytes!,
                                       ),
-                                  ].whereType<String>().join(' â€¢ '),
+                                  ].whereType<String>().join(' • '),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
@@ -10903,7 +11220,7 @@ class _LegacyOwnerRequestsFeedTab extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                '${store.userFor(request.tenantId).name} Â· ${store.facilityFor(request.facilityId).name}',
+                                '${store.userFor(request.tenantId).name} · ${store.facilityFor(request.facilityId).name}',
                                 style: const TextStyle(
                                   color: oceanMuted,
                                   fontSize: 12,
@@ -11004,7 +11321,7 @@ class OwnerAccountTab extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '$roleLabel Â· ${trCount(context, store.ownerFacilities.length, 'property', 'properties')}',
+                        '$roleLabel · ${trCount(context, store.ownerFacilities.length, 'property', 'properties')}',
                         style: const TextStyle(
                           color: Color(0xDDFFFFFF),
                           fontSize: 11,
@@ -11252,7 +11569,7 @@ class _LanguageScreenState extends State<_LanguageScreen> {
   // ignore: unused_field
   static const options = [
     ('GB', 'English', 'English', AppLanguage.english),
-    ('CN', 'ä¸­æ–‡', 'Chinese (Simplified)', AppLanguage.chinese),
+    ('CN', '中文', 'Chinese (Simplified)', AppLanguage.chinese),
     ('MY', 'Bahasa Melayu', 'Malay', AppLanguage.malay),
   ];
 
@@ -11262,7 +11579,7 @@ class _LanguageScreenState extends State<_LanguageScreen> {
     selected ??= store.appLanguage;
     const options = [
       ('GB', 'English', 'English', AppLanguage.english),
-      ('CN', 'ä¸­æ–‡', 'Chinese (Simplified)', AppLanguage.chinese),
+      ('CN', '中文', 'Chinese (Simplified)', AppLanguage.chinese),
       ('MY', 'Bahasa Melayu', 'Malay', AppLanguage.malay),
     ];
     return Scaffold(
@@ -11410,7 +11727,7 @@ class _TenantHomeScreenState extends State<TenantHomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          '${tr(context, timeGreeting(DateTime.now()))}, ${firstName(user.name)} â€¢ ${titles[selectedIndex]}',
+          '${tr(context, timeGreeting(DateTime.now()))}, ${firstName(user.name)} • ${titles[selectedIndex]}',
         ),
         actions: [
           IconButton(
@@ -11506,7 +11823,7 @@ class TenantFigmaHomeTab extends StatelessWidget {
               Text(
                 tenancy == null
                     ? 'Your tenancy'
-                    : '${store.facilityFor(tenancy.facilityId).name} Â· ${tenancy.unitName}',
+                    : '${store.facilityFor(tenancy.facilityId).name} · ${tenancy.unitName}',
                 style: const TextStyle(color: Color(0xDDFFFFFF)),
               ),
               const SizedBox(height: 18),
@@ -11698,7 +12015,7 @@ class _TenantYearBillsViewState extends State<_TenantYearBillsView> {
         : ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              Text('${widget.title} â€¢ $year',
+              Text('${widget.title} • $year',
                   style: Theme.of(context)
                       .textTheme
                       .titleLarge
@@ -11842,7 +12159,7 @@ class _TenantRequestList extends StatelessWidget {
             leading: const Icon(Icons.chat_bubble_outline_rounded),
             title: Text(request.title),
             subtitle: Text(
-              '${request.requestType} â€¢ ${facility.name}\n${request.message}\n${dateLabel(request.createdAt)}',
+              '${request.requestType} • ${facility.name}\n${request.message}\n${dateLabel(request.createdAt)}',
             ),
             isThreeLine: true,
             trailing: StatusChipText(label: request.status),
@@ -11996,7 +12313,7 @@ class TenantBillCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    '${facility.name} â€¢ ${monthLabel(bill.month)}',
+                    '${facility.name} • ${monthLabel(bill.month)}',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
@@ -12114,29 +12431,49 @@ class _YearlyFinancialChartState extends State<YearlyFinancialChart> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.bar_chart_rounded),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${widget.year} Collection & Expenses',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: tr(context, 'Previous year'),
-                      onPressed: widget.onPreviousYear,
-                      icon: const Icon(Icons.chevron_left_rounded),
-                    ),
-                    IconButton(
-                      tooltip: tr(context, 'Next year'),
-                      onPressed: widget.onNextYear,
-                      icon: const Icon(Icons.chevron_right_rounded),
-                    ),
-                  ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 380;
+                    final yearButtonStyle = IconButton.styleFrom(
+                      minimumSize: Size.square(compact ? 34 : 42),
+                      padding: EdgeInsets.all(compact ? 4 : 9),
+                    );
+                    final title = Text(
+                      '${widget.year} ${tr(context, 'Collection & Expenses')}',
+                      maxLines: compact ? 1 : 2,
+                      style: (compact
+                              ? Theme.of(context).textTheme.titleMedium
+                              : Theme.of(context).textTheme.titleLarge)
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    );
+                    return Row(
+                      children: [
+                        Icon(Icons.bar_chart_rounded, size: compact ? 20 : 22),
+                        SizedBox(width: compact ? 6 : 8),
+                        Expanded(
+                          child: compact
+                              ? FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: title,
+                                )
+                              : title,
+                        ),
+                        IconButton(
+                          style: yearButtonStyle,
+                          tooltip: tr(context, 'Previous year'),
+                          onPressed: widget.onPreviousYear,
+                          icon: const Icon(Icons.chevron_left_rounded),
+                        ),
+                        IconButton(
+                          style: yearButtonStyle,
+                          tooltip: tr(context, 'Next year'),
+                          onPressed: widget.onNextYear,
+                          icon: const Icon(Icons.chevron_right_rounded),
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -12928,7 +13265,7 @@ class CostSummary extends StatelessWidget {
         '',
       ),
       (
-        '${tr(context, 'Fire Insurance')} ? ${tr(context, insuranceFrequencyText(version.insuranceFrequency))}',
+        '${tr(context, 'Fire Insurance')} \u2022 ${tr(context, insuranceFrequencyText(version.insuranceFrequency))}',
         version.insuranceFee,
         Icons.local_fire_department_rounded,
         const Color(0xFFC43D4B),
@@ -12936,7 +13273,7 @@ class CostSummary extends StatelessWidget {
       ),
       for (final commitment in facility.extraCommitments)
         (
-          '${tr(context, commitment.name)} ? ${tr(context, commitmentFrequencyText(commitment.frequency))}',
+          '${tr(context, commitment.name)} \u2022 ${tr(context, commitmentFrequencyText(commitment.frequency))}',
           commitment.amount,
           Icons.receipt_long_rounded,
           const Color(0xFF4F6B7A),
@@ -12976,54 +13313,67 @@ class CostSummary extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            mainAxisExtent: 72,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-          ),
-          itemCount: items.length,
-          itemBuilder: (context, index) {
-            final item = items[index];
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: item.$4.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: item.$4.withOpacity(0.2)),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final narrowPhone = constraints.maxWidth < 390;
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisExtent: narrowPhone ? 84 : 72,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
               ),
-              child: Row(
-                children: [
-                  Icon(item.$3, color: item.$4, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.$1,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Color(0xFF667085),
-                          ),
-                        ),
-                        Text(
-                          item.$5.isEmpty
-                              ? money(item.$2)
-                              : '${money(item.$2)} â€¢ ${item.$5}',
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                      ],
-                    ),
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final item = items[index];
+                return Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: item.$4.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: item.$4.withOpacity(0.2)),
                   ),
-                ],
-              ),
+                  child: Row(
+                    children: [
+                      Icon(item.$3, color: item.$4, size: 19),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.$1,
+                              maxLines: narrowPhone ? 2 : 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                height: 1.15,
+                                fontSize: 11,
+                                color: Color(0xFF667085),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                item.$5.isEmpty
+                                    ? money(item.$2)
+                                    : '${money(item.$2)} • ${item.$5}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             );
           },
         ),
@@ -13124,9 +13474,8 @@ class BillPerformanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final invoiceReleaseDate = DateTime(bill.month.year, bill.month.month);
-    final paymentDate = bill.submittedAt == null
-        ? 'Not paid yet'
-        : dateTimeLabel(bill.submittedAt!);
+    final paidOn = bill.paymentDate ?? bill.submittedAt;
+    final paymentDate = paidOn == null ? 'Not paid yet' : dateTimeLabel(paidOn);
     final paymentAmount = bill.amountPaid > 0 ? money(bill.amountPaid) : 'RM 0';
     return Card(
       elevation: 0,
@@ -13148,7 +13497,7 @@ class BillPerformanceCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${tenant.name} â€¢ ${monthLabel(bill.month)}',
+                        '${tenant.name} • ${monthLabel(bill.month)}',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -13590,7 +13939,7 @@ void showAddTenantDialog(BuildContext context, Facility facility) {
     builder: (dialogContext) => StatefulBuilder(
       builder: (context, setDialogState) {
         return AlertDialog(
-          title: Text('New Tenant â€¢ ${facility.name}'),
+          title: Text('New Tenant • ${facility.name}'),
           content: SizedBox(
             width: 620,
             child: SingleChildScrollView(
@@ -14195,7 +14544,7 @@ void showPropertyExpenseEditorDialog(
                 ),
                 title: const Text('Fire Insurance'),
                 subtitle: Text(
-                  '${insuranceFrequencyText(facility.insuranceFrequency)} â€¢ ${moneyExact(facility.insuranceFee)} â€¢ starts ${FinancialChartPainter.monthNames[facility.insuranceDueMonth - 1]}',
+                  '${insuranceFrequencyText(facility.insuranceFrequency)} • ${moneyExact(facility.insuranceFee)} • starts ${FinancialChartPainter.monthNames[facility.insuranceDueMonth - 1]}',
                 ),
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () => showRecurringCommitmentsSettingsDialog(
@@ -14217,7 +14566,7 @@ void showPropertyExpenseEditorDialog(
                     ),
                     title: Text(commitment.name),
                     subtitle: Text(
-                      '${commitmentFrequencyText(commitment.frequency)} â€¢ ${moneyExact(commitment.amount)}',
+                      '${commitmentFrequencyText(commitment.frequency)} • ${moneyExact(commitment.amount)}',
                     ),
                     trailing: const Icon(Icons.edit_rounded),
                     onTap: () =>
@@ -14399,7 +14748,7 @@ List<String> facilityCostChanges(
   final changes = <String>[];
   void addMoneyChange(String label, double before, double after) {
     if (before != after) {
-      changes.add('$label: ${money(before)} â†’ ${money(after)}');
+      changes.add('$label: ${money(before)} → ${money(after)}');
     }
   }
 
@@ -14412,12 +14761,12 @@ List<String> facilityCostChanges(
   addMoneyChange('Fire insurance', previous.insuranceFee, current.insuranceFee);
   if (previous.insuranceFrequency != current.insuranceFrequency) {
     changes.add(
-      'Insurance frequency: ${insuranceFrequencyText(previous.insuranceFrequency)} â†’ ${insuranceFrequencyText(current.insuranceFrequency)}',
+      'Insurance frequency: ${insuranceFrequencyText(previous.insuranceFrequency)} → ${insuranceFrequencyText(current.insuranceFrequency)}',
     );
   }
   if (previous.insuranceDueMonth != current.insuranceDueMonth) {
     changes.add(
-      'Insurance month: ${FinancialChartPainter.monthNames[previous.insuranceDueMonth - 1]} â†’ ${FinancialChartPainter.monthNames[current.insuranceDueMonth - 1]}',
+      'Insurance month: ${FinancialChartPainter.monthNames[previous.insuranceDueMonth - 1]} → ${FinancialChartPainter.monthNames[current.insuranceDueMonth - 1]}',
     );
   }
   return changes.isEmpty
@@ -14435,7 +14784,7 @@ void showFacilityCostHistoryDialog(BuildContext context, Facility facility) {
         children: [
           const Icon(Icons.history_rounded),
           const SizedBox(width: 10),
-          Expanded(child: Text('${facility.name} â€¢ Cost History')),
+          Expanded(child: Text('${facility.name} • Cost History')),
         ],
       ),
       content: SizedBox(
@@ -14480,7 +14829,7 @@ void showFacilityCostHistoryDialog(BuildContext context, Facility facility) {
                     ...changes.map(
                       (change) => Padding(
                         padding: const EdgeInsets.only(bottom: 5),
-                        child: Text('â€¢ $change'),
+                        child: Text('• $change'),
                       ),
                     ),
                   ],
@@ -14627,14 +14976,18 @@ void showPaymentReviewDialog(
                               children: [
                                 Expanded(
                                   child: Text(
-                                    '${tenant.name} Â· ${facility.name} Â· ${monthLabel(bill.month)}',
+                                    '${tenant.name} · ${facility.name} · ${monthLabel(bill.month)}',
                                     style: const TextStyle(
                                       color: Color(0xDDFFFFFF),
                                       fontSize: 11,
                                     ),
                                   ),
                                 ),
-                                const _PaymentReviewPill(),
+                                _PaymentReviewPill(
+                                  label: readOnly
+                                      ? paymentStatusLabel(bill.status)
+                                      : 'Awaiting review',
+                                ),
                               ],
                             ),
                             const SizedBox(height: 14),
@@ -14746,13 +15099,20 @@ void showPaymentReviewDialog(
                                 'Amount paid', money(bill.amountPaid)),
                             _ReviewDetailRow(
                               'Date paid',
-                              bill.submittedAt == null
+                              (bill.paymentDate ?? bill.submittedAt) == null
                                   ? 'Not recorded'
-                                  : dateLabel(bill.submittedAt!),
+                                  : dateLabel(
+                                      bill.paymentDate ?? bill.submittedAt!,
+                                    ),
                             ),
                             const _ReviewDetailRow('Method', 'Bank transfer'),
                             _ReviewDetailRow(
-                                'Reference', bill.id.toUpperCase()),
+                              'Reference',
+                              (bill.paymentReference?.trim().isNotEmpty ??
+                                      false)
+                                  ? bill.paymentReference!.trim()
+                                  : bill.id.toUpperCase(),
+                            ),
                             _ReviewDetailRow(
                                 'Status', paymentStatusLabel(bill.status)),
                             if (reviewedAt != null)
@@ -14843,7 +15203,10 @@ void showPaymentReviewDialog(
 }
 
 class _PaymentReviewPill extends StatelessWidget {
-  const _PaymentReviewPill();
+  const _PaymentReviewPill({this.label = 'Awaiting review'});
+
+  final String label;
+
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
@@ -14851,8 +15214,8 @@ class _PaymentReviewPill extends StatelessWidget {
           color: Colors.white.withOpacity(0.24),
           borderRadius: BorderRadius.circular(99),
         ),
-        child: const Text('Awaiting review',
-            style: TextStyle(
+        child: Text(label,
+            style: const TextStyle(
                 color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
       );
 }
@@ -15107,7 +15470,7 @@ void showUtilityDialog(BuildContext context, MonthlyBill bill) {
                         : readingError ??
                             (detectedReading == null
                                 ? 'Upload for automatic detection, then review or correct the usage before generating.'
-                                : 'Detected automatically. Review and edit if needed${detectedReading!.previousReading == null || detectedReading!.currentReading == null ? '' : ': ${detectedReading!.previousReading!.toStringAsFixed(2)} â†’ ${detectedReading!.currentReading!.toStringAsFixed(2)} kWh'}'),
+                                : 'Detected automatically. Review and edit if needed${detectedReading!.previousReading == null || detectedReading!.currentReading == null ? '' : ': ${detectedReading!.previousReading!.toStringAsFixed(2)} → ${detectedReading!.currentReading!.toStringAsFixed(2)} kWh'}'),
                   ),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -15446,7 +15809,12 @@ Future<Uri> _publishInvoiceForTenant(RentalInvoice invoice) async {
     'current_reading': invoice.currentReading,
     'electricity_tariff_name': invoice.electricityTariffName,
     'electricity_rate_per_kwh': invoice.electricityRatePerKwh,
+    'electricity_amount': invoice.electricity,
+    'electricity_tariff_summary': invoice.electricityTariffSummary,
+    'general_electric': invoice.generalElectricAmount,
+    'parking_rental': invoice.parkingRentalAmount,
     'evidence_name': invoice.evidenceName,
+    'pdf_path': pdfPath,
     'due_date': invoice.dueDate.toIso8601String(),
     'status': invoice.status.name,
   });
@@ -15531,7 +15899,7 @@ Future<void> showGeneratedInvoicePreview(
                             ),
                             const SizedBox(height: 14),
                             Text(
-                              'Bill to: ${invoice.tenant.name} Â· ${invoice.tenant.unit}\nDue ${dateLabel(invoice.dueDate)}',
+                              'Bill to: ${invoice.tenant.name} · ${invoice.tenant.unit}\nDue ${dateLabel(invoice.dueDate)}',
                               style: const TextStyle(
                                 color: Color(0xDDFFFFFF),
                                 fontSize: 11,
@@ -15814,7 +16182,7 @@ void _showUtilityDialogFigma(BuildContext context, MonthlyBill bill) {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
-                          '${facility.name} Â· ${tenancy.unitName} Â· ${tenant.name} Â· ${monthLabel(bill.month)}',
+                          '${facility.name} · ${tenancy.unitName} · ${tenant.name} · ${monthLabel(bill.month)}',
                           style:
                               const TextStyle(color: oceanMuted, fontSize: 11),
                         ),
@@ -15865,7 +16233,7 @@ void _showUtilityDialogFigma(BuildContext context, MonthlyBill bill) {
                                       Text(
                                         evidenceFileName == null
                                             ? 'Required before saving'
-                                            : 'Attached Â· reading auto-detected',
+                                            : 'Attached · reading auto-detected',
                                         style: const TextStyle(
                                             color: oceanMuted, fontSize: 10),
                                       ),
@@ -15879,7 +16247,7 @@ void _showUtilityDialogFigma(BuildContext context, MonthlyBill bill) {
                         const SizedBox(height: 18),
                         _MeterReadingCard(
                           label: 'WATER',
-                          unit: 'mÂ³',
+                          unit: 'm³',
                           previous: waterPrevious,
                           current: waterCurrent,
                           usage: waterUsage,
@@ -15994,7 +16362,7 @@ class _MeterReadingCard extends StatelessWidget {
                           style: TextStyle(color: oceanMuted, fontSize: 12)),
                       const Spacer(),
                       Text(
-                        '${usage.toStringAsFixed(usage == usage.roundToDouble() ? 0 : 1)} $unit Ã— RM ${rate.toStringAsFixed(rate < 1 ? 3 : 2)}',
+                        '${usage.toStringAsFixed(usage == usage.roundToDouble() ? 0 : 1)} $unit × RM ${rate.toStringAsFixed(rate < 1 ? 3 : 2)}',
                         style: const TextStyle(
                             fontSize: 12, fontWeight: FontWeight.w800),
                       ),
@@ -16116,7 +16484,7 @@ void showUploadTenancyAgreementDialog(
                                 ? (tenancy.agreementFileName == null
                                     ? 'No file selected'
                                     : 'Current: ${tenancy.agreementFileName}')
-                                : '${selectedFile!.name} â€¢ ${fileSizeLabel(selectedFile!.bytes.length)}',
+                                : '${selectedFile!.name} • ${fileSizeLabel(selectedFile!.bytes.length)}',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -16213,7 +16581,7 @@ void showReviewTenancyAgreementDialog(
                   ProfileInfoRow(
                     label: 'Lease period',
                     value:
-                        '${dateLabel(tenancy.leaseStart)} â€“ ${dateLabel(tenancy.leaseEnd)}',
+                        '${dateLabel(tenancy.leaseStart)} – ${dateLabel(tenancy.leaseEnd)}',
                   ),
                   ProfileInfoRow(
                     label: 'Agreement file',
@@ -16591,6 +16959,9 @@ void showTenantProfileDialog(
   showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
+      contentPadding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       title: Row(
         children: [
           const CircleAvatar(
@@ -16766,7 +17137,7 @@ void showTenantProfileDialog(
               ProfileInfoRow(
                 label: 'Lease period',
                 value:
-                    '${dateLabel(tenancy.leaseStart)} â€“ ${dateLabel(tenancy.leaseEnd)}',
+                    '${dateLabel(tenancy.leaseStart)} – ${dateLabel(tenancy.leaseEnd)}',
               ),
               ProfileInfoRow(
                 label: 'Electricity',
@@ -16810,7 +17181,7 @@ void showTenantProfileDialog(
                       ),
                       leading: const Icon(Icons.receipt_long_rounded),
                       title: Text(
-                        '${monthLabel(bill.month)} â€¢ ${money(bill.totalAmount)}',
+                        '${monthLabel(bill.month)} • ${money(bill.totalAmount)}',
                       ),
                       subtitle: Text(
                         bill.submittedAt == null
@@ -16875,7 +17246,7 @@ void showSubmitSlipDialog(BuildContext context, MonthlyBill bill) {
                     child: Text(
                       proof == null
                           ? 'Attach JPG, PNG or PDF payment proof'
-                          : '${proof!.name} â€¢ ${fileSizeLabel(proof!.bytes.length)}',
+                          : '${proof!.name} • ${fileSizeLabel(proof!.bytes.length)}',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 12),
@@ -16966,7 +17337,7 @@ void showTenantRequestAttachmentDialog(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              '${request.title} â€¢ $tenantName',
+              '${request.title} • $tenantName',
               style: const TextStyle(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 6),
@@ -16975,7 +17346,7 @@ void showTenantRequestAttachmentDialog(
                 request.attachmentFileName ?? 'Attached picture',
                 if (request.attachmentSizeBytes != null)
                   fileSizeLabel(request.attachmentSizeBytes!),
-              ].join(' â€¢ '),
+              ].join(' • '),
               style: const TextStyle(color: oceanMuted),
             ),
             const SizedBox(height: 14),
@@ -17114,8 +17485,8 @@ void showAddRequestDialog(BuildContext context) {
                                 ),
                                 Text(
                                   attachment == null
-                                      ? 'Optional â€¢ maximum 1 picture â€¢ compressed below 2 MB'
-                                      : '${attachment!.name} â€¢ ${fileSizeLabel(attachment!.bytes.length)}',
+                                      ? 'Optional • maximum 1 picture • compressed below 2 MB'
+                                      : '${attachment!.name} • ${fileSizeLabel(attachment!.bytes.length)}',
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
@@ -17658,7 +18029,7 @@ void showOwnerAccountSetupDialog(BuildContext context) {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              '${store.ownerFacilities.length} properties â€¢ ${store.tenancies.where((item) => item.active).length} active tenants',
+                              '${store.ownerFacilities.length} properties • ${store.tenancies.where((item) => item.active).length} active tenants',
                               style: const TextStyle(color: Colors.white70),
                             ),
                           ],
@@ -18143,7 +18514,7 @@ class _DataBackupScreenState extends State<_DataBackupScreen> {
                                   color: Colors.white,
                                   fontWeight: FontWeight.w800)),
                           Text(
-                            'rental_manager.db Â· $recordCount records',
+                            'rental_manager.db · $recordCount records',
                             style: const TextStyle(
                                 color: Color(0xDDFFFFFF), fontSize: 11),
                           ),
@@ -18167,7 +18538,7 @@ class _DataBackupScreenState extends State<_DataBackupScreen> {
                     Icon(Icons.check_circle_outline_rounded,
                         color: Color(0xFF16A34A), size: 18),
                     SizedBox(width: 8),
-                    Text('Last backup: today 08:40 Â· internal storage',
+                    Text('Last backup: today 08:40 · internal storage',
                         style:
                             TextStyle(color: Color(0xFF15803D), fontSize: 11)),
                   ],
@@ -18179,7 +18550,7 @@ class _DataBackupScreenState extends State<_DataBackupScreen> {
                   _BackupAction(
                     icon: Icons.phone_iphone_rounded,
                     title: 'Export SQLite database',
-                    subtitle: '.db file â€” full backup',
+                    subtitle: '.db file — full backup',
                     trailing: Icons.download_rounded,
                     onTap: () => _prepareDataExport(context, 'SQLite'),
                   ),
@@ -18236,7 +18607,7 @@ class _DataBackupScreenState extends State<_DataBackupScreen> {
                     value: autoBackup,
                     onChanged: (value) => setState(() => autoBackup = value),
                     title: const Text('Auto-backup daily'),
-                    subtitle: const Text('02:00 Â· to selected location'),
+                    subtitle: const Text('02:00 · to selected location'),
                   ),
                 ],
               ),
@@ -18686,7 +19057,7 @@ class _SettingsOverview extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        '${user.email} â€¢ ${store.ownerFacilities.length} facilities',
+                        '${user.email} • ${store.ownerFacilities.length} facilities',
                         style: const TextStyle(color: Color(0xFFB8CAD5)),
                       ),
                     ],
@@ -18889,7 +19260,7 @@ class _FacilitySettingsPanel extends StatelessWidget {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          '${facility.extraCommitments.length + 4} cost categories â€¢ ${facilityStatusText(facility)}',
+                          '${facility.extraCommitments.length + 4} cost categories • ${facilityStatusText(facility)}',
                           style: const TextStyle(color: Color(0xFF667085)),
                         ),
                       ],
@@ -19134,7 +19505,7 @@ void showRecurringCommitmentsSettingsDialog(
                   leading: const Icon(Icons.local_fire_department_rounded),
                   title: const Text('Fire Insurance'),
                   subtitle: Text(
-                    '${insuranceFrequencyText(selectedFacility.insuranceFrequency)} â€¢ ${moneyExact(selectedFacility.insuranceFee)} â€¢ starts ${FinancialChartPainter.monthNames[selectedFacility.insuranceDueMonth - 1]}',
+                    '${insuranceFrequencyText(selectedFacility.insuranceFrequency)} • ${moneyExact(selectedFacility.insuranceFee)} • starts ${FinancialChartPainter.monthNames[selectedFacility.insuranceDueMonth - 1]}',
                   ),
                   trailing: const Icon(Icons.edit_rounded),
                   onTap: () async {
@@ -19191,7 +19562,7 @@ void showRecurringCommitmentsSettingsDialog(
                       leading: const Icon(Icons.receipt_long_rounded),
                       title: Text(commitment.name),
                       subtitle: Text(
-                        '${commitmentFrequencyText(commitment.frequency)} â€¢ starts ${FinancialChartPainter.monthNames[commitment.firstDueMonth - 1]}',
+                        '${commitmentFrequencyText(commitment.frequency)} • starts ${FinancialChartPainter.monthNames[commitment.firstDueMonth - 1]}',
                       ),
                       trailing: Text(
                         money(commitment.amount),
@@ -19589,7 +19960,7 @@ void showAddIncomeDialog(BuildContext context, [Facility? initialFacility]) {
                 const SizedBox(height: 10),
                 ProfileInfoRow(
                   label: 'Month',
-                  value: '${monthLabel(selectedMonth)} â€¢ current month only',
+                  value: '${monthLabel(selectedMonth)} • current month only',
                 ),
                 const SizedBox(height: 10),
                 AppTextField(
@@ -19673,7 +20044,7 @@ void showAddExpenseDialog(BuildContext context, Facility facility) {
             ProfileInfoRow(label: 'Facility', value: facility.name),
             ProfileInfoRow(
               label: 'Month',
-              value: '${monthLabel(store.currentMonth)} â€¢ current month only',
+              value: '${monthLabel(store.currentMonth)} • current month only',
             ),
             AppTextField(
               controller: category,
@@ -20012,29 +20383,42 @@ class ProfileInfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 130,
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: Color(0xFF667085),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 260;
+        final labelText = Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF667085),
+            fontWeight: FontWeight.w600,
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
+        );
+        final valueText = Text(
+          value,
+          softWrap: true,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        );
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: stacked
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    labelText,
+                    const SizedBox(height: 2),
+                    valueText,
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 4, child: labelText),
+                    const SizedBox(width: 10),
+                    Expanded(flex: 6, child: valueText),
+                  ],
+                ),
+        );
+      },
     );
   }
 }
@@ -20189,38 +20573,55 @@ class MalaysiaAddressDropdowns extends StatelessWidget {
           onChanged: onStateChanged,
         ),
         const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                value: cities.contains(city) ? city : null,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'City',
-                ),
-                items: cities
-                    .map((item) =>
-                        DropdownMenuItem(value: item, child: Text(item)))
-                    .toList(),
-                onChanged: state == null ? null : onCityChanged,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final cityField = DropdownButtonFormField<String>(
+              value: cities.contains(city) ? city : null,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'City',
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                value: postcodes.contains(postcode) ? postcode : null,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Postcode',
-                ),
-                items: postcodes
-                    .map((item) =>
-                        DropdownMenuItem(value: item, child: Text(item)))
-                    .toList(),
-                onChanged: city == null ? null : onPostcodeChanged,
+              items: cities
+                  .map((item) => DropdownMenuItem(
+                        value: item,
+                        child: Text(item, overflow: TextOverflow.ellipsis),
+                      ))
+                  .toList(),
+              onChanged: state == null ? null : onCityChanged,
+            );
+            final postcodeField = DropdownButtonFormField<String>(
+              value: postcodes.contains(postcode) ? postcode : null,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Postcode',
               ),
-            ),
-          ],
+              items: postcodes
+                  .map((item) => DropdownMenuItem(
+                        value: item,
+                        child: Text(item, overflow: TextOverflow.ellipsis),
+                      ))
+                  .toList(),
+              onChanged: city == null ? null : onPostcodeChanged,
+            );
+            if (constraints.maxWidth < 360) {
+              return Column(
+                children: [
+                  cityField,
+                  const SizedBox(height: 10),
+                  postcodeField,
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(child: cityField),
+                const SizedBox(width: 10),
+                Expanded(child: postcodeField),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 10),
       ],
@@ -20332,34 +20733,34 @@ String tr(BuildContext context, String key) {
   final language = RentalStoreScope.of(context).appLanguage;
   if (language == AppLanguage.english) return key;
   const chinese = <String, String>{
-    'Home': 'ä¸»é¡µ',
-    'Properties': 'æˆ¿äº§',
-    'Payments': 'ä»˜æ¬¾',
-    'Requests': 'è¯·æ±‚',
-    'Profile': 'è´¦æˆ·',
-    'Notifications': 'é€šçŸ¥',
-    'Logout': 'ç™»å‡º',
-    'Portfolio overview': 'æŠ•èµ„ç»„åˆæ¦‚è§ˆ',
-    'Total Rental Collection': 'ç§Ÿé‡‘æ€»æ”¶å…¥',
-    'Total Expenses': 'æ€»æ”¯å‡º',
-    'Properties count': 'æˆ¿äº§æ•°é‡',
-    'Active tenants': 'æ´»è·ƒç§Ÿæˆ·',
-    'Utility readings left': 'å¾…å¤„ç†æ°´ç”µè¯»æ•°',
-    'Occupancy': 'å‡ºç§ŸçŽ‡',
-    'Inflow / outflow': 'æ”¶å…¥ï¼æ”¯å‡º',
-    'ROI': 'æŠ•èµ„å›žæŠ¥çŽ‡',
-    'Account details': 'è´¦æˆ·èµ„æ–™',
-    'Payment methods': 'ä»˜æ¬¾æ–¹å¼',
-    'Payment reminders': 'ä»˜æ¬¾æé†’',
-    'Facility configuration': 'æˆ¿äº§è®¾ç½®',
-    'Other monthly income': 'å…¶ä»–æ¯æœˆæ”¶å…¥',
-    'Activity history': 'æ“ä½œè®°å½•',
-    'Data & backup': 'æ•°æ®ä¸Žå¤‡ä»½',
-    'Language': 'è¯­è¨€',
-    'Help & support': 'å¸®åŠ©ä¸Žæ”¯æŒ',
-    'Log out': 'ç™»å‡º',
-    'Apply': 'åº”ç”¨',
-    'Applies across the whole app': 'åº”ç”¨äºŽæ•´ä¸ªåº”ç”¨ç¨‹åº',
+    'Home': '主页',
+    'Properties': '房产',
+    'Payments': '付款',
+    'Requests': '请求',
+    'Profile': '账户',
+    'Notifications': '通知',
+    'Logout': '登出',
+    'Portfolio overview': '投资组合概览',
+    'Total Rental Collection': '租金总收入',
+    'Total Expenses': '总支出',
+    'Properties count': '房产数量',
+    'Active tenants': '活跃租户',
+    'Utility readings left': '待处理水电读数',
+    'Occupancy': '出租率',
+    'Inflow / outflow': '收入／支出',
+    'ROI': '投资回报率',
+    'Account details': '账户资料',
+    'Payment methods': '付款方式',
+    'Payment reminders': '付款提醒',
+    'Facility configuration': '房产设置',
+    'Other monthly income': '其他每月收入',
+    'Activity history': '操作记录',
+    'Data & backup': '数据与备份',
+    'Language': '语言',
+    'Help & support': '帮助与支持',
+    'Log out': '登出',
+    'Apply': '应用',
+    'Applies across the whole app': '应用于整个应用程序',
   };
   const malay = <String, String>{
     'Home': 'Utama',
@@ -20392,102 +20793,102 @@ String tr(BuildContext context, String key) {
     'Applies across the whole app': 'Digunakan di seluruh aplikasi',
   };
   const chineseOverride = <String, String>{
-    'Owner': 'ä¸šä¸»',
-    'Property Agent': 'ç‰©ä¸šä»£ç†',
-    'properties': 'æˆ¿äº§',
-    'property': 'æˆ¿äº§',
-    'records': 'è®°å½•',
-    'record': 'è®°å½•',
-    'Home': 'ä¸»é¡µ',
-    'Properties': 'æˆ¿äº§',
-    'Payments': 'ä»˜æ¬¾',
-    'Requests': 'è¯·æ±‚',
-    'Profile': 'ä¸ªäººèµ„æ–™',
-    'Notifications': 'é€šçŸ¥',
-    'Logout': 'é€€å‡ºç™»å½•',
-    'Log out': 'é€€å‡ºç™»å½•',
-    'Portfolio overview': 'èµ„äº§æ¦‚è§ˆ',
-    'Total Rental Collection': 'ç§Ÿé‡‘æ€»æ”¶å…¥',
-    'Total Expenses': 'æ€»æ”¯å‡º',
-    'Properties count': 'æˆ¿äº§æ•°é‡',
-    'Active tenants': 'æ´»è·ƒç§Ÿæˆ·',
-    'Readings left': 'å¾…å¤„ç†è¯»æ•°',
-    'Utility readings left': 'å¾…å¤„ç†æ°´ç”µè¯»æ•°',
-    'Occupancy': 'å…¥ä½çŽ‡',
-    'Inflow / outflow': 'æ”¶å…¥ / æ”¯å‡º',
-    'ROI': 'æŠ•èµ„å›žæŠ¥çŽ‡',
-    'Account details': 'è´¦æˆ·èµ„æ–™',
-    'Payment methods': 'ä»˜æ¬¾æ–¹å¼',
-    'Payment reminders': 'ä»˜æ¬¾æé†’',
-    'Facility configuration': 'æˆ¿äº§é…ç½®',
-    'Other monthly income': 'å…¶ä»–æœˆæ”¶å…¥',
-    'Activity history': 'æ“ä½œè®°å½•',
-    'Data & backup': 'æ•°æ®ä¸Žå¤‡ä»½',
-    'Language': 'è¯­è¨€',
-    'Help & support': 'å¸®åŠ©ä¸Žæ”¯æŒ',
-    'Apply': 'åº”ç”¨',
-    'Applies across the whole app': 'åº”ç”¨äºŽæ•´ä¸ªåº”ç”¨',
-    'English': 'è‹±è¯­',
-    'Chinese (Simplified)': 'ç®€ä½“ä¸­æ–‡',
-    'Malay': 'é©¬æ¥è¯­',
-    'Bahasa Melayu': 'é©¬æ¥è¯­',
-    'Good evening': 'æ™šä¸Šå¥½',
-    'Good morning': 'æ—©ä¸Šå¥½',
-    'Good afternoon': 'ä¸‹åˆå¥½',
-    'Tap a facility for performance': 'ç‚¹å‡»æˆ¿äº§æŸ¥çœ‹è¡¨çŽ°',
-    'Rental Collection': 'ç§Ÿé‡‘æ”¶å…¥',
-    'Facility Expenses': 'æˆ¿äº§æ”¯å‡º',
-    'Net Rental Income': 'å‡€ç§Ÿé‡‘æ”¶å…¥',
-    'Monthly Recurring Commitment': 'æ¯æœˆå›ºå®šæ‰¿è¯º',
-    'Installment': 'åˆ†æœŸä»˜æ¬¾',
-    'Extra Payment': 'é¢å¤–ä»˜æ¬¾',
-    'Maintenance': 'ç»´ä¿®è´¹',
-    'Fire Insurance': 'ç«ç¾ä¿é™©',
-    'Indah Water': 'è‹±è¾¾ä¸½æ°´',
-    'DBKL Assessment': 'å¸‚æ”¿è¯„ä¼°è´¹',
-    'Tenants': 'ç§Ÿæˆ·',
-    'All Tenants': 'å…¨éƒ¨ç§Ÿæˆ·',
-    'New Tenant': 'æ–°å¢žç§Ÿæˆ·',
-    'Add': 'æ–°å¢ž',
-    'Edit': 'ç¼–è¾‘',
-    'Save': 'ä¿å­˜',
-    'Cancel': 'å–æ¶ˆ',
-    'Close': 'å…³é—­',
-    'Accept': 'æŽ¥å—',
-    'Reject': 'æ‹’ç»',
-    'Approve': 'æ‰¹å‡†',
-    'Active': 'æ´»è·ƒ',
-    'Inactive': 'éžæ´»è·ƒ',
-    'Pending verification': 'å¾…éªŒè¯',
-    'Approved': 'å·²æ‰¹å‡†',
-    'Rejected': 'å·²æ‹’ç»',
-    'Pending Action': 'å¾…å¤„ç†',
-    'History': 'åŽ†å²',
-    'Open': 'æ‰“å¼€',
-    'Closed': 'å·²å…³é—­',
-    'Accepted': 'å·²æŽ¥å—',
-    'In Progress': 'å¤„ç†ä¸­',
-    'Pending': 'å¾…å¤„ç†',
-    'Pending Owner Utilities': 'å¾…ä¸šä¸»å¡«å†™æ°´ç”µ',
-    'Pending Tenant Payment': 'å¾…ç§Ÿæˆ·ä»˜æ¬¾',
-    'Bill Performance': 'è´¦å•è¡¨çŽ°',
-    'Due': 'åº”ä»˜',
-    'Paid': 'å·²ä»˜',
-    'Amount': 'é‡‘é¢',
-    'Amount Paid': 'å·²ä»˜é‡‘é¢',
-    'Status': 'çŠ¶æ€',
-    'Facility': 'æˆ¿äº§',
-    'Month': 'æœˆä»½',
-    'Full Name': 'å§“å',
-    'Email': 'ç”µé‚®',
-    'WhatsApp / Phone Number': 'WhatsApp / ç”µè¯å·ç ',
-    'Origin Address': 'åŽŸä½å€',
-    'Date of Birth': 'å‡ºç”Ÿæ—¥æœŸ',
-    'Sex': 'æ€§åˆ«',
-    'Room / Unit': 'æˆ¿é—´ / å•ä½',
-    'Monthly Rent': 'æœˆç§Ÿ',
-    'Lease Start': 'ç§Ÿçº¦å¼€å§‹',
-    'Lease End': 'ç§Ÿçº¦ç»“æŸ',
+    'Owner': '业主',
+    'Property Agent': '物业代理',
+    'properties': '房产',
+    'property': '房产',
+    'records': '记录',
+    'record': '记录',
+    'Home': '主页',
+    'Properties': '房产',
+    'Payments': '付款',
+    'Requests': '请求',
+    'Profile': '个人资料',
+    'Notifications': '通知',
+    'Logout': '退出登录',
+    'Log out': '退出登录',
+    'Portfolio overview': '资产概览',
+    'Total Rental Collection': '租金总收入',
+    'Total Expenses': '总支出',
+    'Properties count': '房产数量',
+    'Active tenants': '活跃租户',
+    'Readings left': '待处理读数',
+    'Utility readings left': '待处理水电读数',
+    'Occupancy': '入住率',
+    'Inflow / outflow': '收入 / 支出',
+    'ROI': '投资回报率',
+    'Account details': '账户资料',
+    'Payment methods': '付款方式',
+    'Payment reminders': '付款提醒',
+    'Facility configuration': '房产配置',
+    'Other monthly income': '其他月收入',
+    'Activity history': '操作记录',
+    'Data & backup': '数据与备份',
+    'Language': '语言',
+    'Help & support': '帮助与支持',
+    'Apply': '应用',
+    'Applies across the whole app': '应用于整个应用',
+    'English': '英语',
+    'Chinese (Simplified)': '简体中文',
+    'Malay': '马来语',
+    'Bahasa Melayu': '马来语',
+    'Good evening': '晚上好',
+    'Good morning': '早上好',
+    'Good afternoon': '下午好',
+    'Tap a facility for performance': '点击房产查看表现',
+    'Rental Collection': '租金收入',
+    'Facility Expenses': '房产支出',
+    'Net Rental Income': '净租金收入',
+    'Monthly Recurring Commitment': '每月固定承诺',
+    'Installment': '分期付款',
+    'Extra Payment': '额外付款',
+    'Maintenance': '维修费',
+    'Fire Insurance': '火灾保险',
+    'Indah Water': '英达丽水',
+    'DBKL Assessment': '市政评估费',
+    'Tenants': '租户',
+    'All Tenants': '全部租户',
+    'New Tenant': '新增租户',
+    'Add': '新增',
+    'Edit': '编辑',
+    'Save': '保存',
+    'Cancel': '取消',
+    'Close': '关闭',
+    'Accept': '接受',
+    'Reject': '拒绝',
+    'Approve': '批准',
+    'Active': '活跃',
+    'Inactive': '非活跃',
+    'Pending verification': '待验证',
+    'Approved': '已批准',
+    'Rejected': '已拒绝',
+    'Pending Action': '待处理',
+    'History': '历史',
+    'Open': '打开',
+    'Closed': '已关闭',
+    'Accepted': '已接受',
+    'In Progress': '处理中',
+    'Pending': '待处理',
+    'Pending Owner Utilities': '待业主填写水电',
+    'Pending Tenant Payment': '待租户付款',
+    'Bill Performance': '账单表现',
+    'Due': '应付',
+    'Paid': '已付',
+    'Amount': '金额',
+    'Amount Paid': '已付金额',
+    'Status': '状态',
+    'Facility': '房产',
+    'Month': '月份',
+    'Full Name': '姓名',
+    'Email': '电邮',
+    'WhatsApp / Phone Number': 'WhatsApp / 电话号码',
+    'Origin Address': '原住址',
+    'Date of Birth': '出生日期',
+    'Sex': '性别',
+    'Room / Unit': '房间 / 单位',
+    'Monthly Rent': '月租',
+    'Lease Start': '租约开始',
+    'Lease End': '租约结束',
     'Billing configuration': '\u8ba1\u8d39\u914d\u7f6e',
     'Facility Costs': '\u623f\u4ea7\u6210\u672c',
     'No tenants assigned to this facility.':
@@ -20497,6 +20898,7 @@ String tr(BuildContext context, String key) {
     'Cost Change History': '\u6210\u672c\u53d8\u66f4\u5386\u53f2',
     'Rental collection': '\u79df\u91d1\u6536\u5165',
     'Expenses': '\u652f\u51fa',
+    'Collection & Expenses': '\u6536\u652f',
     'Collection': '\u6536\u5165',
     'Breakdown': '\u660e\u7ec6',
     'Monthly': '\u6bcf\u6708',
@@ -20512,7 +20914,7 @@ String tr(BuildContext context, String key) {
     'Previous year': '\u4e0a\u4e00\u5e74',
     'Next year': '\u4e0b\u4e00\u5e74',
     'Hide breakdown': '\u9690\u85cf\u660e\u7ec6',
-    'Create Tenant': 'åˆ›å»ºç§Ÿæˆ·',
+    'Create Tenant': '创建租户',
   };
   const malayOverride = <String, String>{
     'Owner': 'Pemilik',
@@ -20591,6 +20993,7 @@ String tr(BuildContext context, String key) {
     'Cost Change History': 'Sejarah perubahan kos',
     'Rental collection': 'Kutipan sewa',
     'Expenses': 'Perbelanjaan',
+    'Collection & Expenses': 'Kutipan & Perbelanjaan',
     'Collection': 'Kutipan',
     'Breakdown': 'Pecahan',
     'Monthly': 'Bulanan',
@@ -20623,8 +21026,8 @@ String trCount(
   final language = RentalStoreScope.of(context).appLanguage;
   if (language == AppLanguage.chinese) {
     final unit = switch (pluralKey) {
-      'properties' => 'æˆ¿äº§',
-      'records' => 'è®°å½•',
+      'properties' => '房产',
+      'records' => '记录',
       _ => tr(context, pluralKey),
     };
     return '$count $unit';
@@ -20637,7 +21040,7 @@ String trCount(
 
 String trDayStart(BuildContext context, int days) {
   final language = RentalStoreScope.of(context).appLanguage;
-  if (language == AppLanguage.chinese) return '$days å¤©å¼€å§‹';
+  if (language == AppLanguage.chinese) return '$days 天开始';
   if (language == AppLanguage.malay) return '$days hari mula';
   return '$days day start';
 }
@@ -20756,18 +21159,18 @@ String localizedMonthShort(BuildContext context, int month) {
     'Dec',
   ];
   const chinese = [
-    '1æœˆ',
-    '2æœˆ',
-    '3æœˆ',
-    '4æœˆ',
-    '5æœˆ',
-    '6æœˆ',
-    '7æœˆ',
-    '8æœˆ',
-    '9æœˆ',
-    '10æœˆ',
-    '11æœˆ',
-    '12æœˆ',
+    '1月',
+    '2月',
+    '3月',
+    '4月',
+    '5月',
+    '6月',
+    '7月',
+    '8月',
+    '9月',
+    '10月',
+    '11月',
+    '12月',
   ];
   const malay = [
     'Jan',

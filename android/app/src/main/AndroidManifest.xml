@@ -1,6 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:label="rental_facility_management"
+        android:label="Rental Facility Manager"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

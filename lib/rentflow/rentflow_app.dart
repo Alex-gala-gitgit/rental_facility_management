@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -154,8 +155,13 @@ class RentalInvoice {
     this.electricityTariffSummary,
     required this.dueDate,
     this.status = InvoiceStatus.sent,
+    this.pdfPath,
     this.slipName,
     this.slipPath,
+    this.amountPaid,
+    this.paymentDate,
+    this.paymentReference,
+    this.slipSubmittedAt,
   });
   final String id;
   final TenantAccount tenant;
@@ -174,8 +180,13 @@ class RentalInvoice {
   final String? electricityTariffSummary;
   final DateTime dueDate;
   InvoiceStatus status;
+  final String? pdfPath;
   String? slipName;
   String? slipPath;
+  double? amountPaid;
+  DateTime? paymentDate;
+  String? paymentReference;
+  DateTime? slipSubmittedAt;
 
   double get usage => math.max(0, currentReading - previousReading);
   double get electricity =>
@@ -288,10 +299,33 @@ class RentFlowStore extends ChangeNotifier {
               currentReading: (row['current_reading'] as num).toDouble(),
               evidenceName: row['evidence_name'] as String,
               evidencePath: row['evidence_path'] as String?,
+              generalElectricAmount:
+                  (row['general_electric'] as num?)?.toDouble() ?? 0,
+              parkingRentalAmount:
+                  (row['parking_rental'] as num?)?.toDouble() ?? 0,
+              electricityTariffName:
+                  row['electricity_tariff_name'] as String? ??
+                      'TNB default tariff',
+              electricityRatePerKwh:
+                  (row['electricity_rate_per_kwh'] as num?)?.toDouble() ??
+                      0.516,
+              electricityAmountOverride:
+                  (row['electricity_amount'] as num?)?.toDouble(),
+              electricityTariffSummary:
+                  row['electricity_tariff_summary'] as String?,
               dueDate: DateTime.parse(row['due_date'] as String),
               status: InvoiceStatus.values.byName(row['status'] as String),
+              pdfPath: row['pdf_path'] as String?,
               slipName: row['slip_name'] as String?,
               slipPath: row['slip_path'] as String?,
+              amountPaid: (row['amount_paid'] as num?)?.toDouble(),
+              paymentDate: row['payment_date'] == null
+                  ? null
+                  : DateTime.tryParse(row['payment_date'] as String),
+              paymentReference: row['payment_reference'] as String?,
+              slipSubmittedAt: row['slip_submitted_at'] == null
+                  ? null
+                  : DateTime.tryParse(row['slip_submitted_at'] as String),
             )));
       error = null;
     } catch (e) {
@@ -363,8 +397,11 @@ class RentFlowStore extends ChangeNotifier {
   Future<void> submitSlip(
     RentalInvoice invoice,
     String name,
-    Uint8List bytes,
-  ) async {
+    Uint8List bytes, {
+    required double amountPaid,
+    required DateTime paymentDate,
+    String? paymentReference,
+  }) async {
     final path =
         'slips/${invoice.id}/${DateTime.now().millisecondsSinceEpoch}-${_safeName(name)}';
     await _cloud.storage.from(bucket).uploadBinary(
@@ -374,10 +411,18 @@ class RentFlowStore extends ChangeNotifier {
         );
     invoice.slipName = name;
     invoice.slipPath = path;
+    invoice.amountPaid = amountPaid;
+    invoice.paymentDate = paymentDate;
+    invoice.paymentReference = paymentReference?.trim();
+    invoice.slipSubmittedAt = DateTime.now();
     invoice.status = InvoiceStatus.slipSubmitted;
     await _cloud.from('rentflow_test_invoices').update({
       'slip_name': name,
       'slip_path': path,
+      'amount_paid': amountPaid,
+      'payment_date': paymentDate.toIso8601String(),
+      'payment_reference': invoice.paymentReference,
+      'slip_submitted_at': invoice.slipSubmittedAt!.toIso8601String(),
       'status': invoice.status.name,
     }).eq('id', invoice.id);
     notifications.insert(
@@ -1026,12 +1071,9 @@ class _TenantInvoicePageState extends State<TenantInvoicePage> {
     try {
       final selected = await pickPaymentProof();
       if (selected == null || !mounted) return;
-      if (selected.bytes.length > 10 * 1024 * 1024) {
-        setState(() => error = 'Payment proof must be 10 MB or smaller.');
-        return;
-      }
+      final prepared = _preparePaymentProof(selected);
       setState(() {
-        proof = selected;
+        proof = prepared;
         error = null;
       });
     } catch (exception) {
@@ -1044,13 +1086,31 @@ class _TenantInvoicePageState extends State<TenantInvoicePage> {
       setState(() => error = 'Attach your payment proof before submitting.');
       return;
     }
+    final paid = double.tryParse(
+      amount.text.replaceAll(RegExp(r'[^0-9.]'), ''),
+    );
+    final paidOn = _parseShortDate(paymentDate.text);
+    if (paid == null || paid <= 0) {
+      setState(() => error = 'Enter a valid amount paid.');
+      return;
+    }
+    if (paidOn == null) {
+      setState(() => error = 'Enter the payment date as DD/MM/YYYY.');
+      return;
+    }
     setState(() {
       submitting = true;
       error = null;
     });
     try {
       await store.submitSlip(
-          invoice, proof!.name, Uint8List.fromList(proof!.bytes));
+        invoice,
+        proof!.name,
+        Uint8List.fromList(proof!.bytes),
+        amountPaid: paid,
+        paymentDate: paidOn,
+        paymentReference: reference.text,
+      );
     } catch (exception) {
       if (mounted) setState(() => error = 'Upload failed: $exception');
     } finally {
@@ -1299,7 +1359,7 @@ class _InvoiceSettlementView extends StatelessWidget {
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w800),
                                 ),
-                                const Text('JPG, PNG or PDF · up to 10 MB',
+                                const Text('JPG, PNG or PDF · maximum 2 MB',
                                     style: TextStyle(
                                         color: _secondary, fontSize: 12)),
                               ],
@@ -1446,11 +1506,26 @@ class _InvoicePortalSummary extends StatelessWidget {
           _PortalCharge('Monthly rent', invoice.tenant.rent),
           _PortalCharge('Water', invoice.tenant.water),
           _PortalCharge('Internet', invoice.tenant.internet),
-          _PortalCharge('Electricity · ${invoice.usage.toStringAsFixed(2)} kWh',
+          _PortalCharge('General electricity', invoice.generalElectricAmount),
+          _PortalCharge(
+              'Air-con electricity · ${invoice.usage.toStringAsFixed(2)} kWh',
               invoice.electricity),
+          _PortalCharge('Parking rental', invoice.parkingRentalAmount),
           const Divider(height: 30, color: Color(0x55FFFFFF)),
           TextButton.icon(
-            onPressed: () => showInvoicePdfPreview(context, invoice),
+            onPressed: () async {
+              final pdfPath = invoice.pdfPath;
+              if (pdfPath != null && pdfPath.isNotEmpty) {
+                await launchUrl(
+                  Uri.parse(RentFlowScope.of(context).publicFileUrl(pdfPath)),
+                  mode: LaunchMode.externalApplication,
+                );
+                return;
+              }
+              if (context.mounted) {
+                await showInvoicePdfPreview(context, invoice);
+              }
+            },
             icon: const Icon(Icons.description_outlined),
             label: const Text('Download invoice PDF'),
             style: TextButton.styleFrom(foregroundColor: Colors.white),
@@ -1884,13 +1959,23 @@ Future<void> shareEmail(RentalInvoice invoice, Uri link) async {
   ));
 }
 
+String invoiceWhatsAppMessage(
+  RentalInvoice invoice,
+  Uri link, {
+  Uri? pdfLink,
+}) =>
+    'Hi ${invoice.tenant.name}, your ${invoice.period} rental invoice is ready. Amount due: ${rm(invoice.total)}.\n\nOpen the secure payment portal and upload your payment slip:\n$link${pdfLink == null ? '' : '\n\nDownload your PDF invoice:\n$pdfLink'}';
+
 Future<void> shareWhatsApp(
   RentalInvoice invoice,
   Uri link, {
   Uri? pdfLink,
 }) async {
-  final message =
-      'Hi ${invoice.tenant.name}, your ${invoice.period} rental invoice is ready. Amount due: ${rm(invoice.total)}.\n\nOpen the secure payment portal and upload your payment slip:\n$link${pdfLink == null ? '' : '\n\nDownload your PDF invoice:\n$pdfLink'}';
+  final message = invoiceWhatsAppMessage(
+    invoice,
+    link,
+    pdfLink: pdfLink,
+  );
   final whatsappPhone = invoice.tenant.phone.replaceAll(RegExp(r'\D'), '');
   final uri = Uri.parse(
       'https://wa.me/$whatsappPhone?text=${Uri.encodeComponent(message)}');
@@ -1916,14 +2001,84 @@ Future<void> uploadSlip(BuildContext context, RentalInvoice invoice) async {
   if (result == null || !context.mounted) return;
   final file = result.files.single;
   if (file.bytes == null) return;
-  await RentFlowScope.of(context).submitSlip(invoice, file.name, file.bytes!);
+  final prepared = _preparePaymentProof(
+    PickedImageData(name: file.name, bytes: file.bytes!),
+  );
+  await RentFlowScope.of(context).submitSlip(
+    invoice,
+    prepared.name,
+    Uint8List.fromList(prepared.bytes),
+    amountPaid: invoice.total,
+    paymentDate: DateTime.now(),
+  );
+}
+
+const int _paymentProofMaxBytes = 2 * 1024 * 1024;
+
+PickedImageData _preparePaymentProof(PickedImageData selected) {
+  if (selected.bytes.length <= _paymentProofMaxBytes) return selected;
+  if (selected.name.toLowerCase().endsWith('.pdf')) {
+    throw StateError('Payment proof PDF must be smaller than 2 MB.');
+  }
+  final decoded = img.decodeImage(Uint8List.fromList(selected.bytes));
+  if (decoded == null) {
+    throw StateError(
+      'This picture could not be compressed. Please choose JPG or PNG.',
+    );
+  }
+  var working = decoded;
+  const maximumSide = 1800;
+  final longest = math.max(working.width, working.height);
+  if (longest > maximumSide) {
+    working = img.copyResize(
+      working,
+      width: working.width >= working.height ? maximumSide : null,
+      height: working.height > working.width ? maximumSide : null,
+      interpolation: img.Interpolation.linear,
+    );
+  }
+  Uint8List output = Uint8List(0);
+  for (final quality in <int>[82, 72, 62, 52, 42]) {
+    output = Uint8List.fromList(img.encodeJpg(working, quality: quality));
+    if (output.length <= _paymentProofMaxBytes) break;
+  }
+  if (output.length > _paymentProofMaxBytes) {
+    throw StateError(
+      'This picture is still above 2 MB after compression. Choose a smaller photo.',
+    );
+  }
+  final dot = selected.name.lastIndexOf('.');
+  final base = dot > 0 ? selected.name.substring(0, dot) : selected.name;
+  return PickedImageData(name: '$base-compressed.jpg', bytes: output);
+}
+
+DateTime? _parseShortDate(String input) {
+  final parts = input.trim().split('/');
+  if (parts.length != 3) return null;
+  final day = int.tryParse(parts[0]);
+  final month = int.tryParse(parts[1]);
+  final year = int.tryParse(parts[2]);
+  if (day == null || month == null || year == null) return null;
+  final value = DateTime(year, month, day);
+  if (value.year != year || value.month != month || value.day != day) {
+    return null;
+  }
+  return value;
 }
 
 Future<Uint8List> invoicePdf(RentalInvoice invoice) async {
   final evidence = _prepareEvidenceForPdf(invoice.evidenceBytes);
+  final fontData = await rootBundle.load('assets/fonts/Manrope-Variable.ttf');
+  final font = pw.Font.ttf(fontData);
+  final theme = pw.ThemeData.withFont(
+    base: font,
+    bold: font,
+    italic: font,
+    boldItalic: font,
+  );
   final doc = pw.Document();
-  doc.addPage(_noticePage(invoice));
-  doc.addPage(_evidencePage(invoice, evidence));
+  doc.addPage(_noticePage(invoice, theme));
+  doc.addPage(_evidencePage(invoice, evidence, theme));
   return doc.save();
 }
 
@@ -1950,7 +2105,7 @@ Uint8List? _prepareEvidenceForPdf(Uint8List? source) {
   }
 }
 
-pw.Page _noticePage(RentalInvoice invoice) {
+pw.Page _noticePage(RentalInvoice invoice, pw.ThemeData theme) {
   final navy = PdfColor.fromHex('#17233C');
   final muted = PdfColor.fromHex('#62708A');
   final line = PdfColor.fromHex('#CCD6E5');
@@ -1959,6 +2114,7 @@ pw.Page _noticePage(RentalInvoice invoice) {
   final green = PdfColor.fromHex('#167457');
   return pw.Page(
     pageFormat: PdfPageFormat.a4,
+    theme: theme,
     margin: const pw.EdgeInsets.fromLTRB(50, 24, 50, 26),
     build: (_) => pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -2144,12 +2300,17 @@ pw.Page _noticePage(RentalInvoice invoice) {
   );
 }
 
-pw.Page _evidencePage(RentalInvoice invoice, Uint8List? evidenceBytes) {
+pw.Page _evidencePage(
+  RentalInvoice invoice,
+  Uint8List? evidenceBytes,
+  pw.ThemeData theme,
+) {
   final navy = PdfColor.fromHex('#17233C');
   final muted = PdfColor.fromHex('#62708A');
   final line = PdfColor.fromHex('#CCD6E5');
   return pw.Page(
     pageFormat: PdfPageFormat.a4,
+    theme: theme,
     margin: const pw.EdgeInsets.fromLTRB(50, 24, 50, 26),
     build: (_) =>
         pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
