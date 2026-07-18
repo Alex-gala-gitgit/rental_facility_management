@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
@@ -27,5 +28,7 @@ Future<void> downloadBytesFile({
   html.document.body?.append(anchor);
   anchor.click();
   anchor.remove();
-  html.Url.revokeObjectUrl(url);
+  // Safari may still be reading the blob after the synthetic click returns.
+  // Releasing it immediately can cancel the download on iPhone/iPad.
+  Timer(const Duration(minutes: 2), () => html.Url.revokeObjectUrl(url));
 }

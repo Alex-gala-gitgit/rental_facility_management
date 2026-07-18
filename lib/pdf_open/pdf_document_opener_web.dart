@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
 
@@ -12,11 +12,12 @@ Future<void> openPdfDocument({
   try {
     final bytes = await build();
     if (bytes.isEmpty) throw StateError('The generated PDF is empty.');
-    final blob = html.Blob(<Object>[bytes], 'application/pdf');
-    final url = html.Url.createObjectUrlFromBlob(blob);
-
-    previewWindow.location.href = url;
-    Timer(const Duration(minutes: 2), () => html.Url.revokeObjectUrl(url));
+    // Do not navigate the new tab to a blob URL. On iOS Safari the blob can
+    // belong to the opener's WebKit process and become unavailable in the new
+    // tab, which surfaces as WebKitBlobResource error 1. Generated invoices
+    // are small enough to hand off as an in-memory PDF data URL instead.
+    final dataUrl = 'data:application/pdf;base64,${base64Encode(bytes)}';
+    previewWindow.location.href = dataUrl;
   } catch (_) {
     previewWindow.close();
     rethrow;
