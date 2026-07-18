@@ -3,6 +3,18 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(self), microphone=(), geolocation=()
 
+/
+  Cache-Control: no-store, no-cache, must-revalidate
+
+/index.html
+  Cache-Control: no-store, no-cache, must-revalidate
+
+/main.dart.js
+  Cache-Control: no-store, no-cache, must-revalidate
+
+/flutter.js
+  Cache-Control: no-store, no-cache, must-revalidate
+
 /manifest.json
   Cache-Control: public, max-age=3600
 

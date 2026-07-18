@@ -12,7 +12,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../file_upload/payment_proof_picker.dart';
-import '../pdf_open/pdf_document_opener.dart';
 
 const _blue = Color(0xFF2563EB);
 const _sky = Color(0xFF38BDF8);
@@ -2583,9 +2582,90 @@ Future<void> showInvoicePdfPreview(
   RentalInvoice invoice,
 ) async {
   try {
-    await openPdfDocument(
-      fileName: '${invoice.id}.pdf',
-      build: () => invoicePdf(invoice),
+    await showDialog<void>(
+      context: context,
+      builder: (previewContext) {
+        final compact = MediaQuery.sizeOf(previewContext).width < 700;
+        return Dialog(
+          insetPadding: compact
+              ? EdgeInsets.zero
+              : const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(compact ? 0 : 24),
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 900,
+              maxHeight: MediaQuery.sizeOf(previewContext).height,
+            ),
+            child: Column(
+              children: [
+                SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 6, 12, 6),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          tooltip: 'Close preview',
+                          onPressed: () => Navigator.pop(previewContext),
+                          icon: const Icon(Icons.chevron_left_rounded),
+                        ),
+                        const SizedBox(width: 2),
+                        Expanded(
+                          child: Text(
+                            '${invoice.id}.pdf',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Close preview',
+                          onPressed: () => Navigator.pop(previewContext),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: PdfPreview(
+                    build: (_) => invoicePdf(invoice),
+                    initialPageFormat: PdfPageFormat.a4,
+                    pdfFileName: '${invoice.id}.pdf',
+                    useActions: false,
+                    allowPrinting: false,
+                    allowSharing: false,
+                    canChangePageFormat: false,
+                    canChangeOrientation: false,
+                    canDebug: false,
+                    dynamicLayout: false,
+                    maxPageWidth: 760,
+                    loadingWidget: const Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                    onError: (errorContext, error) => Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'The invoice preview could not be displayed. $error',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   } catch (error) {
     if (!context.mounted) return;
