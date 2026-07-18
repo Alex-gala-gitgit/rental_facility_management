@@ -100,9 +100,14 @@
       // workers can keep an iPhone on a stale build after a production update.
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          registrations.forEach(function(registration) {
-            registration.unregister();
-          });
+          return Promise.all(registrations.map(function(registration) {
+            return registration.unregister();
+          }));
+        }).then(function() {
+          return navigator.serviceWorker.register(
+            'flutter_service_worker_recovery.js',
+            { scope: './' }
+          );
         });
       }
       if ('caches' in window) {
