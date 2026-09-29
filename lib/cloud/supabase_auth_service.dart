@@ -1,17 +1,42 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'supabase_config.dart';
+
 class CloudProfile {
   const CloudProfile({
     required this.id,
     required this.email,
     required this.fullName,
     required this.role,
+    this.guidedTours = const {},
   });
 
   final String id;
   final String email;
   final String fullName;
   final String role;
+  final Map<String, dynamic> guidedTours;
+
+  bool hasSeenGuidedTour(String tourKey) => guidedTours.containsKey(tourKey);
+
+  CloudProfile withGuidedTour({
+    required String tourKey,
+    required String status,
+  }) {
+    return CloudProfile(
+      id: id,
+      email: email,
+      fullName: fullName,
+      role: role,
+      guidedTours: {
+        ...guidedTours,
+        tourKey: {
+          'status': status,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        },
+      },
+    );
+  }
 }
 
 class SupabaseAuthService {
@@ -27,7 +52,7 @@ class SupabaseAuthService {
     if (user == null) return null;
     final row = await client
         .from('profiles')
-        .select('id, email, full_name, role')
+        .select('id, email, full_name, role, guided_tours')
         .eq('id', user.id)
         .maybeSingle();
     if (row == null) return null;
@@ -36,7 +61,36 @@ class SupabaseAuthService {
       email: row['email'] as String? ?? user.email ?? '',
       fullName: row['full_name'] as String? ?? 'User',
       role: row['role'] as String? ?? 'tenant',
+      guidedTours: row['guided_tours'] is Map
+          ? Map<String, dynamic>.from(row['guided_tours'] as Map)
+          : const {},
     );
+  }
+
+  Future<void> saveGuidedTourProgress({
+    required String tourKey,
+    required String status,
+  }) async {
+    final user = client.auth.currentUser;
+    if (user == null) throw const AuthException('Please sign in again.');
+    if (status != 'completed' && status != 'skipped') {
+      throw ArgumentError.value(status, 'status', 'Unsupported tour status.');
+    }
+    final row = await client
+        .from('profiles')
+        .select('guided_tours')
+        .eq('id', user.id)
+        .single();
+    final existing = row['guided_tours'] is Map
+        ? Map<String, dynamic>.from(row['guided_tours'] as Map)
+        : <String, dynamic>{};
+    existing[tourKey] = {
+      'status': status,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    };
+    await client
+        .from('profiles')
+        .update({'guided_tours': existing}).eq('id', user.id);
   }
 
   Future<CloudProfile> signIn({
@@ -66,6 +120,7 @@ class SupabaseAuthService {
     final response = await client.auth.signUp(
       email: email.trim(),
       password: password,
+      emailRedirectTo: SupabaseConfig.authRedirectUrl,
       data: {
         'full_name': fullName.trim(),
         'role': role,
@@ -78,12 +133,18 @@ class SupabaseAuthService {
     await client.auth.resetPasswordForEmail(email.trim());
   }
 
+  Future<void> requestEmailChange(String email) async {
+    await client.auth.updateUser(
+      UserAttributes(email: email.trim().toLowerCase()),
+    );
+  }
+
   Future<void> inviteTenant({
     required String email,
     required String fullName,
   }) async {
     final response = await client.functions.invoke(
-      'smart-api',
+      'invite-tenant',
       body: {
         'email': email.trim().toLowerCase(),
         'fullName': fullName.trim(),

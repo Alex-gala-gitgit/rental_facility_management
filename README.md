@@ -1,4 +1,4 @@
-# Rental Facility Manager
+# HomeOps360
 
 A Flutter prototype for a rental management app with two roles:
 
@@ -14,6 +14,10 @@ cd "C:\Users\User\Documents\Codex\2026-06-16\rental management\rental_facility_m
 flutter pub get
 flutter run
 ```
+
+The Splitz group-bill experience is available in the web build at `/splitz/`.
+It supports multiple contributors per item, equal participant splitting, and
+optimized net settlements across multiple items.
 
 If platform folders are missing because `flutter create` did not finish, run this inside the project folder:
 

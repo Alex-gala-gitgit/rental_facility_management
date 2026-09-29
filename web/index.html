@@ -18,21 +18,31 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="RentFlow property billing, invoices and tenant payment tracking.">
-  <meta name="theme-color" content="#007AFF">
+  <meta name="description" content="HomeOps360 property billing, invoices and tenant payment tracking.">
+  <meta name="theme-color" content="#2E6BFF">
+  <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
   <!-- iOS meta tags & icons -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="RentFlow">
+  <meta name="apple-mobile-web-app-title" content="HomeOps360">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>RentFlow</title>
+  <title>HomeOps360</title>
   <link rel="manifest" href="manifest.json">
+  <script>
+    if (window.location.pathname.toLowerCase().replace(/\/+$/, '') === '/splitz') {
+      document.title = 'Splitz | HomeOps360';
+      const description = document.querySelector('meta[name="description"]');
+      if (description) {
+        description.setAttribute('content', 'Splitz makes multi-payer, multi-item group bills easy to calculate and settle.');
+      }
+    }
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script>
     window.readMeterText = async function(dataUrl) {
@@ -84,6 +94,7 @@
       return 'FOCUSED READING\n' + (focused.data.text || '') +
         '\nFULL CONTEXT\n' + (broad.data.text || '');
     };
+
   </script>
 
   <script>
@@ -95,9 +106,21 @@
 </head>
 <body>
   <script>
+    // Replace any older Flutter service worker that may keep WhatsApp or
+    // iOS Safari on a previous tenant-portal release.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .register('/flutter_service_worker_recovery.js', { scope: '/' })
+        .catch(function() {});
+    }
+
     window.addEventListener('load', function(ev) {
       // Download main.dart.js
       _flutter.loader.loadEntrypoint({
+        // The injected service-worker version also acts as a CDN cache key.
+        // This prevents the custom domain from retaining a previous release's
+        // unversioned main.dart.js after a successful Pages deployment.
+        entrypointUrl: '/main.dart.js?v=' + serviceWorkerVersion,
         onEntrypointLoaded: function(engineInitializer) {
           engineInitializer.initializeEngine().then(function(appRunner) {
             appRunner.runApp();

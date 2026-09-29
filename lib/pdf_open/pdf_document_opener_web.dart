@@ -23,3 +23,24 @@ Future<void> openPdfDocument({
     rethrow;
   }
 }
+
+Future<void> openIssuedPdfDocument({
+  required String fileName,
+  required Future<Uri> Function() resolveUrl,
+  required Future<Uint8List> Function() build,
+}) async {
+  // Keep this synchronous with the button press so mobile Safari permits the
+  // new tab. Navigate to the signed HTTPS URL directly; Safari may leave
+  // asynchronously generated data/blob PDF URLs stuck at about:blank.
+  final previewWindow = html.window.open('about:blank', '_blank');
+  try {
+    final uri = await resolveUrl();
+    if (uri.scheme != 'https') {
+      throw StateError('The invoice PDF link is invalid.');
+    }
+    previewWindow.location.href = uri.toString();
+  } catch (_) {
+    previewWindow.close();
+    rethrow;
+  }
+}

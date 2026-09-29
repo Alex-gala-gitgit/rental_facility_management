@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>HomeOps360 — Start Free, Customize Your Property Operations</title>
+  <meta name="description" content="Start HomeOps360 free, customize it for your property workflow, connect Xiaomi Home and Tuya, and add meter-reading hardware installation.">
+  <meta property="og:title" content="HomeOps360 — Property operations around you">
+  <meta property="og:description" content="Start free. Customize your workflow. Connect Xiaomi Home, Tuya and meter-reading hardware.">
+  <meta name="theme-color" content="#225ee8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --blue: #2e6bff;
+      --blue-deep: #1648c7;
+      --teal: #10c8b0;
+      --ink: #0e1b33;
+      --muted: #5c6880;
+      --line: #dfe6f2;
+      --wash: #f5f8ff;
+      --card: #15233f;
+      --orange: #ff9f32;
+      --purple: #795cff;
+      --shadow: 0 22px 60px rgba(31, 70, 146, .14);
+      --brand-icon: url("data:image/png;base64,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");
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: #fff;
+      font-family: Inter, system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+    a { color: inherit; text-decoration: none; }
+    button, input, select, textarea { font: inherit; }
+    h1, h2, h3, .brand, .button { font-family: "Space Grotesk", sans-serif; }
+    .wrap { width: min(1180px, calc(100% - 40px)); margin-inline: auto; }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(255,255,255,.88);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(223,230,242,.72);
+    }
+    .nav {
+      min-height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 28px;
+    }
+    .logo { display: inline-flex; align-items: center; gap: 10px; }
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      flex: 0 0 auto;
+      border-radius: 9px;
+      background: var(--brand-icon) center / cover no-repeat;
+    }
+    .brand { font-size: 21px; font-weight: 700; letter-spacing: -.03em; }
+    .brand b { color: var(--blue); }
+    .nav-links { display: flex; align-items: center; gap: 28px; }
+    .nav-links > a:not(.button) { color: var(--muted); font-size: 14px; font-weight: 600; }
+    .nav-actions { display: flex; align-items: center; gap: 10px; }
+    .admin-login {
+      min-height: 42px;
+      padding-inline: 16px;
+      gap: 8px;
+      color: var(--ink);
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .admin-login:hover, .admin-login:focus-visible {
+      color: var(--blue-deep);
+      border-color: var(--blue);
+      box-shadow: 0 8px 20px rgba(46,107,255,.12);
+      outline: none;
+    }
+    .admin-login svg { width: 17px; height: 17px; flex: 0 0 auto; }
+    .lang-switch {
+      min-width: 86px;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .lang-switch:hover, .lang-switch:focus-visible { border-color: var(--blue); outline: none; }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 23px;
+      border: 0;
+      border-radius: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+    }
+    .button:hover { transform: translateY(-2px); }
+    .button.primary {
+      color: #fff;
+      background: linear-gradient(135deg, var(--blue), var(--blue-deep));
+      box-shadow: 0 12px 28px rgba(46,107,255,.28);
+    }
+    .button.dark { min-height: 42px; padding-inline: 18px; color: #fff; background: var(--ink); }
+    .button.light { color: var(--ink); background: #fff; border: 1px solid var(--line); }
+
+    .hero {
+      min-height: 720px;
+      padding-block: 72px 90px;
+      display: grid;
+      grid-template-columns: 1.04fr .96fr;
+      align-items: center;
+      gap: 44px;
+    }
+    .hero-copy { position: relative; z-index: 2; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 14px;
+      color: var(--blue-deep);
+      background: #eaf1ff;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 6px rgba(16,200,176,.12); }
+    h1 {
+      margin: 24px 0 22px;
+      max-width: 690px;
+      font-size: clamp(44px, 5.4vw, 72px);
+      line-height: 1.01;
+      letter-spacing: -.045em;
+    }
+    h1 span { color: var(--blue); }
+    .hero-copy > p { max-width: 600px; margin: 0; color: var(--muted); font-size: 18px; line-height: 1.7; }
+    .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+    .free-note { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 22px; color: #738099; font-size: 13px; font-weight: 600; }
+    .free-note span::before { content: "✓"; color: var(--teal); margin-right: 6px; }
+
+    .orbit-stage {
+      position: relative;
+      min-height: 520px;
+      display: grid;
+      place-items: center;
+      isolation: isolate;
+    }
+    .orbit-glow {
+      position: absolute;
+      width: 440px;
+      height: 440px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(224,234,255,.95), rgba(248,250,255,.4) 66%, transparent 67%);
+    }
+    .orbit-ring {
+      position: absolute;
+      width: 350px;
+      height: 350px;
+      border: 1px dashed #b9c9e9;
+      border-radius: 50%;
+      box-shadow: 0 0 0 42px rgba(234,240,255,.45);
+    }
+    .core {
+      position: relative;
+      z-index: 4;
+      width: 150px;
+      height: 150px;
+      display: grid;
+      place-items: center;
+      border-radius: 36px;
+      background: linear-gradient(145deg, var(--blue), var(--teal));
+      box-shadow: 0 24px 50px rgba(46,107,255,.32);
+      animation: core-float 4.8s ease-in-out infinite;
+    }
+    .core-icon {
+      width: 90px;
+      height: 90px;
+      border-radius: 22px;
+      background: var(--brand-icon) center / cover no-repeat;
+    }
+    .orbit-node {
+      position: absolute;
+      z-index: 5;
+      width: 350px;
+      height: 350px;
+      pointer-events: none;
+      animation: orbit-spin 24s linear infinite;
+      animation-delay: calc(var(--index) * -6s);
+    }
+    .orbit-badge {
+      position: absolute;
+      top: -20px;
+      left: 50%;
+      min-width: 118px;
+      min-height: 44px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      border: 1px solid rgba(226,232,244,.9);
+      border-radius: 14px;
+      background: rgba(255,255,255,.96);
+      box-shadow: 0 12px 28px rgba(14,27,51,.12);
+      transform: translateX(-50%);
+      font: 700 13px "Space Grotesk", sans-serif;
+      white-space: nowrap;
+      animation: counter-spin 24s linear infinite;
+      animation-delay: calc(var(--index) * -6s);
+    }
+    .orbit-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--node-color); }
+    @keyframes orbit-spin { to { transform: rotate(360deg); } }
+    @keyframes counter-spin { to { transform: translateX(-50%) rotate(-360deg); } }
+    @keyframes core-float { 50% { transform: translateY(-10px) scale(1.015); } }
+
+    .section { padding: 92px 0; }
+    .section.wash { background: var(--wash); }
+    .section.dark { color: #fff; background: var(--ink); }
+    .section-head { max-width: 760px; margin: 0 auto 46px; text-align: center; }
+    .eyebrow { color: var(--blue); font: 700 12px "Space Grotesk", sans-serif; letter-spacing: .14em; text-transform: uppercase; }
+    .dark .eyebrow { color: #69e5d5; }
+    h2 { margin: 12px 0 14px; font-size: clamp(32px, 4.2vw, 50px); line-height: 1.08; letter-spacing: -.035em; }
+    .section-head p { margin: 0; color: var(--muted); font-size: 17px; line-height: 1.7; }
+    .dark .section-head p { color: #a9b5cc; }
+
+    .value-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+    .value-card { padding: 28px; border: 1px solid #273655; border-radius: 20px; background: var(--card); }
+    .value-icon { width: 46px; height: 46px; display: grid; place-items: center; margin-bottom: 20px; border-radius: 14px; color: #fff; background: rgba(46,107,255,.18); font-size: 22px; }
+    .value-card:nth-child(2) .value-icon { background: rgba(16,200,176,.17); }
+    .value-card:nth-child(3) .value-icon { background: rgba(255,159,50,.17); }
+    .value-card:nth-child(4) .value-icon { background: rgba(121,92,255,.2); }
+    .value-card h3 { margin: 0 0 10px; font-size: 19px; }
+    .value-card p { margin: 0; color: #a9b5cc; font-size: 14px; line-height: 1.65; }
+
+    .integration-grid { display: grid; grid-template-columns: .92fr 1.08fr; gap: 24px; align-items: stretch; }
+    .integration-card, .hardware-card { padding: 38px; border: 1px solid var(--line); border-radius: 24px; background: #fff; box-shadow: var(--shadow); }
+    .platforms { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 26px 0; }
+    .platform { min-height: 96px; display: grid; place-items: center; padding: 16px; border-radius: 18px; background: var(--wash); text-align: center; }
+    .platform strong { font-family: "Space Grotesk", sans-serif; font-size: 17px; }
+    .platform small { display: block; margin-top: 5px; color: var(--muted); }
+    .integration-card p, .hardware-card p { color: var(--muted); line-height: 1.65; }
+    .hardware-card { color: #fff; border-color: transparent; background: linear-gradient(145deg, #17499d, #286eff 58%, #0db8a2); }
+    .hardware-card p { color: rgba(255,255,255,.82); }
+    .hardware-steps { display: grid; gap: 12px; margin-top: 25px; }
+    .hardware-step { display: flex; align-items: flex-start; gap: 12px; padding: 13px; border: 1px solid rgba(255,255,255,.19); border-radius: 14px; background: rgba(255,255,255,.09); }
+    .hardware-step b { min-width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: #fff; color: var(--blue-deep); }
+    .hardware-step span { font-size: 14px; line-height: 1.45; }
+
+    .workflow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; counter-reset: steps; }
+    .step { counter-increment: steps; min-height: 220px; padding: 26px; border: 1px solid var(--line); border-radius: 20px; background: #fff; }
+    .step::before { content: counter(steps, decimal-leading-zero); width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; color: var(--blue); background: #eaf1ff; font: 700 13px "Space Grotesk", sans-serif; }
+    .step h3 { margin: 20px 0 9px; font-size: 18px; }
+    .step p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.65; }
+
+    .inquiry { display: grid; grid-template-columns: .9fr 1.1fr; overflow: hidden; border-radius: 28px; background: var(--ink); box-shadow: var(--shadow); }
+    .inquiry-copy { padding: 48px; color: #fff; background: linear-gradient(150deg, var(--blue), var(--blue-deep)); }
+    .inquiry-copy p { color: rgba(255,255,255,.82); line-height: 1.7; }
+    .inquiry-list { display: grid; gap: 13px; margin-top: 28px; font-size: 14px; }
+    .inquiry-list span::before { content: "✓"; margin-right: 9px; color: #a8fff3; }
+    form { padding: 42px; background: #fff; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    .field { display: grid; gap: 7px; }
+    .field.full { grid-column: 1 / -1; }
+    label { color: var(--ink); font-size: 13px; font-weight: 700; }
+    input, select, textarea { width: 100%; padding: 13px 14px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: var(--wash); outline: none; }
+    textarea { min-height: 110px; resize: vertical; }
+    input:focus, select:focus, textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(46,107,255,.1); }
+    form .button { width: 100%; margin-top: 17px; }
+    .form-note { color: #8490a7; font-size: 12px; line-height: 1.5; text-align: center; }
+
+    footer { padding: 30px 0; border-top: 1px solid var(--line); }
+    .footer-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+    .footer-links { display: flex; gap: 22px; color: var(--muted); font-size: 13px; }
+    .copyright { color: #99a4b7; font-size: 12px; }
+
+    @media (max-width: 980px) {
+      .nav-links > a:not(.button) { display: none; }
+      .hero { grid-template-columns: 1fr; padding-top: 52px; text-align: center; }
+      .hero-copy > p { margin-inline: auto; }
+      .pill { margin-inline: auto; }
+      .cta-row, .free-note { justify-content: center; }
+      .orbit-stage { min-height: 480px; }
+      .value-grid, .workflow { grid-template-columns: repeat(2, 1fr); }
+      .integration-grid, .inquiry { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 620px) {
+      .wrap { width: min(100% - 28px, 1180px); }
+      .nav { min-height: 66px; }
+      .brand { font-size: 18px; }
+      .brand-icon { width: 32px; height: 32px; }
+      .nav-actions .dark { display: none; }
+      .admin-login { width: 42px; padding: 0; }
+      .admin-login-label { display: none; }
+      h1 { font-size: clamp(40px, 13vw, 58px); }
+      .hero { min-height: auto; padding-bottom: 62px; }
+      .orbit-stage { min-height: 390px; }
+      .orbit-glow { width: 320px; height: 320px; }
+      .orbit-ring, .orbit-node { width: 260px; height: 260px; }
+      .core { width: 120px; height: 120px; border-radius: 30px; }
+      .core-icon { width: 72px; height: 72px; }
+      .orbit-badge { min-width: 96px; min-height: 39px; padding-inline: 12px; font-size: 11px; }
+      .section { padding: 70px 0; }
+      .value-grid, .workflow, .platforms, .form-grid { grid-template-columns: 1fr; }
+      .field.full { grid-column: auto; }
+      .integration-card, .hardware-card, .inquiry-copy, form { padding: 28px 22px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .core { animation: none; }
+      .orbit-node, .orbit-badge { animation: none; }
+      .orbit-node { transform: rotate(calc(var(--index) * 90deg)); }
+      .orbit-badge { transform: translateX(-50%) rotate(calc(var(--index) * -90deg)); }
+      .button { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="nav wrap">
+      <a class="logo" href="#top" aria-label="HomeOps360 home">
+        <span class="brand-icon" role="img" aria-label="HomeOps360"></span>
+        <span class="brand">HomeOps<b>360</b></span>
+      </a>
+      <nav class="nav-links" aria-label="Primary navigation">
+        <a href="#benefits" data-i18n="navBenefits">Benefits</a>
+        <a href="#connect" data-i18n="navConnect">Smart home & hardware</a>
+        <a href="#workflow" data-i18n="navHow">How it works</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="button admin-login" href="https://admin.homeops360.app/" aria-label="Admin login" data-i18n-aria-label="adminLogin">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/></svg>
+          <span class="admin-login-label" data-i18n="adminLogin">Admin login</span>
+        </a>
+        <button class="lang-switch" id="language-switch" type="button" aria-label="Switch language">EN | 中文</button>
+        <a class="button dark" href="/" data-i18n="startFree">Start free</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero wrap">
+      <div class="hero-copy">
+        <div class="pill"><span class="pulse"></span><span data-i18n="freeTrial">Free trial · Start without commitment</span></div>
+        <h1 data-i18n-html="heroTitle">Property operations,<br><span>built around you.</span></h1>
+        <p data-i18n="heroBody">Run tenants, billing, utilities and payments in one place. Start free, then customize HomeOps360 around your exact workflow—with Xiaomi Home, Tuya and meter-reading hardware support.</p>
+        <div class="cta-row">
+          <a class="button primary" href="/" data-i18n="freeStart">Free start</a>
+          <a class="button light" href="#inquiry" data-i18n="customizeCta">Customize for my needs</a>
+        </div>
+        <div class="free-note">
+          <span data-i18n="noteNoCard">No credit card to explore</span>
+          <span data-i18n="noteMobile">Mobile & web ready</span>
+          <span data-i18n="noteMalaysia">Designed for Malaysia</span>
+        </div>
+      </div>
+
+      <div class="orbit-stage" aria-label="HomeOps360 connects owners, tenants, agents and technicians">
+        <div class="orbit-glow"></div>
+        <div class="orbit-ring"></div>
+        <div class="core"><span class="core-icon" role="img" aria-label="HomeOps360 app icon"></span></div>
+        <div class="orbit-node" style="--index:0;--node-color:var(--blue)"><div class="orbit-badge"><span class="orbit-dot"></span><span data-i18n="owners">Owners</span></div></div>
+        <div class="orbit-node" style="--index:1;--node-color:var(--teal)"><div class="orbit-badge"><span class="orbit-dot"></span><span data-i18n="tenants">Tenants</span></div></div>
+        <div class="orbit-node" style="--index:2;--node-color:var(--orange)"><div class="orbit-badge"><span class="orbit-dot"></span><span data-i18n="agents">Agents</span></div></div>
+        <div class="orbit-node" style="--index:3;--node-color:var(--purple)"><div class="orbit-badge"><span class="orbit-dot"></span><span data-i18n="technicians">Technicians</span></div></div>
+      </div>
+    </section>
+
+    <section class="section dark" id="benefits">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="eyebrow" data-i18n="benefitsEyebrow">A flexible way to begin</div>
+          <h2 data-i18n="benefitsTitle">Start simple. Grow into exactly what you need.</h2>
+          <p data-i18n="benefitsBody">Use the ready HomeOps360 workflow first, then extend the experience, integrations and on-site hardware as your operation grows.</p>
+        </div>
+        <div class="value-grid">
+          <article class="value-card"><div class="value-icon">◎</div><h3 data-i18n="cardFreeTitle">Try it free</h3><p data-i18n="cardFreeBody">Explore owner and tenant workflows before deciding which custom features your business needs.</p></article>
+          <article class="value-card"><div class="value-icon">✦</div><h3 data-i18n="cardCustomTitle">Customized for you</h3><p data-i18n="cardCustomBody">Adapt roles, approvals, billing logic, reports, branding and property processes to match your team.</p></article>
+          <article class="value-card"><div class="value-icon">⌁</div><h3 data-i18n="cardSmartTitle">Xiaomi Home & Tuya</h3><p data-i18n="cardSmartBody">Bring compatible smart-home devices into a connected property experience with practical automation.</p></article>
+          <article class="value-card"><div class="value-icon">⚡</div><h3 data-i18n="cardMeterTitle">Meter hardware installation</h3><p data-i18n="cardMeterBody">Add supported reading hardware, installation assistance and monthly meter-to-bill workflows.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section wash" id="connect">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="eyebrow" data-i18n="connectEyebrow">Connected property operations</div>
+          <h2 data-i18n="connectTitle">Software, smart home and meter billing—together.</h2>
+          <p data-i18n="connectBody">Choose only what fits your property today. We can scope compatible integrations and hardware based on the building, devices and billing method.</p>
+        </div>
+        <div class="integration-grid">
+          <article class="integration-card">
+            <div class="eyebrow" data-i18n="smartEyebrow">Smart-home ready</div>
+            <h3 data-i18n="smartTitle">Work with the platforms your properties already use</h3>
+            <div class="platforms">
+              <div class="platform"><strong>Xiaomi Home</strong><small data-i18n="xiaomiSmall">Compatible device workflows</small></div>
+              <div class="platform"><strong>Tuya</strong><small data-i18n="tuyaSmall">Smart Life ecosystem support</small></div>
+            </div>
+            <p data-i18n="smartBody">Device availability and automation depend on model, region and API compatibility. We review your actual setup before confirming the integration scope.</p>
+          </article>
+          <article class="hardware-card">
+            <div class="eyebrow" style="color:#bdfbf2" data-i18n="hardwareEyebrow">Meter reading & installation</div>
+            <h3 data-i18n="hardwareTitle">From installed meter hardware to a clear tenant bill</h3>
+            <p data-i18n="hardwareBody">We can include supported sub-meter or reading hardware installation, data capture and the monthly billing workflow as one customized solution.</p>
+            <div class="hardware-steps">
+              <div class="hardware-step"><b>1</b><span data-i18n="hardwareStep1">Site and meter requirement review</span></div>
+              <div class="hardware-step"><b>2</b><span data-i18n="hardwareStep2">Compatible hardware recommendation and installation scope</span></div>
+              <div class="hardware-step"><b>3</b><span data-i18n="hardwareStep3">Reading evidence, tariff calculation and tenant invoice</span></div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="workflow">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="eyebrow" data-i18n="workflowEyebrow">How it works</div>
+          <h2 data-i18n="workflowTitle">A practical path from free trial to your complete system.</h2>
+          <p data-i18n="workflowBody">Begin with the ready platform, identify the workflow gaps, and add only the integrations or hardware that create real value.</p>
+        </div>
+        <div class="workflow">
+          <article class="step"><h3 data-i18n="step1Title">Start free</h3><p data-i18n="step1Body">Explore the core owner and tenant experience with no need to define every requirement upfront.</p></article>
+          <article class="step"><h3 data-i18n="step2Title">Tell us your needs</h3><p data-i18n="step2Body">Share your property type, team roles, billing method, devices and daily operating process.</p></article>
+          <article class="step"><h3 data-i18n="step3Title">Customize the solution</h3><p data-i18n="step3Body">We shape the screens, rules, reports, Xiaomi Home or Tuya connection and access levels around you.</p></article>
+          <article class="step"><h3 data-i18n="step4Title">Install and launch</h3><p data-i18n="step4Body">Where required, include meter hardware installation, setup, training and a controlled rollout.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section wash" id="inquiry">
+      <div class="wrap inquiry">
+        <div class="inquiry-copy">
+          <div class="eyebrow" style="color:#bdfbf2" data-i18n="inquiryEyebrow">Free to start</div>
+          <h2 data-i18n="inquiryTitle">Try HomeOps360, then make it yours.</h2>
+          <p data-i18n="inquiryBody">Tell us what you manage and what you want to improve. We’ll discuss a practical scope based on your needs.</p>
+          <div class="inquiry-list">
+            <span data-i18n="inquiryPoint1">Core platform free trial</span>
+            <span data-i18n="inquiryPoint2">Custom mobile or web workflow</span>
+            <span data-i18n="inquiryPoint3">Xiaomi Home, Tuya and meter hardware assessment</span>
+          </div>
+        </div>
+        <form id="inquiry-form">
+          <input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px">
+          <div class="form-grid">
+            <div class="field"><label for="name" data-i18n="nameLabel">Your name</label><input id="name" name="name" required autocomplete="name" data-i18n-placeholder="namePlaceholder" placeholder="How should we address you?"></div>
+            <div class="field"><label for="company" data-i18n="companyLabel">Company / portfolio</label><input id="company" name="company" autocomplete="organization" data-i18n-placeholder="optional" placeholder="Optional"></div>
+            <div class="field"><label for="phone" data-i18n="phoneLabel">WhatsApp number</label><input id="phone" name="phone" required type="tel" autocomplete="tel" placeholder="+60"></div>
+            <div class="field"><label for="properties" data-i18n="propertyLabel">Number of properties</label><select id="properties" name="properties"><option value="1–5">1–5</option><option value="6–20">6–20</option><option value="21–50">21–50</option><option value="50+" data-i18n="more50">More than 50</option></select></div>
+            <div class="field full"><label for="interest" data-i18n="interestLabel">What are you interested in?</label><select id="interest" name="interest"><option value="Free trial" data-i18n="interestFree">HomeOps360 free trial</option><option value="Customized platform" data-i18n="interestCustom">Customized property platform</option><option value="Xiaomi Home / Tuya" data-i18n="interestSmart">Xiaomi Home / Tuya integration</option><option value="Meter hardware" data-i18n="interestMeter">Meter-reading hardware installation</option><option value="Complete solution" data-i18n="interestComplete">Complete software and hardware solution</option></select></div>
+            <div class="field full"><label for="message" data-i18n="messageLabel">Tell us what you need</label><textarea id="message" name="message" required data-i18n-placeholder="messagePlaceholder" placeholder="Property type, current process, devices or billing challenges…"></textarea></div>
+          </div>
+          <button class="button primary" type="submit" data-i18n="sendWhatsApp">Discuss through WhatsApp</button>
+          <p class="form-note" data-i18n="formNote">WhatsApp opens with your inquiry prepared. Review it before sending.</p>
+          <p class="form-note" id="inquiry-status" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-row wrap">
+      <a class="logo" href="#top"><span class="brand-icon" aria-hidden="true"></span><span class="brand" style="font-size:16px">HomeOps<b>360</b></span></a>
+      <div class="footer-links"><a href="/" data-i18n="openApp">Open app</a><a href="https://admin.homeops360.app/" data-i18n="adminPortal">Admin portal</a><a href="#benefits" data-i18n="navBenefits">Benefits</a><a href="#inquiry" data-i18n="contact">Contact</a></div>
+      <div class="copyright">© 2026 HomeOps360 · Malaysia</div>
+    </div>
+  </footer>
+
+  <script>
+    const copy = {
+      en: {
+        navBenefits:'Benefits', navConnect:'Smart home & hardware', navHow:'How it works', startFree:'Start free', freeTrial:'Free trial · Start without commitment',
+        heroTitle:'Property operations,<br><span>built around you.</span>', heroBody:'Run tenants, billing, utilities and payments in one place. Start free, then customize HomeOps360 around your exact workflow—with Xiaomi Home, Tuya and meter-reading hardware support.', freeStart:'Free start', customizeCta:'Customize for my needs',
+        noteNoCard:'No credit card to explore', noteMobile:'Mobile & web ready', noteMalaysia:'Designed for Malaysia', owners:'Owners', tenants:'Tenants', agents:'Agents', technicians:'Technicians',
+        benefitsEyebrow:'A flexible way to begin', benefitsTitle:'Start simple. Grow into exactly what you need.', benefitsBody:'Use the ready HomeOps360 workflow first, then extend the experience, integrations and on-site hardware as your operation grows.',
+        cardFreeTitle:'Try it free', cardFreeBody:'Explore owner and tenant workflows before deciding which custom features your business needs.', cardCustomTitle:'Customized for you', cardCustomBody:'Adapt roles, approvals, billing logic, reports, branding and property processes to match your team.', cardSmartTitle:'Xiaomi Home & Tuya', cardSmartBody:'Bring compatible smart-home devices into a connected property experience with practical automation.', cardMeterTitle:'Meter hardware installation', cardMeterBody:'Add supported reading hardware, installation assistance and monthly meter-to-bill workflows.',
+        connectEyebrow:'Connected property operations', connectTitle:'Software, smart home and meter billing—together.', connectBody:'Choose only what fits your property today. We can scope compatible integrations and hardware based on the building, devices and billing method.', smartEyebrow:'Smart-home ready', smartTitle:'Work with the platforms your properties already use', xiaomiSmall:'Compatible device workflows', tuyaSmall:'Smart Life ecosystem support', smartBody:'Device availability and automation depend on model, region and API compatibility. We review your actual setup before confirming the integration scope.',
+        hardwareEyebrow:'Meter reading & installation', hardwareTitle:'From installed meter hardware to a clear tenant bill', hardwareBody:'We can include supported sub-meter or reading hardware installation, data capture and the monthly billing workflow as one customized solution.', hardwareStep1:'Site and meter requirement review', hardwareStep2:'Compatible hardware recommendation and installation scope', hardwareStep3:'Reading evidence, tariff calculation and tenant invoice',
+        workflowEyebrow:'How it works', workflowTitle:'A practical path from free trial to your complete system.', workflowBody:'Begin with the ready platform, identify the workflow gaps, and add only the integrations or hardware that create real value.', step1Title:'Start free', step1Body:'Explore the core owner and tenant experience with no need to define every requirement upfront.', step2Title:'Tell us your needs', step2Body:'Share your property type, team roles, billing method, devices and daily operating process.', step3Title:'Customize the solution', step3Body:'We shape the screens, rules, reports, Xiaomi Home or Tuya connection and access levels around you.', step4Title:'Install and launch', step4Body:'Where required, include meter hardware installation, setup, training and a controlled rollout.',
+        inquiryEyebrow:'Free to start', inquiryTitle:'Try HomeOps360, then make it yours.', inquiryBody:'Tell us what you manage and what you want to improve. We’ll discuss a practical scope based on your needs.', inquiryPoint1:'Core platform free trial', inquiryPoint2:'Custom mobile or web workflow', inquiryPoint3:'Xiaomi Home, Tuya and meter hardware assessment',
+        nameLabel:'Your name', namePlaceholder:'How should we address you?', companyLabel:'Company / portfolio', optional:'Optional', phoneLabel:'WhatsApp number', propertyLabel:'Number of properties', more50:'More than 50', interestLabel:'What are you interested in?', interestFree:'HomeOps360 free trial', interestCustom:'Customized property platform', interestSmart:'Xiaomi Home / Tuya integration', interestMeter:'Meter-reading hardware installation', interestComplete:'Complete software and hardware solution', messageLabel:'Tell us what you need', messagePlaceholder:'Property type, current process, devices or billing challenges…', sendWhatsApp:'Discuss through WhatsApp', formNote:'WhatsApp opens with your inquiry prepared. Review it before sending.', openApp:'Open app', adminPortal:'Admin portal', adminLogin:'Admin login', contact:'Contact'
+      },
+      zh: {
+        navBenefits:'优势', navConnect:'智能家居与硬件', navHow:'运作方式', startFree:'免费开始', freeTrial:'免费试用 · 无需承诺即可开始',
+        heroTitle:'房产营运系统，<br><span>围绕您的需求打造。</span>', heroBody:'在一个平台管理租户、账单、水电与付款。先免费开始，再按照您的实际流程定制 HomeOps360，并支持 Xiaomi Home、Tuya 与电表读数硬件。', freeStart:'免费开始', customizeCta:'按我的需求定制',
+        noteNoCard:'体验无需信用卡', noteMobile:'支持手机与网页', noteMalaysia:'专为马来西亚设计', owners:'业主', tenants:'租户', agents:'代理', technicians:'技术人员',
+        benefitsEyebrow:'灵活的开始方式', benefitsTitle:'简单开始，逐步扩展成您真正需要的系统。', benefitsBody:'先使用现成的 HomeOps360 流程，再随着业务发展加入定制体验、整合功能与现场硬件。',
+        cardFreeTitle:'免费试用', cardFreeBody:'先体验业主与租户流程，再决定业务需要哪些定制功能。', cardCustomTitle:'为您定制', cardCustomBody:'按团队需要调整角色、审批、计费逻辑、报表、品牌与房产流程。', cardSmartTitle:'Xiaomi Home 与 Tuya', cardSmartBody:'把兼容的智能家居设备连接到房产管理体验，并加入实用自动化。', cardMeterTitle:'电表硬件安装', cardMeterBody:'加入支持的读数硬件、安装协助及每月从读表到出账的流程。',
+        connectEyebrow:'互联房产营运', connectTitle:'软件、智能家居与电表计费，连接在一起。', connectBody:'只选择目前适合您房产的功能。我们会根据建筑、设备与计费方式评估兼容的整合与硬件。', smartEyebrow:'智能家居就绪', smartTitle:'配合房产正在使用的平台', xiaomiSmall:'兼容设备流程', tuyaSmall:'支持 Smart Life 生态系统', smartBody:'设备与自动化功能取决于型号、地区及 API 兼容性。我们会先检查您的实际设置，再确认整合范围。',
+        hardwareEyebrow:'电表读数与安装', hardwareTitle:'从安装电表硬件到清楚的租户账单', hardwareBody:'定制方案可包括支持的分表或读数硬件安装、数据收集及每月计费流程。', hardwareStep1:'现场与电表需求评估', hardwareStep2:'兼容硬件建议及安装范围', hardwareStep3:'读数凭证、费率计算与租户账单',
+        workflowEyebrow:'运作方式', workflowTitle:'从免费试用到完整系统的实际路径。', workflowBody:'先使用现成平台，找出流程缺口，再加入真正带来价值的整合或硬件。', step1Title:'免费开始', step1Body:'先体验核心业主与租户功能，无需一开始就定义所有需求。', step2Title:'告诉我们您的需求', step2Body:'分享房产类型、团队角色、计费方式、设备及日常营运流程。', step3Title:'定制解决方案', step3Body:'我们围绕您设计界面、规则、报表、Xiaomi Home 或 Tuya 连接及权限。', step4Title:'安装并启用', step4Body:'按需要包括电表硬件安装、系统设置、培训及分阶段上线。',
+        inquiryEyebrow:'免费开始', inquiryTitle:'先试用 HomeOps360，再把它变成您的系统。', inquiryBody:'告诉我们您管理什么，以及希望改善什么。我们会按照需求讨论实际范围。', inquiryPoint1:'核心平台免费试用', inquiryPoint2:'定制手机或网页流程', inquiryPoint3:'Xiaomi Home、Tuya 与电表硬件评估',
+        nameLabel:'您的姓名', namePlaceholder:'我们应该如何称呼您？', companyLabel:'公司／房产组合', optional:'选填', phoneLabel:'WhatsApp 号码', propertyLabel:'房产数量', more50:'超过 50 个', interestLabel:'您对什么感兴趣？', interestFree:'HomeOps360 免费试用', interestCustom:'定制房产管理平台', interestSmart:'Xiaomi Home／Tuya 整合', interestMeter:'电表读数硬件安装', interestComplete:'完整软件与硬件方案', messageLabel:'告诉我们您的需求', messagePlaceholder:'房产类型、现有流程、设备或计费难题…', sendWhatsApp:'通过 WhatsApp 洽谈', formNote:'系统会打开 WhatsApp 并准备咨询内容，您可检查后再发送。', openApp:'打开应用', adminPortal:'管理后台', adminLogin:'管理员登录', contact:'联系'
+      }
+    };
+
+    let language = localStorage.getItem('homeops-customize-language') === 'zh' ? 'zh' : 'en';
+    const languageSwitch = document.getElementById('language-switch');
+
+    function applyLanguage() {
+      const dictionary = copy[language];
+      document.documentElement.lang = language === 'zh' ? 'zh-Hans' : 'en';
+      document.title = language === 'zh' ? 'HomeOps360 — 免费开始，按需求定制房产营运' : 'HomeOps360 — Start Free, Customize Your Property Operations';
+      document.querySelectorAll('[data-i18n]').forEach((element) => {
+        const value = dictionary[element.dataset.i18n];
+        if (value) element.textContent = value;
+      });
+      document.querySelectorAll('[data-i18n-html]').forEach((element) => {
+        const value = dictionary[element.dataset.i18nHtml];
+        if (value) element.innerHTML = value;
+      });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach((element) => {
+        const value = dictionary[element.dataset.i18nPlaceholder];
+        if (value) element.placeholder = value;
+      });
+      document.querySelectorAll('[data-i18n-aria-label]').forEach((element) => {
+        const value = dictionary[element.dataset.i18nAriaLabel];
+        if (value) element.setAttribute('aria-label', value);
+      });
+      languageSwitch.textContent = language === 'zh' ? '中文 | EN' : 'EN | 中文';
+      languageSwitch.setAttribute('aria-label', language === 'zh' ? '切换至英文' : 'Switch to Chinese');
+      localStorage.setItem('homeops-customize-language', language);
+    }
+
+    languageSwitch.addEventListener('click', () => {
+      language = language === 'en' ? 'zh' : 'en';
+      applyLanguage();
+    });
+
+    document.getElementById('inquiry-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(event.currentTarget);
+      const selectedInterest = event.currentTarget.elements.interest.selectedOptions[0].textContent;
+      const button = event.currentTarget.querySelector('button[type="submit"]');
+      const status = document.getElementById('inquiry-status');
+      const message = language === 'zh' ? [
+        '您好 HomeOps360，我想了解定制房产管理方案。', '',
+        `姓名：${data.get('name')}`,
+        `公司／房产组合：${data.get('company') || '未提供'}`,
+        `WhatsApp：${data.get('phone')}`,
+        `房产数量：${data.get('properties')}`,
+        `感兴趣的方案：${selectedInterest}`, '',
+        `需求：${data.get('message')}`
+      ] : [
+        'Hello HomeOps360, I would like to discuss a customized property-management solution.', '',
+        `Name: ${data.get('name')}`,
+        `Company / portfolio: ${data.get('company') || 'Not provided'}`,
+        `WhatsApp: ${data.get('phone')}`,
+        `Properties: ${data.get('properties')}`,
+        `Interest: ${selectedInterest}`, '',
+        `Requirement: ${data.get('message')}`
+      ];
+      const whatsapp = window.open('', '_blank');
+      button.disabled = true;
+      status.textContent = language === 'zh' ? '正在保存您的咨询…' : 'Saving your inquiry…';
+      try {
+        const isUat = location.hostname.endsWith('pages.dev') || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+        const project = isUat ? 'yvyvbjtgfmpvvbnmzinq' : 'poftsyskfuyeznbzxpow';
+        const response = await fetch(`https://${project}.supabase.co/functions/v1/customize-request`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: data.get('name'), company: data.get('company'), phone: data.get('phone'),
+            propertyCount: data.get('properties'), interest: data.get('interest'),
+            message: data.get('message'), language, sourcePath: location.pathname,
+            website: data.get('website')
+          })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || 'The inquiry could not be saved.');
+        const whatsappUrl = `https://wa.me/60165666878?text=${encodeURIComponent(message.join('\n'))}`;
+        if (whatsapp) whatsapp.location.href = whatsappUrl;
+        else window.location.href = whatsappUrl;
+        status.textContent = language === 'zh' ? '咨询已保存，正在打开 WhatsApp。' : 'Inquiry saved. Opening WhatsApp.';
+      } catch (error) {
+        if (whatsapp) whatsapp.close();
+        status.textContent = language === 'zh' ? `无法保存：${error.message}` : `Could not save: ${error.message}`;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    applyLanguage();
+  </script>
+</body>
+</html>

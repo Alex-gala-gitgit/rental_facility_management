@@ -8,7 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
 const _updateManifestUrl =
-    'https://facility-billing-management.pages.dev/updates/version.json';
+    'https://homeops360.app/updates/version.json';
 
 class AppUpdateInfo {
   const AppUpdateInfo({

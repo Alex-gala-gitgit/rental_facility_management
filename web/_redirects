@@ -1,1 +1,6 @@
+/customize /assets/web/customize/index.html 200
+/customize/ /assets/web/customize/index.html 200
+/splitz /index.html 200
+/splitz/ /index.html 200
+/splitz/* /index.html 200
 /* /index.html 200

@@ -1,6 +1,7 @@
 import 'persistence_contract.dart';
 
-Future<AppPersistence> createPersistence() async => MemoryPersistence();
+Future<AppPersistence> createPersistence(String namespace) async =>
+    MemoryPersistence();
 
 class MemoryPersistence implements AppPersistence {
   String? _snapshot;

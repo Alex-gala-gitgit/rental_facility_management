@@ -3,7 +3,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'persistence_contract.dart';
 
-Future<AppPersistence> createPersistence() async {
+Future<AppPersistence> createPersistence(String namespace) async {
   sqfliteFfiInit();
   final databaseFactory = databaseFactoryFfi;
   final databasePath = path.join(
@@ -26,13 +26,14 @@ Future<AppPersistence> createPersistence() async {
       },
     ),
   );
-  return SqlitePersistence(database, databasePath);
+  return SqlitePersistence(database, databasePath, namespace);
 }
 
 class SqlitePersistence implements AppPersistence {
-  SqlitePersistence(this._database, this.databasePath);
+  SqlitePersistence(this._database, this.databasePath, String namespace)
+      : _stateKey = 'rental_store_$namespace';
 
-  static const _stateKey = 'rental_store';
+  final String _stateKey;
   final Database _database;
   final String databasePath;
 

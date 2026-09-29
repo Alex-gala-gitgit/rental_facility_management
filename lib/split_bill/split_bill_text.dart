@@ -1,0 +1,93 @@
+import 'split_bill_store.dart';
+
+class SplitBillText {
+  const SplitBillText(this.language);
+
+  final SplitBillLanguage language;
+
+  bool get isChinese => language == SplitBillLanguage.chinese;
+
+  String call(String english) =>
+      isChinese ? (_chinese[english] ?? english) : english;
+
+  static const _chinese = <String, String>{
+    'Splitz': 'Splitz 分账',
+    'No login · saved on this device': '无需登录 · 已保存在本设备',
+    'Bills': '账单',
+    'Add': '添加',
+    'Balances': '余额',
+    'Settle': '结算',
+    'Events': '活动',
+    'Add bill': '添加账单',
+    'Add person': '添加成员',
+    'Share event': '分享活动',
+    'Share transaction': '分享交易',
+    'No active event': '没有进行中的活动',
+    'Create an event before adding people and bills.': '创建活动后即可添加成员和账单。',
+    'Create event': '创建活动',
+    'Event name': '活动名称',
+    'Your name on this device': '你在此设备上的名称',
+    'Cancel': '取消',
+    'Create': '创建',
+    'Active': '进行中',
+    'Settled': '已结清',
+    'Open': '打开',
+    'View': '查看',
+    'people': '人',
+    'bills': '笔账单',
+    'Group spending': '活动总支出',
+    'You paid': '你已支付',
+    "You'll receive": '你将收回',
+    'You need to pay': '你需要支付',
+    "You're settled": '你已结清',
+    'No bills yet': '暂无账单',
+    'Add the first bill for this event.': '为此活动添加第一笔账单。',
+    'Paid by': '付款人',
+    'Who paid and how much': '谁付款以及各自金额',
+    'Paid total': '付款合计',
+    'Amounts match': '金额一致',
+    'Must equal the bill amount': '必须等于账单金额',
+    'Payer amounts must equal the bill amount.': '付款金额合计必须等于账单金额。',
+    'Added by': '添加者',
+    'Waiting for payer confirmation': '等待付款人确认',
+    'Confirmed': '已确认',
+    'Confirm this bill': '确认此账单',
+    'Description': '账单说明',
+    'Amount (MYR)': '金额（MYR）',
+    'Split with': '参与分摊',
+    'Split method': '分摊方式',
+    'Equal': '平均分摊',
+    'Exact amounts': '指定金额',
+    'Amount owed': '应付金额',
+    'Split total': '分摊合计',
+    'Split amounts must equal the bill amount.': '分摊金额合计必须等于账单金额。',
+    'Select at least one person.': '请至少选择一人。',
+    'Enter a valid amount.': '请输入有效金额。',
+    'Save bill': '保存账单',
+    'Bill saved.': '账单已保存。',
+    'Each person': '每人',
+    'Net balances': '净余额',
+    'gets': '收回',
+    'owes': '需支付',
+    'settled': '已结清',
+    'Who pays whom': '谁付给谁',
+    'No payments are needed.': '无需付款。',
+    'pays': '付款给',
+    'Mark paid': '标记已付款',
+    'Paid': '已付款',
+    'Close event & start new': '关闭活动并开始新活动',
+    'Complete every payment before closing this event.': '请先完成所有付款，再关闭活动。',
+    'This event is closed and read-only.': '此活动已关闭，仅供查看。',
+    'Manage events': '管理活动',
+    'Each event keeps separate people, bills and balances.':
+        '每个活动分别保存成员、账单和余额。',
+    'New event': '新活动',
+    'Person name': '成员名称',
+    'You are': '你的身份',
+    'Choose your name on this device.': '在此设备上选择你的名称。',
+    'Nearby sharing opened.': '已打开附近分享。',
+    'Link copied. Choose Bluetooth or Nearby Share when available.':
+        '链接已复制。可用时请选择蓝牙或附近分享。',
+    'Imported shared data.': '已导入分享的数据。',
+  };
+}

@@ -1,11 +1,12 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { serveMonitored } from '../_shared/api_monitor.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-Deno.serve(async (request) => {
+serveMonitored('invite-tenant', async (request) => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -71,7 +72,7 @@ Deno.serve(async (request) => {
     if (markError) throw markError
 
     const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
-      redirectTo: 'https://facility-billing-management.pages.dev/',
+      redirectTo: 'https://homeops360.app/',
       data: { full_name: fullName, role: 'tenant' },
     })
     if (error) {

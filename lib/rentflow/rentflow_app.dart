@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
@@ -11,17 +12,227 @@ import 'package:printing/printing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../branding/homeops_brand.dart';
+import '../cloud/invoice_portal_service.dart';
+import '../cloud/supabase_config.dart';
 import '../file_upload/payment_proof_picker.dart';
+import '../environment_banner.dart';
+import '../pdf_open/inline_pdf_preview.dart';
 
 const _blue = Color(0xFF2563EB);
 const _sky = Color(0xFF38BDF8);
+const _portalSky = Color(0xFF4EA8EC);
+const _portalBlue = Color(0xFF2E86E0);
+const _portalDeep = Color(0xFF1C67CF);
+
+const _tenantPortalChinese = <String, String>{
+  'Amount due': '应付金额',
+  'Due': '到期日',
+  'Unit': '单位',
+  'Monthly rent': '每月租金',
+  'Water': '水费',
+  'Internet': '网络费',
+  'General electricity': '普通电费',
+  'Air-con electricity': '空调电费',
+  'Electricity': '电费',
+  'Parking rental': '停车位租金',
+  'Download invoice PDF': '下载发票 PDF',
+  'Settle your invoice': '支付您的账单',
+  'Two quick steps — transfer, then attach your slip.': '只需两步：转账，然后上传付款凭证。',
+  'STEP 1 — TRANSFER TO OWNER': '步骤 1 — 转账给业主',
+  'STEP 2 — ATTACH PAY SLIP': '步骤 2 — 上传付款凭证',
+  'Tap to attach your receipt': '点击上传付款凭证',
+  'JPG, PNG or PDF · maximum 2 MB': 'JPG、PNG 或 PDF · 最大 2 MB',
+  'Amount paid': '付款金额',
+  'Date paid': '付款日期',
+  'Payment reference (optional)': '付款参考编号（可选）',
+  'Sending…': '发送中…',
+  'Send payment proof': '发送付款凭证',
+  'Payment QR': '付款二维码',
+  'Tap QR to enlarge': '点击二维码放大',
+  'Not configured': '尚未设置',
+  'Bank': '银行',
+  'Account no.': '银行账号',
+  'Beneficiary': '收款人',
+  'Bank account copied.': '银行账号已复制。',
+  'Attach your payment proof before submitting.': '请先上传付款凭证。',
+  'Enter a valid amount paid.': '请输入有效的付款金额。',
+  'Enter the payment date as DD/MM/YYYY.': '请以 DD/MM/YYYY 格式输入付款日期。',
+  'Upload failed': '上传失败',
+  'Your payment has been confirmed.': '您的付款已确认。',
+  'Payment confirmed': '付款已确认',
+  'Awaiting owner confirmation': '等待业主确认',
+  'Download receipt': '下载收据',
+  'The invoice PDF is unavailable.': '发票 PDF 暂时无法使用。',
+  'The invoice PDF could not be opened.': '无法打开此发票 PDF。',
+  'Payment proof PDF must be smaller than 2 MB.': '付款凭证 PDF 必须小于 2 MB。',
+  'This picture is still above 2 MB after compression. Choose a smaller photo.':
+      '压缩后图片仍超过 2 MB，请选择较小的图片。',
+  'The payment proof could not be read.': '无法读取付款凭证。',
+  'Secure payment guide': '安全付款指南',
+  'This private page brings your invoice, owner payment details and receipt upload together in one place.':
+      '此私人页面将您的账单、业主付款资料和凭证上传集中在一个地方。',
+  'Check': '核对',
+  'Confirm the invoice amount and owner bank details.': '确认账单金额和业主银行资料。',
+  'Transfer': '转账',
+  'Pay using your banking app and keep the receipt.': '使用银行应用付款并保留收据。',
+  'Submit': '提交',
+  'Attach the receipt here for the owner to review.': '在此上传凭证供业主审核。',
+  'Payment help & common questions': '付款帮助与常见问题',
+  'Why is this link secure?': '为什么此链接是安全的？',
+  'It is a private, time-limited link issued for this invoice. Do not forward it to anyone else.':
+      '这是专为此账单签发的私人限时链接，请勿转发给其他人。',
+  'What should I upload?': '我应该上传什么？',
+  'Upload a clear bank-transfer receipt in JPG, PNG or PDF format below 2 MB.':
+      '请上传清晰的银行转账凭证，格式为 JPG、PNG 或 PDF，文件小于 2 MB。',
+  'What happens after submission?': '提交后会发生什么？',
+  'The owner receives a notification and reviews your proof. Your payment is only confirmed after owner approval.':
+      '业主会收到通知并审核您的凭证。只有业主批准后，付款才会被确认。',
+  'What if my proof is rejected?': '如果我的凭证被拒绝怎么办？',
+  'The owner will provide a reason and send a fresh link so you can upload a corrected proof.':
+      '业主会说明原因并发送新链接，让您重新上传正确的凭证。',
+  'Need assistance?': '需要协助？',
+  'Contact your property owner before submitting if the amount or bank details do not look correct.':
+      '如果金额或银行资料看起来不正确，请在提交前联系您的业主。',
+  'One tap into your connected home.': '一键连接您的智慧家居。',
+  'Secure one-time access — no account, no download. Manage everything from one connected hub.':
+      '安全的一次性访问——无需账户，无需下载。一个平台即可完成所有操作。',
+  'Digital tenancy': '数码租赁',
+  'Paperless & instant': '无纸化并即时处理',
+  'Smart home': '智慧家居',
+  'One-time': '一次性访问',
+  'Secure access': '安全访问',
+  "Verify it's you": '验证您的身份',
+  'Please key in the last 4 digits of your mobile phone number.':
+      '请输入您手机号码的最后 4 位数字。',
+  'Verify & continue': '验证并继续',
+};
+
+String tenantPortalText(bool chinese, String english) =>
+    chinese ? (_tenantPortalChinese[english] ?? english) : english;
+
+String tenantPortalErrorText(bool chinese, Object error) {
+  final message = error.toString().replaceFirst('Bad state: ', '');
+  return tenantPortalText(chinese, message);
+}
+
+String tenantPortalPeriod(bool chinese, String period) {
+  if (!chinese) return period;
+  const months = <String, String>{
+    'Jan': '1月',
+    'Feb': '2月',
+    'Mar': '3月',
+    'Apr': '4月',
+    'May': '5月',
+    'Jun': '6月',
+    'Jul': '7月',
+    'Aug': '8月',
+    'Sep': '9月',
+    'Oct': '10月',
+    'Nov': '11月',
+    'Dec': '12月',
+  };
+  final parts = period.trim().split(RegExp(r'\s+'));
+  if (parts.length != 2 || !months.containsKey(parts.first)) return period;
+  return '${parts.last}年${months[parts.first]}';
+}
+
+class _TenantPortalLanguageScope extends InheritedWidget {
+  const _TenantPortalLanguageScope({
+    required this.chinese,
+    required this.onToggle,
+    required super.child,
+  });
+
+  final bool chinese;
+  final VoidCallback onToggle;
+
+  static _TenantPortalLanguageScope of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_TenantPortalLanguageScope>()!;
+
+  @override
+  bool updateShouldNotify(_TenantPortalLanguageScope oldWidget) =>
+      chinese != oldWidget.chinese;
+}
+
+String _portalText(BuildContext context, String english) =>
+    tenantPortalText(_TenantPortalLanguageScope.of(context).chinese, english);
+
+class _TenantPortalLanguageSwitch extends StatelessWidget {
+  const _TenantPortalLanguageSwitch({this.onDark = false});
+
+  final bool onDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final language = _TenantPortalLanguageScope.of(context);
+    return Semantics(
+      button: true,
+      label: language.chinese ? 'Switch tenant portal to English' : '切换租户页面为中文',
+      child: Material(
+        color: onDark ? const Color(0x2AFFFFFF) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(999),
+        child: InkWell(
+          key: const Key('tenant_portal_language_switch'),
+          onTap: language.onToggle,
+          borderRadius: BorderRadius.circular(999),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+            child: Text(
+              language.chinese ? '中文 / EN' : 'EN / 中文',
+              style: TextStyle(
+                color: onDark ? Colors.white : _portalDeep,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 const _canvas = Color(0xFFF4F7FB);
 const _label = Color(0xFF0F172A);
 const _secondary = Color(0xFF64748B);
-const tenantPortalBaseUrl = 'https://facility-billing-management.pages.dev/';
+const _combinedElectricityMarker = '__HOMEOPS_COMBINED__';
+const tenantPortalRelease = '20260721-7';
 
-Uri tenantInvoiceLink(String invoiceId) => Uri.parse(tenantPortalBaseUrl)
-    .replace(queryParameters: {'invoice': invoiceId}, fragment: '');
+String tenantPortalBaseUrlForHost([String? host]) =>
+    SupabaseConfig.isUatHost(host)
+        ? 'https://facility-billing-management.pages.dev/'
+        : 'https://homeops360.app/';
+
+Uri tenantInvoiceLink(String invoiceId, String portalToken) =>
+    Uri.parse(tenantPortalBaseUrlForHost()).replace(
+      queryParameters: {
+        // The random token is both the short lookup key and the bearer secret.
+        // The server stores only its SHA-256 hash and expires it after 72 hours.
+        'pay': portalToken,
+      },
+    );
+
+String? tenantPortalTokenFromUri(Uri uri) {
+  final shortToken = uri.queryParameters['pay'];
+  if (shortToken != null && shortToken.isNotEmpty) return shortToken;
+  final legacyToken = uri.queryParameters['token'];
+  if (legacyToken != null && legacyToken.isNotEmpty) return legacyToken;
+  if (uri.fragment.isEmpty) return null;
+  try {
+    return Uri.splitQueryString(uri.fragment)['token'];
+  } on FormatException {
+    return null;
+  }
+}
+
+String? _signedInTenantEmail() {
+  final user = Supabase.instance.client.auth.currentUser;
+  if (user == null) return null;
+  final role = user.userMetadata?['role']?.toString().toLowerCase();
+  if (role != 'tenant') return null;
+  return user.email;
+}
 
 class RentFlowApp extends StatefulWidget {
   const RentFlowApp({super.key});
@@ -48,7 +259,7 @@ class _RentFlowInvoiceCenterState extends State<RentFlowInvoiceCenter> {
           animation: store,
           builder: (context, _) => const Column(
             children: [
-              TestModeBanner(),
+              SecurePortalBanner(),
               Expanded(child: BillingPage()),
             ],
           ),
@@ -57,18 +268,31 @@ class _RentFlowInvoiceCenterState extends State<RentFlowInvoiceCenter> {
 }
 
 class _RentFlowAppState extends State<RentFlowApp> {
-  final store = RentFlowStore();
+  late final RentFlowStore store;
+
+  @override
+  void initState() {
+    super.initState();
+    store = RentFlowStore(
+      portalInvoiceId: Uri.base.queryParameters['invoice'],
+      portalToken: tenantPortalTokenFromUri(Uri.base),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final invoiceId = Uri.base.queryParameters['invoice'];
+    final isTenantPortal = tenantPortalTokenFromUri(Uri.base) != null;
     return RentFlowScope(
       store: store,
       child: AnimatedBuilder(
         animation: store,
         builder: (context, _) => MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: 'RentFlow',
+          title: 'HomeOps360',
+          builder: (context, child) => EnvironmentBanner(
+            child: child ?? const SizedBox.shrink(),
+          ),
           theme: ThemeData(
             useMaterial3: true,
             fontFamily: 'Outfit',
@@ -101,9 +325,12 @@ class _RentFlowAppState extends State<RentFlowApp> {
               ),
             ),
           ),
-          home: invoiceId == null
-              ? const OwnerShell()
-              : TenantInvoicePage(invoiceId: invoiceId),
+          home: isTenantPortal
+              ? TenantInvoicePage(
+                  invoiceId: invoiceId,
+                  authenticatedTenantEmail: _signedInTenantEmail(),
+                )
+              : const OwnerShell(),
         ),
       ),
     );
@@ -144,6 +371,7 @@ class RentalInvoice {
     required this.previousReading,
     required this.currentReading,
     required this.evidenceName,
+    this.evidenceRequired = true,
     this.evidencePath,
     this.evidenceBytes,
     this.generalElectricAmount = 0,
@@ -152,15 +380,23 @@ class RentalInvoice {
     this.electricityRatePerKwh = 0.516,
     this.electricityAmountOverride,
     this.electricityTariffSummary,
+    this.electricityLabel = 'Air-con electricity',
     required this.dueDate,
     this.status = InvoiceStatus.sent,
     this.pdfPath,
+    this.pdfUrl,
+    this.portalToken,
     this.slipName,
     this.slipPath,
     this.amountPaid,
     this.paymentDate,
     this.paymentReference,
     this.slipSubmittedAt,
+    this.bankName = '',
+    this.bankAccountNumber = '',
+    this.bankBeneficiary = '',
+    this.paymentQrName,
+    this.paymentQrBase64,
   });
   final String id;
   final TenantAccount tenant;
@@ -169,6 +405,7 @@ class RentalInvoice {
   final double previousReading;
   final double currentReading;
   final String evidenceName;
+  final bool evidenceRequired;
   final String? evidencePath;
   final Uint8List? evidenceBytes;
   final double generalElectricAmount;
@@ -177,20 +414,31 @@ class RentalInvoice {
   final double electricityRatePerKwh;
   final double? electricityAmountOverride;
   final String? electricityTariffSummary;
-  final DateTime dueDate;
+  final String electricityLabel;
+  DateTime dueDate;
   InvoiceStatus status;
   final String? pdfPath;
+  Uri? pdfUrl;
+  String? portalToken;
   String? slipName;
   String? slipPath;
   double? amountPaid;
   DateTime? paymentDate;
   String? paymentReference;
   DateTime? slipSubmittedAt;
+  final String bankName;
+  final String bankAccountNumber;
+  final String bankBeneficiary;
+  final String? paymentQrName;
+  final String? paymentQrBase64;
 
   double get usage => math.max(0, currentReading - previousReading);
   double get electricity =>
       electricityAmountOverride ??
       (usage * electricityRatePerKwh * 100).round() / 100;
+  bool get usesCombinedElectricity => electricityLabel == 'Electricity';
+  double get displayedElectricity =>
+      electricity + (usesCombinedElectricity ? generalElectricAmount : 0);
   double get total =>
       tenant.rent +
       tenant.water +
@@ -200,9 +448,66 @@ class RentalInvoice {
       parkingRentalAmount;
 }
 
+Map<String, dynamic> invoiceCloudRecord(
+  RentalInvoice invoice, {
+  String? pdfPath,
+}) =>
+    {
+      'id': invoice.id,
+      'tenant_id': invoice.tenant.id,
+      'tenant_name': invoice.tenant.name,
+      'tenant_email': invoice.tenant.email,
+      'tenant_phone': invoice.tenant.phone,
+      'property_name': invoice.tenant.property,
+      'unit_name': invoice.tenant.unit,
+      'rent': invoice.tenant.rent,
+      'water': invoice.tenant.water,
+      'internet': invoice.tenant.internet,
+      'period': invoice.period,
+      'usage_period': invoice.usagePeriod,
+      'previous_reading': invoice.previousReading,
+      'current_reading': invoice.currentReading,
+      'electricity_tariff_name': invoice.electricityTariffName,
+      'electricity_rate_per_kwh': invoice.electricityRatePerKwh,
+      'electricity_amount': invoice.electricity,
+      'electricity_tariff_summary': invoice.usesCombinedElectricity
+          ? '$_combinedElectricityMarker${invoice.electricityTariffSummary ?? ''}'
+          : invoice.electricityTariffSummary,
+      'electricity_label': invoice.electricityLabel,
+      'general_electric': invoice.generalElectricAmount,
+      'parking_rental': invoice.parkingRentalAmount,
+      'evidence_name': invoice.evidenceName,
+      'evidence_path': invoice.evidencePath,
+      'pdf_path': pdfPath ?? invoice.pdfPath,
+      'due_date': invoice.dueDate.toIso8601String(),
+      'status': invoice.status.name,
+      'bank_name': invoice.bankName,
+      'bank_account_number': invoice.bankAccountNumber,
+      'bank_beneficiary': invoice.bankBeneficiary,
+      'payment_qr_name': invoice.paymentQrName,
+      'payment_qr_base64': invoice.paymentQrBase64,
+    };
+
+String? _cleanElectricityTariffSummary(Map<String, dynamic> row) {
+  final value = row['electricity_tariff_summary'] as String?;
+  if (value == null) return null;
+  return value.startsWith(_combinedElectricityMarker)
+      ? value.substring(_combinedElectricityMarker.length)
+      : value;
+}
+
+String _electricityLabelFromRow(Map<String, dynamic> row) {
+  final summary = row['electricity_tariff_summary'] as String? ?? '';
+  if (summary.startsWith(_combinedElectricityMarker)) return 'Electricity';
+  return row['electricity_label'] as String? ?? 'Air-con electricity';
+}
+
 class RentFlowStore extends ChangeNotifier {
   static const bucket = 'rentflow-test-files';
   final SupabaseClient _cloud = Supabase.instance.client;
+  late final InvoicePortalService _portalService = InvoicePortalService(_cloud);
+  final String? portalInvoiceId;
+  final String? portalToken;
   bool loading = true;
   String? error;
 
@@ -211,7 +516,7 @@ class RentFlowStore extends ChangeNotifier {
       id: 'tenant_1',
       name: 'Nur Aisyah Binti Rahman',
       email: 'tenant1a@example.com',
-      phone: '+60165666878',
+      phone: '+60120000001',
       property: 'Facility 1',
       unit: 'Room A',
       rent: 1200,
@@ -256,10 +561,14 @@ class RentFlowStore extends ChangeNotifier {
   final invoices = <RentalInvoice>[];
   final notifications = <String>[];
 
-  RentFlowStore() {
+  RentFlowStore({this.portalInvoiceId, this.portalToken}) {
+    if (portalInvoiceId != null || portalToken != null) {
+      loadPortalInvoice();
+      return;
+    }
     loadInvoices();
     _cloud
-        .channel('rentflow-public-test')
+        .channel('rentflow-owner-invoices')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
@@ -281,6 +590,73 @@ class RentFlowStore extends ChangeNotifier {
         internet: (row['internet'] as num).toDouble(),
       );
 
+  RentalInvoice _invoiceFromRow(Map<String, dynamic> row) => RentalInvoice(
+        id: row['id'] as String,
+        tenant: _tenantFromRow(row),
+        period: row['period'] as String,
+        usagePeriod: row['usage_period'] as String,
+        previousReading: (row['previous_reading'] as num).toDouble(),
+        currentReading: (row['current_reading'] as num).toDouble(),
+        evidenceName: row['evidence_name'] as String,
+        evidencePath: row['evidence_path'] as String?,
+        generalElectricAmount:
+            (row['general_electric'] as num?)?.toDouble() ?? 0,
+        parkingRentalAmount: (row['parking_rental'] as num?)?.toDouble() ?? 0,
+        electricityTariffName:
+            row['electricity_tariff_name'] as String? ?? 'Owner tariff',
+        electricityRatePerKwh:
+            (row['electricity_rate_per_kwh'] as num?)?.toDouble() ?? 0.516,
+        electricityAmountOverride:
+            (row['electricity_amount'] as num?)?.toDouble(),
+        electricityTariffSummary: _cleanElectricityTariffSummary(row),
+        electricityLabel: _electricityLabelFromRow(row),
+        dueDate: DateTime.parse(row['due_date'] as String),
+        status: InvoiceStatus.values.byName(row['status'] as String),
+        pdfPath: row['pdf_path'] as String?,
+        pdfUrl: row['pdf_url'] == null
+            ? null
+            : Uri.tryParse(row['pdf_url'].toString()),
+        portalToken: portalToken,
+        slipName: row['slip_name'] as String?,
+        slipPath: row['slip_path'] as String?,
+        amountPaid: (row['amount_paid'] as num?)?.toDouble(),
+        paymentDate: row['payment_date'] == null
+            ? null
+            : DateTime.tryParse(row['payment_date'] as String),
+        paymentReference: row['payment_reference'] as String?,
+        slipSubmittedAt: row['slip_submitted_at'] == null
+            ? null
+            : DateTime.tryParse(row['slip_submitted_at'] as String),
+        bankName: row['bank_name'] as String? ?? '',
+        bankAccountNumber: row['bank_account_number'] as String? ?? '',
+        bankBeneficiary: row['bank_beneficiary'] as String? ?? '',
+        paymentQrName: row['payment_qr_name'] as String?,
+        paymentQrBase64: row['payment_qr_base64'] as String?,
+      );
+
+  Future<void> loadPortalInvoice() async {
+    try {
+      final token = portalToken?.trim() ?? '';
+      if (token.isEmpty) {
+        throw const AuthException('This secure invoice link is incomplete.');
+      }
+      final row = await _portalService.load(
+        invoiceId: portalInvoiceId,
+        token: token,
+      );
+      invoices
+        ..clear()
+        ..add(_invoiceFromRow(row));
+      error = null;
+    } catch (exception) {
+      error = exception.toString();
+      invoices.clear();
+    } finally {
+      loading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> loadInvoices() async {
     try {
       final rows = await _cloud
@@ -289,43 +665,7 @@ class RentFlowStore extends ChangeNotifier {
           .order('created_at', ascending: false);
       invoices
         ..clear()
-        ..addAll(rows.map((row) => RentalInvoice(
-              id: row['id'] as String,
-              tenant: _tenantFromRow(row),
-              period: row['period'] as String,
-              usagePeriod: row['usage_period'] as String,
-              previousReading: (row['previous_reading'] as num).toDouble(),
-              currentReading: (row['current_reading'] as num).toDouble(),
-              evidenceName: row['evidence_name'] as String,
-              evidencePath: row['evidence_path'] as String?,
-              generalElectricAmount:
-                  (row['general_electric'] as num?)?.toDouble() ?? 0,
-              parkingRentalAmount:
-                  (row['parking_rental'] as num?)?.toDouble() ?? 0,
-              electricityTariffName:
-                  row['electricity_tariff_name'] as String? ??
-                      'TNB default tariff',
-              electricityRatePerKwh:
-                  (row['electricity_rate_per_kwh'] as num?)?.toDouble() ??
-                      0.516,
-              electricityAmountOverride:
-                  (row['electricity_amount'] as num?)?.toDouble(),
-              electricityTariffSummary:
-                  row['electricity_tariff_summary'] as String?,
-              dueDate: DateTime.parse(row['due_date'] as String),
-              status: InvoiceStatus.values.byName(row['status'] as String),
-              pdfPath: row['pdf_path'] as String?,
-              slipName: row['slip_name'] as String?,
-              slipPath: row['slip_path'] as String?,
-              amountPaid: (row['amount_paid'] as num?)?.toDouble(),
-              paymentDate: row['payment_date'] == null
-                  ? null
-                  : DateTime.tryParse(row['payment_date'] as String),
-              paymentReference: row['payment_reference'] as String?,
-              slipSubmittedAt: row['slip_submitted_at'] == null
-                  ? null
-                  : DateTime.tryParse(row['slip_submitted_at'] as String),
-            )));
+        ..addAll(rows.map((row) => _invoiceFromRow(row)));
       error = null;
     } catch (e) {
       error = 'Cloud test workspace is not ready: $e';
@@ -349,8 +689,11 @@ class RentFlowStore extends ChangeNotifier {
     required String evidence,
     required Uint8List evidenceBytes,
   }) async {
+    final owner = _cloud.auth.currentUser;
+    if (owner == null) throw const AuthException('Owner sign-in is required.');
     final id = 'RF-${DateTime.now().millisecondsSinceEpoch}';
-    final evidencePath = 'meter/$id/${_safeName(evidence)}';
+    final evidencePath = '${owner.id}/meter/$id/${_safeName(evidence)}';
+    final pdfPath = '${owner.id}/invoices/$id.pdf';
     await _cloud.storage.from(bucket).uploadBinary(
           evidencePath,
           evidenceBytes,
@@ -365,28 +708,21 @@ class RentFlowStore extends ChangeNotifier {
       currentReading: current,
       evidenceName: evidence,
       evidencePath: evidencePath,
+      pdfPath: pdfPath,
       dueDate: DateTime.now().add(const Duration(days: 3)),
     );
-    await _cloud.from('rentflow_test_invoices').insert({
-      'id': item.id,
-      'tenant_id': tenant.id,
-      'tenant_name': tenant.name,
-      'tenant_email': tenant.email,
-      'tenant_phone': tenant.phone,
-      'property_name': tenant.property,
-      'unit_name': tenant.unit,
-      'rent': tenant.rent,
-      'water': tenant.water,
-      'internet': tenant.internet,
-      'period': item.period,
-      'usage_period': item.usagePeriod,
-      'previous_reading': previous,
-      'current_reading': current,
-      'evidence_name': evidence,
-      'evidence_path': evidencePath,
-      'due_date': item.dueDate.toIso8601String(),
-      'status': item.status.name,
-    });
+    await _cloud.storage.from(bucket).uploadBinary(
+          pdfPath,
+          await invoicePdf(item),
+          fileOptions: const FileOptions(
+            upsert: true,
+            contentType: 'application/pdf',
+          ),
+        );
+    final access = await _portalService.publish(invoiceCloudRecord(item));
+    item
+      ..portalToken = access.portalToken
+      ..pdfUrl = access.pdfUrl;
     invoices.insert(0, item);
     notifications.insert(0, 'Invoice ${item.id} sent to ${tenant.name}.');
     notifyListeners();
@@ -401,8 +737,31 @@ class RentFlowStore extends ChangeNotifier {
     required DateTime paymentDate,
     String? paymentReference,
   }) async {
-    final path =
-        'slips/${invoice.id}/${DateTime.now().millisecondsSinceEpoch}-${_safeName(name)}';
+    final token = invoice.portalToken ?? portalToken;
+    if (token != null && token.isNotEmpty) {
+      await _portalService.submitPayment(
+        invoiceId: invoice.id,
+        token: token,
+        fileName: name,
+        bytes: bytes,
+        amountPaid: amountPaid,
+        paymentDate: paymentDate,
+        paymentReference: paymentReference,
+      );
+      invoice
+        ..slipName = name
+        ..amountPaid = amountPaid
+        ..paymentDate = paymentDate
+        ..paymentReference = paymentReference?.trim()
+        ..slipSubmittedAt = DateTime.now()
+        ..status = InvoiceStatus.slipSubmitted;
+      notifyListeners();
+      return;
+    }
+    final owner = _cloud.auth.currentUser;
+    if (owner == null) throw const AuthException('Owner sign-in is required.');
+    final path = '${owner.id}/slips/${invoice.id}/'
+        '${DateTime.now().millisecondsSinceEpoch}-${_safeName(name)}';
     await _cloud.storage.from(bucket).uploadBinary(
           path,
           bytes,
@@ -431,6 +790,32 @@ class RentFlowStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<PublishedInvoiceAccess> publishInvoice(RentalInvoice invoice) async {
+    if (invoice.status == InvoiceStatus.paid) {
+      throw StateError(
+          'An approved invoice is locked and cannot be sent again.');
+    }
+    final owner = _cloud.auth.currentUser;
+    if (owner == null) throw const AuthException('Owner sign-in is required.');
+    final pdfPath = invoice.pdfPath ?? '${owner.id}/invoices/${invoice.id}.pdf';
+    await _cloud.storage.from(bucket).uploadBinary(
+          pdfPath,
+          await invoicePdf(invoice),
+          fileOptions: const FileOptions(
+            upsert: true,
+            contentType: 'application/pdf',
+          ),
+        );
+    final access = await _portalService.publish(
+      invoiceCloudRecord(invoice, pdfPath: pdfPath),
+    );
+    invoice
+      ..portalToken = access.portalToken
+      ..pdfUrl = access.pdfUrl;
+    notifyListeners();
+    return access;
+  }
+
   Future<void> approve(RentalInvoice invoice) async {
     invoice.status = InvoiceStatus.paid;
     await _cloud.from('rentflow_test_invoices').update({
@@ -440,8 +825,10 @@ class RentFlowStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  String publicFileUrl(String path) =>
-      _cloud.storage.from(bucket).getPublicUrl(path);
+  Future<Uri> signedFileUrl(String path) async {
+    final result = await _cloud.storage.from(bucket).createSignedUrl(path, 600);
+    return Uri.parse(result);
+  }
 
   static String _safeName(String value) =>
       value.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
@@ -485,7 +872,7 @@ class _OwnerShellState extends State<OwnerShell> {
         final desktop = constraints.maxWidth >= 900;
         final content = Column(
           children: [
-            const TestModeBanner(),
+            const SecurePortalBanner(),
             if (desktop) OwnerTopBar(title: labels[index]),
             Expanded(child: pages[index]),
           ],
@@ -561,13 +948,7 @@ class OwnerSidebar extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(children: [
-              Icon(CupertinoIcons.house_fill, color: _blue),
-              SizedBox(width: 10),
-              Text('RentFlow',
-                  style: TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.w800, color: _blue)),
-            ]),
+            const HomeOpsLockup(markSize: 38, fontSize: 21),
             const SizedBox(height: 24),
             Container(
               padding: const EdgeInsets.all(12),
@@ -618,18 +999,18 @@ class OwnerSidebar extends StatelessWidget {
   }
 }
 
-class TestModeBanner extends StatelessWidget {
-  const TestModeBanner({super.key});
+class SecurePortalBanner extends StatelessWidget {
+  const SecurePortalBanner({super.key});
   @override
   Widget build(BuildContext context) => Container(
         width: double.infinity,
-        color: const Color(0xFFFFF1D6),
+        color: const Color(0xFFEAF8EF),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
         child: const Text(
-          'TEMPORARY PUBLIC TEST MODE • Anyone with an invoice link can view and upload a payment slip.',
+          'SECURE INVOICE PORTAL · Private files and expiring tenant access links',
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: Color(0xFF9A5A00),
+            color: Color(0xFF15803D),
             fontSize: 12,
             fontWeight: FontWeight.w700,
           ),
@@ -1017,32 +1398,49 @@ class NotificationPage extends StatelessWidget {
 }
 
 class TenantInvoicePage extends StatefulWidget {
-  const TenantInvoicePage({required this.invoiceId, super.key});
-  final String invoiceId;
+  const TenantInvoicePage({
+    required this.invoiceId,
+    this.authenticatedTenantEmail,
+    super.key,
+  });
+  final String? invoiceId;
+  final String? authenticatedTenantEmail;
 
   @override
   State<TenantInvoicePage> createState() => _TenantInvoicePageState();
 }
 
 class _TenantInvoicePageState extends State<TenantInvoicePage> {
-  final code = List.generate(4, (_) => TextEditingController());
-  final focus = List.generate(4, (_) => FocusNode());
+  final verificationCode = TextEditingController();
+  final verificationFocus = FocusNode();
   final amount = TextEditingController();
   final paymentDate = TextEditingController();
   final reference = TextEditingController();
   PickedImageData? proof;
   bool verified = false;
   bool submitting = false;
+  bool chinese = false;
+  bool authenticatedAccessChecked = false;
   String? error;
+
+  void applyAuthenticatedAccess(RentalInvoice invoice) {
+    if (authenticatedAccessChecked) return;
+    authenticatedAccessChecked = true;
+    final signedInEmail =
+        widget.authenticatedTenantEmail?.trim().toLowerCase() ?? '';
+    if (signedInEmail.isEmpty ||
+        signedInEmail != invoice.tenant.email.trim().toLowerCase()) {
+      return;
+    }
+    verified = true;
+    amount.text = invoice.total.toStringAsFixed(2);
+    paymentDate.text = shortDate(DateTime.now());
+  }
 
   @override
   void dispose() {
-    for (final controller in code) {
-      controller.dispose();
-    }
-    for (final node in focus) {
-      node.dispose();
-    }
+    verificationCode.dispose();
+    verificationFocus.dispose();
     amount.dispose();
     paymentDate.dispose();
     reference.dispose();
@@ -1050,12 +1448,11 @@ class _TenantInvoicePageState extends State<TenantInvoicePage> {
   }
 
   void verify(RentalInvoice invoice) {
-    final entered = code.map((item) => item.text).join();
-    final digits = invoice.tenant.phone.replaceAll(RegExp(r'\D'), '');
-    final expected =
-        digits.length >= 4 ? digits.substring(digits.length - 4) : digits;
-    if (entered != expected) {
-      setState(() => error = 'The verification code is incorrect.');
+    final entered = verificationCode.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (!tenantPhoneVerificationMatches(invoice.tenant.phone, entered)) {
+      setState(
+        () => error = 'The last 4 digits do not match our records.',
+      );
       return;
     }
     setState(() {
@@ -1076,13 +1473,20 @@ class _TenantInvoicePageState extends State<TenantInvoicePage> {
         error = null;
       });
     } catch (exception) {
-      if (mounted) setState(() => error = exception.toString());
+      if (mounted) {
+        setState(() => error = tenantPortalErrorText(chinese, exception));
+      }
     }
   }
 
   Future<void> submit(RentFlowStore store, RentalInvoice invoice) async {
     if (proof == null) {
-      setState(() => error = 'Attach your payment proof before submitting.');
+      setState(() {
+        error = tenantPortalText(
+          chinese,
+          'Attach your payment proof before submitting.',
+        );
+      });
       return;
     }
     final paid = double.tryParse(
@@ -1090,11 +1494,18 @@ class _TenantInvoicePageState extends State<TenantInvoicePage> {
     );
     final paidOn = _parseShortDate(paymentDate.text);
     if (paid == null || paid <= 0) {
-      setState(() => error = 'Enter a valid amount paid.');
+      setState(() {
+        error = tenantPortalText(chinese, 'Enter a valid amount paid.');
+      });
       return;
     }
     if (paidOn == null) {
-      setState(() => error = 'Enter the payment date as DD/MM/YYYY.');
+      setState(() {
+        error = tenantPortalText(
+          chinese,
+          'Enter the payment date as DD/MM/YYYY.',
+        );
+      });
       return;
     }
     setState(() {
@@ -1111,7 +1522,11 @@ class _TenantInvoicePageState extends State<TenantInvoicePage> {
         paymentReference: reference.text,
       );
     } catch (exception) {
-      if (mounted) setState(() => error = 'Upload failed: $exception');
+      if (mounted) {
+        setState(() {
+          error = '${tenantPortalText(chinese, 'Upload failed')}: $exception';
+        });
+      }
     } finally {
       if (mounted) setState(() => submitting = false);
     }
@@ -1120,44 +1535,93 @@ class _TenantInvoicePageState extends State<TenantInvoicePage> {
   @override
   Widget build(BuildContext context) {
     final store = RentFlowScope.of(context);
-    final invoice = store.invoice(widget.invoiceId);
+    final invoice = widget.invoiceId == null
+        ? (store.invoices.isEmpty ? null : store.invoices.first)
+        : store.invoice(widget.invoiceId!);
     if (store.loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (invoice == null) {
-      return const Scaffold(
-          body: Center(
-              child: Text('This invoice link is invalid or has expired.')));
+      return Scaffold(
+        backgroundColor: const Color(0xFFEAF0F7),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 430),
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.link_off_rounded, size: 52, color: _portalDeep),
+                  SizedBox(height: 18),
+                  Text(
+                    'This payment link is unavailable',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    'It may have expired, been replaced by a newer link, or arrived incomplete. Please ask the property owner to renew and resend the payment link. Your invoice amount remains unchanged.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: _secondary, height: 1.45),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
     }
+    applyAuthenticatedAccess(invoice);
     final completed = invoice.status == InvoiceStatus.slipSubmitted ||
         invoice.status == InvoiceStatus.paid;
     return Scaffold(
       backgroundColor: const Color(0xFFEAF0F7),
+      resizeToAvoidBottomInset: verified,
       body: SafeArea(
-        child: completed
-            ? _PaymentSubmittedView(invoice: invoice)
-            : verified
-                ? _InvoiceSettlementView(
-                    invoice: invoice,
-                    proof: proof,
-                    amount: amount,
-                    paymentDate: paymentDate,
-                    reference: reference,
-                    error: error,
-                    submitting: submitting,
-                    onChooseProof: chooseProof,
-                    onSubmit: () => submit(store, invoice),
-                  )
-                : _InvoiceVerificationView(
-                    invoice: invoice,
-                    code: code,
-                    focus: focus,
-                    error: error,
-                    onContinue: () => verify(invoice),
-                  ),
+        child: _TenantPortalLanguageScope(
+          chinese: chinese,
+          onToggle: () => setState(() {
+            chinese = !chinese;
+            error = null;
+          }),
+          child: completed
+              ? _PaymentSubmittedView(invoice: invoice)
+              : verified
+                  ? _InvoiceSettlementView(
+                      invoice: invoice,
+                      proof: proof,
+                      amount: amount,
+                      paymentDate: paymentDate,
+                      reference: reference,
+                      error: error,
+                      submitting: submitting,
+                      onChooseProof: chooseProof,
+                      onSubmit: () => submit(store, invoice),
+                    )
+                  : _InvoiceVerificationView(
+                      invoice: invoice,
+                      code: verificationCode,
+                      focus: verificationFocus,
+                      error: error,
+                      onContinue: () => verify(invoice),
+                    ),
+        ),
       ),
     );
   }
+}
+
+bool tenantPhoneVerificationMatches(String phone, String enteredCode) {
+  final phoneDigits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+  final enteredDigits = enteredCode.replaceAll(RegExp(r'[^0-9]'), '');
+  if (phoneDigits.length < 4 || enteredDigits.length != 4) return false;
+  return enteredDigits == phoneDigits.substring(phoneDigits.length - 4);
 }
 
 class _InvoiceVerificationView extends StatelessWidget {
@@ -1170,113 +1634,444 @@ class _InvoiceVerificationView extends StatelessWidget {
   });
 
   final RentalInvoice invoice;
-  final List<TextEditingController> code;
-  final List<FocusNode> focus;
+  final TextEditingController code;
+  final FocusNode focus;
+  final String? error;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) => _SmartVerificationDesign1b(
+        invoice: invoice,
+        controller: code,
+        focusNode: focus,
+        error: error,
+        onContinue: onContinue,
+      );
+}
+
+class _SmartVerificationDesign1b extends StatelessWidget {
+  const _SmartVerificationDesign1b({
+    required this.invoice,
+    required this.controller,
+    required this.focusNode,
+    required this.error,
+    required this.onContinue,
+  });
+
+  final RentalInvoice invoice;
+  final TextEditingController controller;
+  final FocusNode focusNode;
   final String? error;
   final VoidCallback onContinue;
 
   @override
   Widget build(BuildContext context) => Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 940),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final wide = constraints.maxWidth >= 720;
-                final brand = _PortalBrandPanel(
-                  title: 'A calmer way to\nmanage your tenancy.',
-                  subtitle:
-                      'Secure one-time access — no account to create, no app to download.',
-                );
-                final form = Container(
-                  color: Colors.white,
-                  padding: EdgeInsets.all(wide ? 48 : 26),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'INVOICE #${invoice.id}',
-                        style: const TextStyle(
-                          color: Color(0xFF94A3B8),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.4,
+            constraints: const BoxConstraints(maxWidth: 430),
+            child: ColoredBox(
+              color: const Color(0xFFEEF4FD),
+              child: Column(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(26, 32, 26, 42),
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          _portalSky,
+                          _portalBlue,
+                          _portalDeep,
+                        ],
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Expanded(child: _AscentiaHeading()),
+                            _TenantPortalLanguageSwitch(onDark: true),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      const Text('Verify it’s you',
-                          style: TextStyle(
-                              fontSize: 28, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Enter the last four digits of the mobile number on file ${_maskedPhone(invoice.tenant.phone)}.',
-                        style: const TextStyle(color: _secondary),
-                      ),
-                      const SizedBox(height: 28),
-                      Row(
-                        children: List.generate(4, (index) {
-                          return Padding(
-                            padding:
-                                EdgeInsets.only(right: index == 3 ? 0 : 10),
-                            child: SizedBox(
-                              width: 64,
-                              child: TextField(
-                                controller: code[index],
-                                focusNode: focus[index],
-                                autofocus: index == 0,
-                                textAlign: TextAlign.center,
-                                maxLength: 1,
-                                keyboardType: TextInputType.number,
-                                style: const TextStyle(
-                                    fontSize: 22, fontWeight: FontWeight.w800),
-                                decoration:
-                                    const InputDecoration(counterText: ''),
-                                onChanged: (value) {
-                                  if (value.isNotEmpty && index < 3) {
-                                    focus[index + 1].requestFocus();
-                                  }
-                                },
+                        const SizedBox(height: 24),
+                        Text(
+                          _portalText(
+                            context,
+                            'One tap into your connected home.',
+                          ),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 31,
+                            fontWeight: FontWeight.w800,
+                            height: 1.08,
+                            letterSpacing: -0.7,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _portalText(
+                            context,
+                            'Secure one-time access — no account, no download. Manage everything from one connected hub.',
+                          ),
+                          style: const TextStyle(
+                            color: Color(0xDDFFFFFF),
+                            fontSize: 13,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: _SmartTile(
+                                icon: Icons.description_outlined,
+                                title: _portalText(
+                                  context,
+                                  'Digital tenancy',
+                                ),
+                                detail: _portalText(
+                                  context,
+                                  'Paperless & instant',
+                                ),
                               ),
                             ),
-                          );
-                        }),
-                      ),
-                      if (error != null) ...[
-                        const SizedBox(height: 10),
-                        Text(error!, style: const TextStyle(color: Colors.red)),
-                      ],
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF14243D),
-                            padding: const EdgeInsets.symmetric(vertical: 18),
-                          ),
-                          onPressed: onContinue,
-                          child: const Text('Continue'),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _SmartTile(
+                                icon: Icons.home_outlined,
+                                title: _portalText(context, 'Smart home'),
+                                detail: 'Xiaomi & Tuya',
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _SmartTile(
+                                icon: Icons.lock_outline_rounded,
+                                title: _portalText(context, 'One-time'),
+                                detail: _portalText(context, 'Secure access'),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                );
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(22),
-                  child: wide
-                      ? Row(children: [
-                          SizedBox(width: 415, child: brand),
-                          Expanded(child: form)
-                        ])
-                      : Column(children: [
-                          SizedBox(height: 250, child: brand),
-                          form
-                        ]),
-                );
-              },
+                  Transform.translate(
+                    offset: const Offset(0, -22),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(26, 30, 26, 24),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEEF4FD),
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(32)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'INVOICE #${invoice.id}',
+                            style: const TextStyle(
+                              color: Color(0xFF8194AC),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.35,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _portalText(context, "Verify it's you"),
+                            style: const TextStyle(
+                              color: Color(0xFF0C2340),
+                              fontSize: 27,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _portalText(
+                              context,
+                              'Please key in the last 4 digits of your mobile phone number.',
+                            ),
+                            style: const TextStyle(
+                              color: Color(0xFF5B7089),
+                              fontSize: 14,
+                              height: 1.5,
+                            ),
+                          ),
+                          const SizedBox(height: 22),
+                          _OtpBoxes1b(
+                            controller: controller,
+                            focusNode: focusNode,
+                          ),
+                          if (error != null) ...[
+                            const SizedBox(height: 10),
+                            Text(
+                              error!,
+                              style: const TextStyle(
+                                color: Color(0xFFDC2626),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 22),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 58,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    _portalSky,
+                                    _portalDeep,
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                ),
+                                onPressed: onContinue,
+                                child: Text(
+                                  _portalText(context, 'Verify & continue'),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 42),
+                          const _SmartSupportRow(),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
+        ),
+      );
+}
+
+class _AscentiaHeading extends StatelessWidget {
+  const _AscentiaHeading();
+
+  @override
+  Widget build(BuildContext context) => const HomeOpsLockup(
+        markSize: 42,
+        fontSize: 17,
+        onDark: true,
+        tagline: 'DIGITAL TENANCY',
+      );
+}
+
+class _SmartTile extends StatelessWidget {
+  const _SmartTile({
+    required this.icon,
+    required this.title,
+    required this.detail,
+  });
+
+  final IconData icon;
+  final String title;
+  final String detail;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(minHeight: 126),
+        padding: const EdgeInsets.fromLTRB(12, 14, 10, 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x33081937),
+              blurRadius: 24,
+              offset: Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE5EEFC),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(icon, color: const Color(0xFF8B9DB8), size: 18),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              style: const TextStyle(
+                color: Color(0xFF0C2340),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                height: 1.15,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              detail,
+              style: const TextStyle(
+                color: Color(0xFF5B7089),
+                fontSize: 10,
+                height: 1.25,
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _OtpBoxes1b extends StatelessWidget {
+  const _OtpBoxes1b({required this.controller, required this.focusNode});
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: Listenable.merge([controller, focusNode]),
+        builder: (context, _) {
+          final digits = controller.text.replaceAll(RegExp(r'[^0-9]'), '');
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: focusNode.requestFocus,
+            child: Stack(
+              children: [
+                Row(
+                  children: List.generate(4, (index) {
+                    final active = focusNode.hasFocus &&
+                        index == math.min(digits.length, 3);
+                    return Expanded(
+                      child: Container(
+                        height: 64,
+                        margin: EdgeInsets.only(right: index == 3 ? 0 : 10),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color:
+                              active ? Colors.white : const Color(0xFFF5F8FE),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: active
+                                ? const Color(0xFF1668FF)
+                                : const Color(0xFFDBE4F2),
+                            width: 1.5,
+                          ),
+                          boxShadow: active
+                              ? const [
+                                  BoxShadow(
+                                    color: Color(0x241668FF),
+                                    spreadRadius: 4,
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Text(
+                          index < digits.length ? digits[index] : '•',
+                          style: TextStyle(
+                            color: index < digits.length
+                                ? const Color(0xFF0C2340)
+                                : const Color(0xFFB8C6DD),
+                            fontSize: index < digits.length ? 27 : 22,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+                Positioned.fill(
+                  child: Opacity(
+                    opacity: 0.01,
+                    child: TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      autofocus: true,
+                      keyboardType: TextInputType.number,
+                      maxLength: 4,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: const InputDecoration(
+                        counterText: '',
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        filled: false,
+                      ),
+                      style: const TextStyle(color: Colors.transparent),
+                      cursorColor: Colors.transparent,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+}
+
+class _SmartSupportRow extends StatelessWidget {
+  const _SmartSupportRow();
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        runSpacing: 8,
+        children: const [
+          Text('Supported by',
+              style: TextStyle(color: Color(0xFF8194AC), fontSize: 11)),
+          _SmartSupportBadge(label: 'Xiaomi Home'),
+          _SmartSupportBadge(label: 'Tuya'),
+        ],
+      );
+}
+
+class _SmartSupportBadge extends StatelessWidget {
+  const _SmartSupportBadge({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xD9FFFFFF),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: const Color(0xFFD3E0F5)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: const BoxDecoration(
+                color: Color(0xFF2BB673),
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(label,
+                style: const TextStyle(
+                    color: Color(0xFF0C2340),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700)),
+          ],
         ),
       );
 }
@@ -1319,18 +2114,30 @@ class _InvoiceSettlementView extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Settle your invoice',
-                        style: TextStyle(
-                            fontSize: 28, fontWeight: FontWeight.w800)),
-                    const Text(
+                    Text(
+                      _portalText(context, 'Settle your invoice'),
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      _portalText(
+                        context,
                         'Two quick steps — transfer, then attach your slip.',
-                        style: TextStyle(color: _secondary)),
-                    const SizedBox(height: 22),
-                    const _PortalSectionLabel('STEP 1 — TRANSFER TO OWNER'),
+                      ),
+                      style: const TextStyle(color: _secondary),
+                    ),
+                    const SizedBox(height: 18),
+                    _PortalSectionLabel(
+                      _portalText(context, 'STEP 1 — TRANSFER TO OWNER'),
+                    ),
                     const SizedBox(height: 10),
-                    const _BankDetailsCard(),
+                    _BankDetailsCard(invoice: invoice),
                     const SizedBox(height: 24),
-                    const _PortalSectionLabel('STEP 2 — ATTACH PAY SLIP'),
+                    _PortalSectionLabel(
+                      _portalText(context, 'STEP 2 — ATTACH PAY SLIP'),
+                    ),
                     const SizedBox(height: 10),
                     InkWell(
                       onTap: onChooseProof,
@@ -1354,13 +2161,24 @@ class _InvoiceSettlementView extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  proof?.name ?? 'Tap to attach your receipt',
+                                  proof?.name ??
+                                      _portalText(
+                                        context,
+                                        'Tap to attach your receipt',
+                                      ),
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w800),
                                 ),
-                                const Text('JPG, PNG or PDF · maximum 2 MB',
-                                    style: TextStyle(
-                                        color: _secondary, fontSize: 12)),
+                                Text(
+                                  _portalText(
+                                    context,
+                                    'JPG, PNG or PDF · maximum 2 MB',
+                                  ),
+                                  style: const TextStyle(
+                                    color: _secondary,
+                                    fontSize: 12,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -1372,21 +2190,31 @@ class _InvoiceSettlementView extends StatelessWidget {
                       Expanded(
                           child: TextField(
                               controller: amount,
-                              decoration: const InputDecoration(
-                                  labelText: 'Amount paid',
-                                  prefixText: 'RM '))),
+                              enabled: false,
+                              enableInteractiveSelection: false,
+                              decoration: InputDecoration(
+                                labelText: _portalText(context, 'Amount paid'),
+                                prefixText: 'RM ',
+                              ))),
                       const SizedBox(width: 10),
                       Expanded(
                           child: TextField(
                               controller: paymentDate,
-                              decoration: const InputDecoration(
-                                  labelText: 'Date paid'))),
+                              enabled: false,
+                              enableInteractiveSelection: false,
+                              decoration: InputDecoration(
+                                labelText: _portalText(context, 'Date paid'),
+                              ))),
                     ]),
                     const SizedBox(height: 12),
                     TextField(
                         controller: reference,
-                        decoration: const InputDecoration(
-                            labelText: 'Payment reference (optional)')),
+                        decoration: InputDecoration(
+                          labelText: _portalText(
+                            context,
+                            'Payment reference (optional)',
+                          ),
+                        )),
                     if (error != null) ...[
                       const SizedBox(height: 10),
                       Text(error!, style: const TextStyle(color: Colors.red)),
@@ -1396,12 +2224,15 @@ class _InvoiceSettlementView extends StatelessWidget {
                       width: double.infinity,
                       child: FilledButton(
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF14243D),
+                          backgroundColor: _portalDeep,
                           padding: const EdgeInsets.symmetric(vertical: 18),
                         ),
                         onPressed: submitting ? null : onSubmit,
                         child: Text(
-                            submitting ? 'Sending…' : 'Send payment proof'),
+                          submitting
+                              ? _portalText(context, 'Sending…')
+                              : _portalText(context, 'Send payment proof'),
+                        ),
                       ),
                     ),
                   ],
@@ -1424,47 +2255,403 @@ class _InvoiceSettlementView extends StatelessWidget {
       );
 }
 
+// Retained temporarily for rollback compatibility; no longer shown in the portal.
+// ignore: unused_element
+class _SecurePaymentGuide extends StatelessWidget {
+  const _SecurePaymentGuide();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFF0F7FF), Color(0xFFE8F3FF)],
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFBFDBFE)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const CircleAvatar(
+                  backgroundColor: Color(0xFFDCEEFF),
+                  child: Icon(Icons.verified_user_rounded, color: _portalDeep),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _portalText(context, 'Secure payment guide'),
+                        style: const TextStyle(
+                          color: Color(0xFF0C2340),
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        _portalText(
+                          context,
+                          'This private page brings your invoice, owner payment details and receipt upload together in one place.',
+                        ),
+                        style: const TextStyle(
+                          color: _secondary,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                const items = [
+                  (
+                    Icons.receipt_long_rounded,
+                    'Check',
+                    'Confirm the invoice amount and owner bank details.',
+                  ),
+                  (
+                    Icons.account_balance_rounded,
+                    'Transfer',
+                    'Pay using your banking app and keep the receipt.',
+                  ),
+                  (
+                    Icons.cloud_upload_rounded,
+                    'Submit',
+                    'Attach the receipt here for the owner to review.',
+                  ),
+                ];
+                final cards = items
+                    .map(
+                      (item) => _PaymentGuideStep(
+                        icon: item.$1,
+                        title: _portalText(context, item.$2),
+                        description: _portalText(context, item.$3),
+                      ),
+                    )
+                    .toList();
+                if (constraints.maxWidth < 560) {
+                  return Column(
+                    children: [
+                      for (var i = 0; i < cards.length; i++) ...[
+                        cards[i],
+                        if (i < cards.length - 1) const SizedBox(height: 8),
+                      ],
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var i = 0; i < cards.length; i++) ...[
+                      Expanded(child: cards[i]),
+                      if (i < cards.length - 1) const SizedBox(width: 8),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      );
+}
+
+class _PaymentGuideStep extends StatelessWidget {
+  const _PaymentGuideStep({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xCCFFFFFF),
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 20, color: _portalDeep),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Color(0xFF0C2340),
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      color: _secondary,
+                      fontSize: 12,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _PaymentHelpPanel extends StatelessWidget {
+  const _PaymentHelpPanel();
+
+  static const questions = <(String, String)>[
+    (
+      'Why is this link secure?',
+      'It is a private, time-limited link issued for this invoice. Do not forward it to anyone else.',
+    ),
+    (
+      'What should I upload?',
+      'Upload a clear bank-transfer receipt in JPG, PNG or PDF format below 2 MB.',
+    ),
+    (
+      'What happens after submission?',
+      'The owner receives a notification and reviews your proof. Your payment is only confirmed after owner approval.',
+    ),
+    (
+      'What if my proof is rejected?',
+      'The owner will provide a reason and send a fresh link so you can upload a corrected proof.',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(22, 12, 22, 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  const CircleAvatar(
+                    backgroundColor: Color(0xFFE7F2FF),
+                    child: Icon(Icons.info_outline_rounded, color: _portalDeep),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _portalText(context, 'Payment help & common questions'),
+                      style: const TextStyle(
+                        color: _label,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: _portalText(context, 'Close'),
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              for (var i = 0; i < questions.length; i++) ...[
+                Text(
+                  _portalText(context, questions[i].$1),
+                  style: const TextStyle(
+                    color: _label,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  _portalText(context, questions[i].$2),
+                  style: const TextStyle(color: _secondary, height: 1.4),
+                ),
+                if (i < questions.length - 1)
+                  const Divider(height: 22, color: Color(0xFFD7E4F3)),
+              ],
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(13),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF8E7),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '${_portalText(context, 'Need assistance?')} ',
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      TextSpan(
+                        text: _portalText(
+                          context,
+                          'Contact your property owner before submitting if the amount or bank details do not look correct.',
+                        ),
+                      ),
+                    ],
+                  ),
+                  style: const TextStyle(
+                    color: Color(0xFF6B4F00),
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _PaymentHelpButton extends StatelessWidget {
+  const _PaymentHelpButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final language = _TenantPortalLanguageScope.of(context);
+    return Material(
+      color: const Color(0x2AFFFFFF),
+      borderRadius: BorderRadius.circular(999),
+      child: Tooltip(
+        message: _portalText(context, 'Payment help & common questions'),
+        child: InkWell(
+          key: const Key('tenant_payment_help_button'),
+          borderRadius: BorderRadius.circular(999),
+          onTap: () => showModalBottomSheet<void>(
+            context: context,
+            isScrollControlled: true,
+            showDragHandle: false,
+            backgroundColor: Colors.white,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            builder: (_) => _TenantPortalLanguageScope(
+              chinese: language.chinese,
+              onToggle: language.onToggle,
+              child: const FractionallySizedBox(
+                heightFactor: .72,
+                child: _PaymentHelpPanel(),
+              ),
+            ),
+          ),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+            child: Icon(
+              Icons.info_outline_rounded,
+              size: 14,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Kept for the authenticated invoice flow's existing presentation variants.
+// ignore: unused_element
 class _PortalBrandPanel extends StatelessWidget {
   const _PortalBrandPanel({required this.title, required this.subtitle});
   final String title;
   final String subtitle;
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(40),
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF3285DC), Color(0xFF1D5CB9)],
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(children: [
-              Icon(Icons.home_outlined, color: Colors.white),
-              SizedBox(width: 12),
-              Text('PLATINUM VICTORY',
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxHeight < 340;
+          return Container(
+            padding: EdgeInsets.all(compact ? 28 : 40),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF3285DC), Color(0xFF1D5CB9)],
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const HomeOpsLockup(
+                  markSize: 40,
+                  fontSize: 19,
+                  onDark: true,
+                  compact: true,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'PLATINUM VICTORY',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 2)),
-            ]),
-            const SizedBox(height: 62),
-            Text(title,
-                style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 30,
+                    fontSize: 11,
                     fontWeight: FontWeight.w800,
-                    height: 1.25)),
-            const SizedBox(height: 16),
-            Text(subtitle,
-                style: const TextStyle(color: Color(0xDDFFFFFF), height: 1.5)),
-            const SizedBox(height: 48),
-            const Text('© 2026 Platinum Victory',
-                style: TextStyle(color: Color(0xAAFFFFFF), fontSize: 12)),
-          ],
-        ),
+                    letterSpacing: 2,
+                  ),
+                ),
+                SizedBox(height: compact ? 28 : 62),
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: compact ? 27 : 30,
+                    fontWeight: FontWeight.w800,
+                    height: 1.2,
+                  ),
+                ),
+                SizedBox(height: compact ? 10 : 16),
+                Text(
+                  subtitle,
+                  maxLines: compact ? 3 : null,
+                  overflow:
+                      compact ? TextOverflow.ellipsis : TextOverflow.visible,
+                  style: const TextStyle(
+                    color: Color(0xDDFFFFFF),
+                    height: 1.4,
+                  ),
+                ),
+                if (!compact) ...[
+                  const Spacer(),
+                  const Text(
+                    '© 2026 Platinum Victory',
+                    style: TextStyle(
+                      color: Color(0xAAFFFFFF),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
       );
 }
 
@@ -1474,19 +2661,44 @@ class _InvoicePortalSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(40),
-        color: const Color(0xFF2876D4),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [_portalSky, _portalBlue, _portalDeep],
+          ),
+        ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Row(children: [
-            Icon(Icons.home_outlined, color: Colors.white),
-            SizedBox(width: 12),
-            Text('PLATINUM VICTORY',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 2))
-          ]),
+          Row(
+            children: [
+              const Expanded(
+                child: HomeOpsLockup(
+                  markSize: 40,
+                  fontSize: 19,
+                  onDark: true,
+                  compact: true,
+                ),
+              ),
+              const _TenantPortalLanguageSwitch(onDark: true),
+              const SizedBox(width: 7),
+              const _PaymentHelpButton(),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            invoice.tenant.property,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 2,
+            ),
+          ),
           const SizedBox(height: 44),
-          Text('AMOUNT DUE · ${invoice.period.toUpperCase()}',
+          Text(
+              '${_portalText(context, 'Amount due').toUpperCase()} · ${tenantPortalPeriod(_TenantPortalLanguageScope.of(context).chinese, invoice.period).toUpperCase()}',
               style: const TextStyle(
                   color: Color(0xCCFFFFFF),
                   fontSize: 11,
@@ -1499,35 +2711,53 @@ class _InvoicePortalSummary extends StatelessWidget {
                   fontSize: 42,
                   fontWeight: FontWeight.w800)),
           Text(
-              'Due ${shortDate(invoice.dueDate)} · Unit ${invoice.tenant.unit}',
+              '${_portalText(context, 'Due')} ${shortDate(invoice.dueDate)} · ${_portalText(context, 'Unit')} ${invoice.tenant.unit}',
               style: const TextStyle(color: Color(0xDDFFFFFF))),
           const Divider(height: 42, color: Color(0x55FFFFFF)),
-          _PortalCharge('Monthly rent', invoice.tenant.rent),
-          _PortalCharge('Water', invoice.tenant.water),
-          _PortalCharge('Internet', invoice.tenant.internet),
-          _PortalCharge('General electricity', invoice.generalElectricAmount),
           _PortalCharge(
-              'Air-con electricity · ${invoice.usage.toStringAsFixed(2)} kWh',
-              invoice.electricity),
-          _PortalCharge('Parking rental', invoice.parkingRentalAmount),
+              _portalText(context, 'Monthly rent'), invoice.tenant.rent),
+          _PortalCharge(_portalText(context, 'Water'), invoice.tenant.water),
+          _PortalCharge(
+              _portalText(context, 'Internet'), invoice.tenant.internet),
+          if (!invoice.usesCombinedElectricity)
+            _PortalCharge(_portalText(context, 'General electricity'),
+                invoice.generalElectricAmount),
+          _PortalCharge(
+              '${_portalText(context, invoice.electricityLabel)} · ${invoice.usage.toStringAsFixed(2)} kWh',
+              invoice.displayedElectricity),
+          _PortalCharge(_portalText(context, 'Parking rental'),
+              invoice.parkingRentalAmount),
           const Divider(height: 30, color: Color(0x55FFFFFF)),
-          TextButton.icon(
-            onPressed: () async {
-              final pdfPath = invoice.pdfPath;
-              if (pdfPath != null && pdfPath.isNotEmpty) {
-                await launchUrl(
-                  Uri.parse(RentFlowScope.of(context).publicFileUrl(pdfPath)),
-                  mode: LaunchMode.externalApplication,
-                );
-                return;
-              }
-              if (context.mounted) {
-                await showInvoicePdfPreview(context, invoice);
-              }
-            },
-            icon: const Icon(Icons.description_outlined),
-            label: const Text('Download invoice PDF'),
-            style: TextButton.styleFrom(foregroundColor: Colors.white),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () async {
+                final pdfUrl = invoice.pdfUrl;
+                if (pdfUrl != null) {
+                  await launchUrl(
+                    pdfUrl,
+                    mode: LaunchMode.externalApplication,
+                  );
+                  return;
+                }
+                if (context.mounted) {
+                  await showInvoicePdfPreview(context, invoice);
+                }
+              },
+              icon: const Icon(Icons.download_rounded),
+              label: Text(
+                _portalText(context, 'Download invoice PDF'),
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: _portalDeep,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
           ),
         ]),
       );
@@ -1564,36 +2794,173 @@ class _PortalSectionLabel extends StatelessWidget {
 }
 
 class _BankDetailsCard extends StatelessWidget {
-  const _BankDetailsCard();
+  const _BankDetailsCard({required this.invoice});
+  final RentalInvoice invoice;
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
         decoration: BoxDecoration(
             border: Border.all(color: const Color(0xFFDCE5F0)),
             borderRadius: BorderRadius.circular(16)),
-        child: const Column(children: [
-          _BankRow('Bank', 'Maybank'),
-          Divider(height: 1),
-          _BankRow('Account no.', '5124 8890 2201'),
-          Divider(height: 1),
-          _BankRow('Beneficiary', 'Ahmad Faisal'),
+        child: Column(children: [
+          if (invoice.paymentQrBase64 != null) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Column(
+                children: [
+                  Text(
+                    _portalText(context, 'Payment QR'),
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  if (invoice.paymentQrName?.trim().isNotEmpty ?? false) ...[
+                    const SizedBox(height: 3),
+                    Text(invoice.paymentQrName!,
+                        style:
+                            const TextStyle(color: _secondary, fontSize: 12)),
+                  ],
+                  const SizedBox(height: 10),
+                  InkWell(
+                    onTap: () => _showPaymentQr(context, invoice),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Image.memory(
+                        Uint8List.fromList(
+                          base64Decode(invoice.paymentQrBase64!),
+                        ),
+                        width: 180,
+                        height: 180,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _portalText(context, 'Tap QR to enlarge'),
+                    style: const TextStyle(color: _secondary, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+          ] else ...[
+            _BankRow(
+              _portalText(context, 'Payment QR'),
+              _portalText(context, 'Not configured'),
+            ),
+            const Divider(height: 1),
+          ],
+          _BankRow(
+            _portalText(context, 'Bank'),
+            invoice.bankName.isEmpty
+                ? _portalText(context, 'Not configured')
+                : invoice.bankName,
+          ),
+          const Divider(height: 1),
+          _BankRow(
+              _portalText(context, 'Account no.'),
+              invoice.bankAccountNumber.isEmpty
+                  ? _portalText(context, 'Not configured')
+                  : invoice.bankAccountNumber,
+              onTap: invoice.bankAccountNumber.isEmpty
+                  ? null
+                  : () => _copyBankAccount(context, invoice.bankAccountNumber)),
+          const Divider(height: 1),
+          _BankRow(
+              _portalText(context, 'Beneficiary'),
+              invoice.bankBeneficiary.isEmpty
+                  ? _portalText(context, 'Not configured')
+                  : invoice.bankBeneficiary),
         ]),
       );
 }
 
 class _BankRow extends StatelessWidget {
-  const _BankRow(this.label, this.value);
+  const _BankRow(this.label, this.value, {this.onTap});
   final String label;
   final String value;
+  final VoidCallback? onTap;
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        child: Row(children: [
-          Expanded(
-              child: Text(label, style: const TextStyle(color: _secondary))),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w800))
-        ]),
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Row(children: [
+            Expanded(
+                child: Text(label, style: const TextStyle(color: _secondary))),
+            Flexible(
+              child: Text(
+                value,
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+            if (onTap != null) ...[
+              const SizedBox(width: 8),
+              const Icon(Icons.copy_rounded, size: 18, color: _blue),
+            ],
+          ]),
+        ),
       );
+}
+
+Future<void> _copyBankAccount(BuildContext context, String account) async {
+  await Clipboard.setData(ClipboardData(text: account));
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        content: Text(_portalText(context, 'Bank account copied.')),
+      ),
+    );
+}
+
+Future<void> _showPaymentQr(
+  BuildContext context,
+  RentalInvoice invoice,
+) async {
+  final encoded = invoice.paymentQrBase64;
+  if (encoded == null || encoded.isEmpty) return;
+  final bytes = Uint8List.fromList(base64Decode(encoded));
+  final title = _portalText(context, 'Payment QR');
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) => Dialog(
+      insetPadding: const EdgeInsets.all(20),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420, maxHeight: 520),
+              child: Image.memory(bytes, fit: BoxFit.contain),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _PaymentSubmittedView extends StatelessWidget {
@@ -1616,21 +2983,33 @@ class _PaymentSubmittedView extends StatelessWidget {
                       offset: Offset(0, 14))
                 ]),
             child: Column(children: [
+              const Align(
+                alignment: Alignment.centerRight,
+                child: _TenantPortalLanguageSwitch(),
+              ),
               const CircleAvatar(
                   radius: 35,
                   backgroundColor: Color(0xFFE7F7EE),
                   child: Icon(Icons.check_rounded,
                       color: Color(0xFF16A34A), size: 38)),
               const SizedBox(height: 22),
-              Text('Thank you, ${invoice.tenant.name.split(' ').first}.',
+              Text(
+                  _TenantPortalLanguageScope.of(context).chinese
+                      ? '谢谢您，${invoice.tenant.name.split(' ').first}。'
+                      : 'Thank you, ${invoice.tenant.name.split(' ').first}.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                       fontSize: 28, fontWeight: FontWeight.w800)),
               const SizedBox(height: 10),
               Text(
                   invoice.status == InvoiceStatus.paid
-                      ? 'Your payment has been confirmed.'
-                      : 'Your pay slip for ${rm(invoice.total)} has reached the owner.',
+                      ? _portalText(
+                          context,
+                          'Your payment has been confirmed.',
+                        )
+                      : _TenantPortalLanguageScope.of(context).chinese
+                          ? '您为 ${rm(invoice.total)} 上传的付款凭证已发送给业主。'
+                          : 'Your pay slip for ${rm(invoice.total)} has reached the owner.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: _secondary, height: 1.5)),
               const SizedBox(height: 24),
@@ -1647,26 +3026,52 @@ class _PaymentSubmittedView extends StatelessWidget {
                     Expanded(
                         child: Text(
                             invoice.status == InvoiceStatus.paid
-                                ? 'Payment confirmed'
-                                : 'Awaiting owner confirmation',
+                                ? _portalText(context, 'Payment confirmed')
+                                : _portalText(
+                                    context,
+                                    'Awaiting owner confirmation',
+                                  ),
                             style:
                                 const TextStyle(fontWeight: FontWeight.w800)))
                   ])),
               const SizedBox(height: 22),
               OutlinedButton.icon(
-                  onPressed: () => printInvoice(invoice),
+                  onPressed: () => _openTenantInvoicePdf(context, invoice),
                   icon: const Icon(Icons.download_rounded),
-                  label: const Text('Download receipt')),
+                  label: Text(_portalText(context, 'Download receipt'))),
             ]),
           ),
         ),
       );
 }
 
-String _maskedPhone(String value) {
-  final digits = value.replaceAll(RegExp(r'\D'), '');
-  if (digits.length < 4) return value;
-  return '••• ${digits.substring(digits.length - 4)}';
+Future<void> _openTenantInvoicePdf(
+  BuildContext context,
+  RentalInvoice invoice,
+) async {
+  final pdfUrl = invoice.pdfUrl;
+  if (pdfUrl == null) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_portalText(context, 'The invoice PDF is unavailable.')),
+      ),
+    );
+    return;
+  }
+  final opened = await launchUrl(
+    pdfUrl,
+    mode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication,
+    webOnlyWindowName: kIsWeb ? '_blank' : null,
+  );
+  if (!opened && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content:
+            Text(_portalText(context, 'The invoice PDF could not be opened.')),
+      ),
+    );
+  }
 }
 
 class InvoiceDocument extends StatelessWidget {
@@ -1680,20 +3085,27 @@ class InvoiceDocument extends StatelessWidget {
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                    Text('RENTAL PAYMENT NOTICE',
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: _blue,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: .8)),
-                    SizedBox(height: 4),
-                    Text('RentFlow',
-                        style: TextStyle(
-                            fontSize: 28, fontWeight: FontWeight.w800))
-                  ])),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    HomeOpsLockup(
+                      markSize: 38,
+                      fontSize: 22,
+                      compact: true,
+                    ),
+                    SizedBox(height: 12),
+                    Text(
+                      'RENTAL PAYMENT NOTICE',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _blue,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: .8,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 const Text('AMOUNT DUE',
                     style: TextStyle(fontSize: 11, color: _secondary)),
@@ -1813,6 +3225,7 @@ Future<void> showCreateInvoice(BuildContext context) async {
   Uint8List? evidenceBytes;
   await showDialog<void>(
     context: context,
+    barrierDismissible: false,
     builder: (dialogContext) => StatefulBuilder(builder: (context, setState) {
       final usage = math.max(
         0,
@@ -1904,7 +3317,6 @@ Future<void> showCreateInvoice(BuildContext context) async {
 Future<void> showInvoiceActions(
     BuildContext context, RentalInvoice invoice) async {
   final store = RentFlowScope.of(context);
-  final base = tenantInvoiceLink(invoice.id);
   await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -1917,20 +3329,28 @@ Future<void> showInvoiceActions(
                     children: [
                       InvoiceDocument(invoice: invoice),
                       const SizedBox(height: 12),
-                      SelectableText(base.toString(),
-                          style: const TextStyle(color: _blue, fontSize: 12)),
+                      const Text(
+                        'A new expiring secure link is generated when the invoice is sent.',
+                        style: TextStyle(color: _secondary, fontSize: 12),
+                      ),
                     ])),
             actions: [
               TextButton(
                   onPressed: () => printInvoice(invoice),
                   child: const Text('PDF')),
               TextButton(
-                  onPressed: () => shareEmail(invoice, base),
+                  onPressed: () async {
+                    final access = await store.publishInvoice(invoice);
+                    await shareEmail(
+                      invoice,
+                      tenantInvoiceLink(invoice.id, access.portalToken),
+                    );
+                  },
                   child: const Text('Email')),
               if (invoice.slipPath != null)
                 TextButton(
-                    onPressed: () => launchUrl(
-                        Uri.parse(store.publicFileUrl(invoice.slipPath!))),
+                    onPressed: () async =>
+                        launchUrl(await store.signedFileUrl(invoice.slipPath!)),
                     child: const Text('Review slip')),
               if (invoice.status == InvoiceStatus.slipSubmitted)
                 TextButton(
@@ -1940,7 +3360,14 @@ Future<void> showInvoiceActions(
                     },
                     child: const Text('Approve payment')),
               FilledButton.icon(
-                  onPressed: () => shareWhatsApp(invoice, base),
+                  onPressed: () async {
+                    final access = await store.publishInvoice(invoice);
+                    await shareWhatsApp(
+                      invoice,
+                      tenantInvoiceLink(invoice.id, access.portalToken),
+                      pdfLink: access.pdfUrl,
+                    );
+                  },
                   icon: const Icon(Icons.send_rounded),
                   label: const Text('Send WhatsApp')),
             ],
@@ -1948,7 +3375,7 @@ Future<void> showInvoiceActions(
 }
 
 Future<void> shareEmail(RentalInvoice invoice, Uri link) async {
-  final subject = 'RentFlow invoice ${invoice.id} – ${invoice.period}';
+  final subject = 'HomeOps360 invoice ${invoice.id} – ${invoice.period}';
   final body =
       'Hi ${invoice.tenant.name},\n\nYour rental invoice is ready. Amount due: ${rm(invoice.total)}.\n\nOpen this link to review/download the invoice and upload your payment slip:\n$link';
   await launchUrl(Uri(
@@ -1962,33 +3389,60 @@ String invoiceWhatsAppMessage(
   RentalInvoice invoice,
   Uri link, {
   Uri? pdfLink,
-}) =>
-    'Hi ${invoice.tenant.name}, your ${invoice.period} rental invoice is ready. Amount due: ${rm(invoice.total)}.\n\nOpen the secure payment portal and upload your payment slip:\n$link${pdfLink == null ? '' : '\n\nDownload your PDF invoice:\n$pdfLink'}';
+  bool tenantHasAccount = false,
+  Uri? invitationLink,
+}) {
+  final introduction =
+      'Hi ${invoice.tenant.name}, your ${invoice.period} rental invoice is ready. Amount due: ${rm(invoice.total)}.';
+  if (tenantHasAccount) {
+    return '$introduction\n\nLog in to HomeOps360 to view the invoice PDF and submit your payment:\nhttps://homeops360.app';
+  }
+  final paymentMessage =
+      '$introduction\n\nPay or view the invoice PDF using this secure link:\n$link';
+  if (invitationLink == null) return paymentMessage;
+  return '$paymentMessage\n\nCreate your HomeOps360 account and password using this invitation link. The invitation is valid for 72 hours:\n$invitationLink';
+}
+
+bool _whatsAppLaunchInProgress = false;
 
 Future<void> shareWhatsApp(
   RentalInvoice invoice,
   Uri link, {
   Uri? pdfLink,
+  bool tenantHasAccount = false,
+  Uri? invitationLink,
+  String? messageOverride,
 }) async {
-  final message = invoiceWhatsAppMessage(
-    invoice,
-    link,
-    pdfLink: pdfLink,
-  );
+  if (_whatsAppLaunchInProgress) return;
+  _whatsAppLaunchInProgress = true;
+  final message = messageOverride ??
+      invoiceWhatsAppMessage(
+        invoice,
+        link,
+        pdfLink: pdfLink,
+        tenantHasAccount: tenantHasAccount,
+        invitationLink: invitationLink,
+      );
   final whatsappPhone = invoice.tenant.phone.replaceAll(RegExp(r'\D'), '');
   final uri = Uri.parse(
       'https://wa.me/$whatsappPhone?text=${Uri.encodeComponent(message)}');
-  if (kIsWeb) {
-    // Mobile browsers commonly block a new window after PDF generation and
-    // upload. Reusing the current tab remains permitted and opens the
-    // WhatsApp app when its universal link is installed.
-    await launchUrl(
-      uri,
-      mode: LaunchMode.platformDefault,
-      webOnlyWindowName: '_self',
-    );
-  } else {
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  try {
+    if (kIsWeb) {
+      // Mobile browsers commonly block a new window after PDF generation and
+      // upload. Reusing the current tab remains permitted and opens the
+      // WhatsApp app when its universal link is installed.
+      await launchUrl(
+        uri,
+        mode: LaunchMode.platformDefault,
+        webOnlyWindowName: '_self',
+      );
+    } else {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  } finally {
+    Future<void>.delayed(const Duration(seconds: 2), () {
+      _whatsAppLaunchInProgress = false;
+    });
   }
 }
 
@@ -2067,6 +3521,11 @@ DateTime? _parseShortDate(String input) {
 
 Future<Uint8List> invoicePdf(RentalInvoice invoice) async {
   final evidence = _prepareEvidenceForPdf(invoice.evidenceBytes);
+  if (invoice.evidenceRequired && invoice.usage > 0 && evidence == null) {
+    throw StateError(
+      'Meter-reading evidence is required before this invoice PDF can be generated.',
+    );
+  }
   final fontData = await rootBundle.load('assets/fonts/Manrope-Variable.ttf');
   final font = pw.Font.ttf(fontData);
   final theme = pw.ThemeData.withFont(
@@ -2077,7 +3536,9 @@ Future<Uint8List> invoicePdf(RentalInvoice invoice) async {
   );
   final doc = pw.Document();
   doc.addPage(_noticePage(invoice, theme));
-  doc.addPage(_evidencePage(invoice, evidence, theme));
+  if (invoice.evidenceRequired) {
+    doc.addPage(_evidencePage(invoice, evidence, theme));
+  }
   return doc.save();
 }
 
@@ -2237,17 +3698,18 @@ pw.Page _noticePage(RentalInvoice invoice, pw.ThemeData theme) {
                 false,
                 line,
                 muted),
+            if (!invoice.usesCombinedElectricity)
+              _pdfChargeRow(
+                  'General electricity',
+                  'Monthly general electricity charge',
+                  rm(invoice.generalElectricAmount),
+                  true,
+                  line,
+                  muted),
             _pdfChargeRow(
-                'General electricity',
-                'Monthly general electricity charge',
-                rm(invoice.generalElectricAmount),
-                true,
-                line,
-                muted),
-            _pdfChargeRow(
-                'Air-con electricity',
+                invoice.electricityLabel,
                 '${invoice.usagePeriod} usage: ${invoice.usage.toStringAsFixed(2)} kWh\n${invoice.electricityTariffSummary ?? '${invoice.electricityTariffName} RM ${invoice.electricityRatePerKwh.toStringAsFixed(3)} / kWh'}\nRounded to ${rm(invoice.electricity)}',
-                rm(invoice.electricity),
+                rm(invoice.displayedElectricity),
                 false,
                 line,
                 muted),
@@ -2348,9 +3810,25 @@ pw.Page _evidencePage(
   );
 }
 
-pw.Widget _pdfTopLine(PdfColor muted) =>
-    pw.Text('Digital bill generated and powered by CodexAI.',
-        style: pw.TextStyle(fontSize: 8, color: muted));
+pw.Widget _pdfTopLine(PdfColor muted) => pw.Row(
+      children: [
+        pw.SvgImage(svg: homeOps360IconSvg, width: 28, height: 28),
+        pw.SizedBox(width: 8),
+        pw.Text(
+          'HomeOps360',
+          style: pw.TextStyle(
+            color: PdfColor.fromHex('#0E1B33'),
+            fontSize: 14,
+            fontWeight: pw.FontWeight.bold,
+          ),
+        ),
+        pw.Spacer(),
+        pw.Text(
+          'Digital bill generated by HomeOps360',
+          style: pw.TextStyle(fontSize: 8, color: muted),
+        ),
+      ],
+    );
 pw.Widget _pdfSection(String text, PdfColor color) => pw.Text(text,
     style: pw.TextStyle(
         fontSize: 12, color: color, fontWeight: pw.FontWeight.bold));
@@ -2419,13 +3897,21 @@ Future<Uint8List> _legacyInvoicePdf(RentalInvoice invoice) async {
                 color: PdfColor.fromHex('#EEF4FD'),
                 borderRadius: pw.BorderRadius.circular(12),
               ),
-              child: pw.Text(
-                '${invoice.period.toUpperCase()} RENTAL PAYMENT NOTICE',
-                style: pw.TextStyle(
-                  color: PdfColor.fromHex('#17233C'),
-                  fontSize: 24,
-                  fontWeight: pw.FontWeight.bold,
-                ),
+              child: pw.Row(
+                children: [
+                  pw.SvgImage(svg: homeOps360IconSvg, width: 42, height: 42),
+                  pw.SizedBox(width: 14),
+                  pw.Expanded(
+                    child: pw.Text(
+                      '${invoice.period.toUpperCase()} RENTAL PAYMENT NOTICE',
+                      style: pw.TextStyle(
+                        color: PdfColor.fromHex('#17233C'),
+                        fontSize: 24,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             pw.SizedBox(height: 8),
@@ -2439,10 +3925,10 @@ Future<Uint8List> _legacyInvoicePdf(RentalInvoice invoice) async {
                   child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
-                    pw.Text('PLATINUM VICTORY',
+                    pw.Text(invoice.tenant.property,
                         style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
                     pw.SizedBox(height: 5),
-                    pw.Text('Rental Facility Manager',
+                    pw.Text('HomeOps360',
                         style: const pw.TextStyle(
                             fontSize: 10, color: PdfColors.grey600))
                   ])),
@@ -2581,7 +4067,17 @@ Future<void> showInvoicePdfPreview(
   BuildContext context,
   RentalInvoice invoice,
 ) async {
+  final browserTab = kIsWeb ? preparePdfBrowserTab() : null;
   try {
+    if (kIsWeb) {
+      final webPdfBytes = await invoicePdf(invoice);
+      await showPdfInBrowserTab(
+        browserTab!,
+        webPdfBytes,
+        '${invoice.id}.pdf',
+      );
+      return;
+    }
     await showDialog<void>(
       context: context,
       builder: (previewContext) {
@@ -2668,6 +4164,7 @@ Future<void> showInvoicePdfPreview(
       },
     );
   } catch (error) {
+    if (browserTab != null) closePdfBrowserTab(browserTab);
     if (!context.mounted) return;
     await showDialog<void>(
       context: context,
