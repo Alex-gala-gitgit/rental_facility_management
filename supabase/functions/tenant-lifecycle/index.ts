@@ -1,7 +1,32 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4'
-import { serveMonitored } from '../_shared/api_monitor.ts'
 
 type JsonRecord = Record<string, unknown>
+
+type Handler = (request: Request) => Response | Promise<Response>
+
+function serveMonitored(functionName: string, handler: Handler) {
+  Deno.serve(async (request) => {
+    const started = performance.now()
+    try {
+      const result = await handler(request)
+      console.info(JSON.stringify({
+        function_name: functionName,
+        method: request.method,
+        status_code: result.status,
+        duration_ms: Math.max(0, Math.round(performance.now() - started)),
+      }))
+      return result
+    } catch (error) {
+      console.error(JSON.stringify({
+        function_name: functionName,
+        method: request.method,
+        status_code: 500,
+        duration_ms: Math.max(0, Math.round(performance.now() - started)),
+      }), error)
+      throw error
+    }
+  })
+}
 
 function response(body: unknown, status = 200) {
   return Response.json(body, {
