@@ -827,6 +827,12 @@ class Tenancy {
     this.agreementUploadedAt,
     this.agreementBytes,
     this.active = true,
+    this.lastActiveDate,
+    this.inactiveReason = '',
+    this.inactiveRemark = '',
+    this.inactivatedAt,
+    this.reactivatedAt,
+    this.lifecycleNoticeAcknowledged,
     DateTime? initialRecordedAt,
     List<TenancyContractVersion>? contractHistory,
   }) : contractHistory = contractHistory ?? <TenancyContractVersion>[] {
@@ -868,6 +874,12 @@ class Tenancy {
   DateTime? agreementUploadedAt;
   Uint8List? agreementBytes;
   bool active;
+  DateTime? lastActiveDate;
+  String inactiveReason;
+  String inactiveRemark;
+  DateTime? inactivatedAt;
+  DateTime? reactivatedAt;
+  String? lifecycleNoticeAcknowledged;
   final List<TenancyContractVersion> contractHistory;
 
   bool get utilitiesFullyIncluded =>
@@ -877,6 +889,24 @@ class Tenancy {
 
   bool get electricityRequiresOwnerReading =>
       electricityPackage == UtilityPackage.excluded;
+
+  DateTime? get inactiveFrom {
+    final cutoff = lastActiveDate;
+    if (cutoff == null) return null;
+    return DateTime(cutoff.year, cutoff.month, cutoff.day)
+        .add(const Duration(days: 1));
+  }
+
+  bool isInactiveAt(DateTime value) {
+    if (!active) return true;
+    final effectiveDate = inactiveFrom;
+    if (effectiveDate == null) return false;
+    final date = DateTime(value.year, value.month, value.day);
+    return !date.isBefore(effectiveDate);
+  }
+
+  bool isScheduledAt(DateTime value) =>
+      active && lastActiveDate != null && !isInactiveAt(value);
 }
 
 class TenancyContractVersion {
@@ -1657,6 +1687,66 @@ class RentalStore extends ChangeNotifier {
     final user = currentUser;
     if (user == null) return [];
     return tenancies.where((tenancy) => tenancy.tenantId == user.id).toList();
+  }
+
+  DateTime _dateOnly(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
+
+  DateTime? tenancyInactiveFrom(Tenancy tenancy) {
+    final lastActiveDate = tenancy.lastActiveDate;
+    if (lastActiveDate == null) return null;
+    final date = _dateOnly(lastActiveDate);
+    return date.add(const Duration(days: 1));
+  }
+
+  bool isTenancyScheduledForInactivation(
+    Tenancy tenancy, {
+    DateTime? at,
+  }) {
+    if (!tenancy.active || tenancy.lastActiveDate == null) return false;
+    final inactiveFrom = tenancyInactiveFrom(tenancy)!;
+    return _dateOnly(at ?? _now).isBefore(inactiveFrom);
+  }
+
+  bool isTenancyInactive(Tenancy tenancy, {DateTime? at}) {
+    if (!tenancy.active) return true;
+    final inactiveFrom = tenancyInactiveFrom(tenancy);
+    return inactiveFrom != null &&
+        !_dateOnly(at ?? _now).isBefore(inactiveFrom);
+  }
+
+  DateTime? tenancyReactivationDeadline(Tenancy tenancy) {
+    final inactiveFrom = tenancy.inactivatedAt == null
+        ? tenancyInactiveFrom(tenancy)
+        : _dateOnly(tenancy.inactivatedAt!);
+    if (inactiveFrom == null) return null;
+    return DateTime(
+      inactiveFrom.year,
+      inactiveFrom.month + 1,
+      inactiveFrom.day,
+    );
+  }
+
+  bool canReactivateTenancy(Tenancy tenancy, {DateTime? at}) {
+    final deadline = tenancyReactivationDeadline(tenancy);
+    if (!isTenancyInactive(tenancy, at: at) || deadline == null) return false;
+    return _dateOnly(at ?? _now).isBefore(deadline);
+  }
+
+  bool get isCurrentTenantReadOnly {
+    final user = currentUser;
+    if (user?.role != UserRole.tenant || tenantTenancies.isEmpty) return false;
+    return tenantTenancies.every(isTenancyInactive);
+  }
+
+  Tenancy? get currentTenantLifecycleTenancy {
+    if (currentUser?.role != UserRole.tenant || tenantTenancies.isEmpty) {
+      return null;
+    }
+    final inactive = tenantTenancies.where(isTenancyInactive);
+    if (inactive.isNotEmpty) return inactive.first;
+    final scheduled = tenantTenancies.where(isTenancyScheduledForInactivation);
+    return scheduled.isEmpty ? null : scheduled.first;
   }
 
   List<PropertyAnnouncement> announcementsForFacility(
@@ -3106,6 +3196,11 @@ class RentalStore extends ChangeNotifier {
                     ? null
                     : base64Encode(tenancy.agreementBytes!),
                 'active': tenancy.active,
+                'lastActiveDate': tenancy.lastActiveDate?.toIso8601String(),
+                'inactiveReason': tenancy.inactiveReason,
+                'inactiveRemark': tenancy.inactiveRemark,
+                'inactivatedAt': tenancy.inactivatedAt?.toIso8601String(),
+                'reactivatedAt': tenancy.reactivatedAt?.toIso8601String(),
               })
           .toList(),
       'bills': ownBills
@@ -3342,7 +3437,8 @@ class RentalStore extends ChangeNotifier {
     final facilityIds = ownerFacilities.map((item) => item.id).toSet();
     final activeTenancyKeys = tenancies
         .where((tenancy) =>
-            tenancy.active && facilityIds.contains(tenancy.facilityId))
+            !isTenancyInactive(tenancy) &&
+            facilityIds.contains(tenancy.facilityId))
         .map((tenancy) => '${tenancy.facilityId}:${tenancy.tenantId}')
         .toSet();
     final currentBills = bills.where((bill) {
@@ -4662,6 +4758,7 @@ class RentalStore extends ChangeNotifier {
     double amountPaid, {
     Uint8List? slipBytes,
   }) {
+    if (isCurrentTenantReadOnly) return;
     bill.slipFileName = fileName;
     bill.slipBytes = slipBytes;
     bill.amountPaid = amountPaid;
@@ -5083,6 +5180,7 @@ class RentalStore extends ChangeNotifier {
     String? attachmentBase64,
     int? attachmentSizeBytes,
   }) {
+    if (isCurrentTenantReadOnly) return;
     final user = currentUser;
     final tenancy = tenantTenancies.isEmpty ? null : tenantTenancies.first;
     if (user == null || tenancy == null) return;
@@ -5661,13 +5759,101 @@ class RentalStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  void deactivateTenancy(Tenancy tenancy) {
-    if (isReadOnlyObserver || !tenancy.active) return;
-    tenancy.active = false;
+  void scheduleTenancyInactivation(
+    Tenancy tenancy, {
+    required DateTime lastActiveDate,
+    required String reason,
+    required String remark,
+  }) {
+    if (isReadOnlyObserver || isTenancyInactive(tenancy)) return;
+    final cutoff = _dateOnly(lastActiveDate);
+    if (cutoff.isBefore(_dateOnly(_now))) return;
+    tenancy
+      ..lastActiveDate = cutoff
+      ..inactiveReason = reason.trim()
+      ..inactiveRemark = remark.trim()
+      ..inactivatedAt = null
+      ..reactivatedAt = null
+      ..lifecycleNoticeAcknowledged = null;
     final tenant = userFor(tenancy.tenantId);
-    tenant.accountStatus = 'Inactive';
+    tenant.accountStatus = 'Active';
+    _notify(
+      '${tenant.name} tenancy is scheduled to end on ${dateLabel(cutoff)}.',
+    );
+    notifyListeners();
+  }
+
+  void cancelScheduledTenancyInactivation(Tenancy tenancy) {
+    if (isReadOnlyObserver || !isTenancyScheduledForInactivation(tenancy))
+      return;
+    final tenant = userFor(tenancy.tenantId);
+    tenancy
+      ..lastActiveDate = null
+      ..inactiveReason = ''
+      ..inactiveRemark = ''
+      ..inactivatedAt = null
+      ..lifecycleNoticeAcknowledged = null;
+    tenant.accountStatus = 'Active';
+    _notify('${tenant.name} scheduled tenancy ending was cancelled.');
+    notifyListeners();
+  }
+
+  void deactivateTenancy(Tenancy tenancy) {
+    if (isReadOnlyObserver || isTenancyInactive(tenancy)) return;
+    tenancy
+      ..lastActiveDate = _dateOnly(_now).subtract(const Duration(days: 1))
+      ..inactiveReason = 'Owner decision'
+      ..inactiveRemark = ''
+      ..lifecycleNoticeAcknowledged = null;
+    _applyDueTenancyLifecycleTransitions();
+    final tenant = userFor(tenancy.tenantId);
     _notify('${tenant.name} was marked inactive. Historical records remain.');
     notifyListeners();
+  }
+
+  bool reactivateTenancy(Tenancy tenancy) {
+    if (isReadOnlyObserver || !canReactivateTenancy(tenancy)) return false;
+    final tenant = userFor(tenancy.tenantId);
+    tenancy
+      ..active = true
+      ..lastActiveDate = null
+      ..inactiveReason = ''
+      ..inactiveRemark = ''
+      ..inactivatedAt = null
+      ..reactivatedAt = _now
+      ..lifecycleNoticeAcknowledged = null;
+    tenant.accountStatus = 'Active';
+    _ensureCurrentMonthUtilityBills();
+    _notify(
+      '${tenant.name} tenancy was reactivated. Future monthly billing resumed.',
+    );
+    notifyListeners();
+    return true;
+  }
+
+  void acknowledgeTenantLifecycleNotice(Tenancy tenancy, String stage) {
+    if (currentUser?.role != UserRole.tenant) return;
+    tenancy.lifecycleNoticeAcknowledged = stage;
+    notifyListeners();
+  }
+
+  bool _applyDueTenancyLifecycleTransitions() {
+    var changed = false;
+    for (final tenancy in tenancies) {
+      if (!tenancy.active || !isTenancyInactive(tenancy)) continue;
+      tenancy
+        ..active = false
+        ..inactivatedAt = tenancyInactiveFrom(tenancy) ?? _dateOnly(_now)
+        ..lifecycleNoticeAcknowledged = null;
+      final matches = users.where((user) => user.id == tenancy.tenantId);
+      if (matches.isNotEmpty) matches.first.accountStatus = 'Inactive';
+      changed = true;
+    }
+    return changed;
+  }
+
+  void refreshTenancyLifecycle() {
+    if (_applyDueTenancyLifecycleTransitions()) notifyListeners();
   }
 
   Map<String, dynamic>? _verifiedLegacySnapshot(CloudProfile profile) {
@@ -6126,6 +6312,13 @@ class RentalStore extends ChangeNotifier {
                       ? null
                       : base64Encode(tenancy.agreementBytes!),
                   'active': tenancy.active,
+                  'lastActiveDate': _date(tenancy.lastActiveDate),
+                  'inactiveReason': tenancy.inactiveReason,
+                  'inactiveRemark': tenancy.inactiveRemark,
+                  'inactivatedAt': _date(tenancy.inactivatedAt),
+                  'reactivatedAt': _date(tenancy.reactivatedAt),
+                  'lifecycleNoticeAcknowledged':
+                      tenancy.lifecycleNoticeAcknowledged,
                   'contractHistory': tenancy.contractHistory
                       .map((version) => {
                             'effectiveMonth': _date(version.effectiveMonth),
@@ -6530,6 +6723,13 @@ class RentalStore extends ChangeNotifier {
                     base64Decode(item['agreementBytesBase64'] as String),
                   ),
             active: item['active'] as bool? ?? true,
+            lastActiveDate: _parseDate(item['lastActiveDate']),
+            inactiveReason: item['inactiveReason'] as String? ?? '',
+            inactiveRemark: item['inactiveRemark'] as String? ?? '',
+            inactivatedAt: _parseDate(item['inactivatedAt']),
+            reactivatedAt: _parseDate(item['reactivatedAt']),
+            lifecycleNoticeAcknowledged:
+                item['lifecycleNoticeAcknowledged'] as String?,
             contractHistory: _maps(item['contractHistory'])
                 .map((version) => TenancyContractVersion(
                       effectiveMonth: _parseDate(version['effectiveMonth']) ??
@@ -6716,6 +6916,7 @@ class RentalStore extends ChangeNotifier {
                   PropertyExpenseKind.oneOff,
                 ),
               )));
+    _applyDueTenancyLifecycleTransitions();
     _removeExactCurrentMonthExpenseDuplicates();
     _upgradeDemoFacilityNames();
     if (_seedDemoData) {
@@ -7340,7 +7541,7 @@ class RentalStore extends ChangeNotifier {
       final monthStart = currentMonth;
       final leaseStart = DateTime(item.leaseStart.year, item.leaseStart.month);
       final leaseEnd = DateTime(item.leaseEnd.year, item.leaseEnd.month);
-      return item.active &&
+      return !isTenancyInactive(item) &&
           !leaseStart.isAfter(monthStart) &&
           !leaseEnd.isBefore(monthStart);
     })) {
@@ -17745,6 +17946,7 @@ class TenantHomeScreen extends StatefulWidget {
 class _TenantHomeScreenState extends State<TenantHomeScreen> {
   int selectedIndex = 0;
   bool autoTourScheduled = false;
+  String? lifecyclePromptKey;
   int? tourIndex;
   bool recordTourResult = false;
 
@@ -17804,8 +18006,48 @@ class _TenantHomeScreenState extends State<TenantHomeScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (autoTourScheduled) return;
     final store = RentalStoreScope.of(context);
+    final lifecycleTenancy = store.currentTenantLifecycleTenancy;
+    var scheduledLifecyclePrompt = false;
+    if (lifecycleTenancy != null) {
+      final inactive = store.isTenancyInactive(lifecycleTenancy);
+      final stage = inactive ? 'inactive' : 'scheduled';
+      final key =
+          '$stage:${lifecycleTenancy.lastActiveDate?.toIso8601String()}';
+      if (lifecycleTenancy.lifecycleNoticeAcknowledged != key &&
+          lifecyclePromptKey != key) {
+        lifecyclePromptKey = key;
+        scheduledLifecyclePrompt = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (!mounted) return;
+          await showDialog<void>(
+            context: context,
+            barrierDismissible: false,
+            builder: (dialogContext) => AlertDialog(
+              icon: Icon(
+                inactive ? Icons.lock_clock_rounded : Icons.event_note_rounded,
+              ),
+              title: Text(inactive
+                  ? 'Tenancy ended ${dateLabel(lifecycleTenancy.lastActiveDate!)}'
+                  : 'Tenancy ends ${dateLabel(lifecycleTenancy.lastActiveDate!)}'),
+              content: Text(inactive
+                  ? 'Thank you for staying with us. Your account is now view-only. Past bills and receipts remain available.'
+                  : 'Thank you for staying with us. Your account remains active until then. Contact your property owner if this is unexpected.'),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('I understand'),
+                ),
+              ],
+            ),
+          );
+          if (!mounted) return;
+          store.acknowledgeTenantLifecycleNotice(lifecycleTenancy, key);
+        });
+      }
+    }
+    if (scheduledLifecyclePrompt) return;
+    if (autoTourScheduled) return;
     if (!store.shouldAutoShowGuidedTour(GuidedTourAudience.tenant)) return;
     autoTourScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -17866,6 +18108,10 @@ class _TenantHomeScreenState extends State<TenantHomeScreen> {
             ),
             body: Column(
               children: [
+                if (store.currentTenantLifecycleTenancy != null)
+                  TenantLifecycleBanner(
+                    tenancy: store.currentTenantLifecycleTenancy!,
+                  ),
                 if (selectedIndex == 0 &&
                     homeFacility != null &&
                     store.announcementsForFacility(homeFacility).isNotEmpty)
@@ -17935,6 +18181,51 @@ class _TenantHomeScreenState extends State<TenantHomeScreen> {
                 onSkip: () => _finishTour(GuidedTourResult.skipped),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class TenantLifecycleBanner extends StatelessWidget {
+  const TenantLifecycleBanner({required this.tenancy, super.key});
+
+  final Tenancy tenancy;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = RentalStoreScope.of(context);
+    final inactive = store.isTenancyInactive(tenancy);
+    final date = tenancy.lastActiveDate;
+    if (date == null) return const SizedBox.shrink();
+    return Container(
+      key: const Key('tenant_lifecycle_banner'),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: inactive ? const Color(0xFFFFF4E5) : const Color(0xFFE8F3FF),
+        border: Border(
+          bottom: BorderSide(
+            color: inactive ? const Color(0xFFFFC46B) : const Color(0xFFC7DCF4),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            inactive ? Icons.lock_outline_rounded : Icons.event_note_rounded,
+            color: inactive ? const Color(0xFF9A5700) : oceanDeep,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              inactive
+                  ? 'Tenancy ended ${dateLabel(date)} · Account is view-only.'
+                  : 'Tenancy ends ${dateLabel(date)} · Services remain active until then.',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
         ],
       ),
     );
@@ -18142,13 +18433,15 @@ class TenantFigmaHomeTab extends StatelessWidget {
                       foregroundColor: oceanDeep,
                       padding: const EdgeInsets.symmetric(vertical: 13),
                     ),
-                    onPressed: () {
-                      if (payable.isEmpty || amountDue <= 0) {
-                        showTenantToast(context, 'All payment is clear.');
-                        return;
-                      }
-                      openTenantPaymentPortal(context, payable.first);
-                    },
+                    onPressed: store.isCurrentTenantReadOnly
+                        ? null
+                        : () {
+                            if (payable.isEmpty || amountDue <= 0) {
+                              showTenantToast(context, 'All payment is clear.');
+                              return;
+                            }
+                            openTenantPaymentPortal(context, payable.first);
+                          },
                     icon: const Icon(Icons.lock_open_rounded),
                     label: Text(tr(context, 'Pay now')),
                   ),
@@ -18202,6 +18495,14 @@ Future<void> openTenantPaymentPortal(
   BuildContext context,
   MonthlyBill bill,
 ) async {
+  final rentalStore = RentalStoreScope.of(context);
+  if (rentalStore.isCurrentTenantReadOnly) {
+    showTenantToast(
+      context,
+      'Your tenancy is view-only. New payments are unavailable.',
+    );
+    return;
+  }
   final token = bill.portalToken?.trim() ?? '';
   if (token.isEmpty) {
     showTenantToast(
@@ -18218,7 +18519,6 @@ Future<void> openTenantPaymentPortal(
     );
     return;
   }
-  final rentalStore = RentalStoreScope.of(context);
   final currentUser = rentalStore.currentUser;
   if (currentUser?.role == UserRole.tenant && context.mounted) {
     await Navigator.of(context).push<void>(
@@ -18884,7 +19184,9 @@ class TenantRequestsTab extends StatelessWidget {
                 key: const Key('tenant_new_request_button'),
                 heroTag: 'tenant_new_request',
                 tooltip: tr(context, 'New Request'),
-                onPressed: () => showAddRequestDialog(context),
+                onPressed: store.isCurrentTenantReadOnly
+                    ? null
+                    : () => showAddRequestDialog(context),
                 child: const Icon(Icons.add_rounded),
               ),
             ),
@@ -19950,7 +20252,9 @@ class TenantBillCard extends StatelessWidget {
                 runSpacing: 8,
                 children: [
                   FilledButton.icon(
-                    onPressed: () => openTenantPaymentPortal(context, bill),
+                    onPressed: store.isCurrentTenantReadOnly
+                        ? null
+                        : () => openTenantPaymentPortal(context, bill),
                     icon: const Icon(Icons.open_in_new_rounded),
                     label: Text(
                       bill.status == PaymentStatus.rejected
@@ -20327,10 +20631,12 @@ void showTenantBillDetailsDialog(BuildContext context, MonthlyBill bill) {
         if (bill.status == PaymentStatus.pendingTenantPayment ||
             bill.status == PaymentStatus.rejected)
           FilledButton.icon(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              openTenantPaymentPortal(context, bill);
-            },
+            onPressed: store.isCurrentTenantReadOnly
+                ? null
+                : () {
+                    Navigator.pop(dialogContext);
+                    openTenantPaymentPortal(context, bill);
+                  },
             icon: const Icon(Icons.open_in_new_rounded),
             label: Text(tr(context, 'Open payment page')),
           ),
@@ -21690,7 +21996,8 @@ class StatusChipText extends StatelessWidget {
 }
 
 String tenantStatusText(AppUser tenant, Tenancy tenancy) {
-  if (!tenancy.active) return 'Inactive';
+  if (tenancy.isInactiveAt(DateTime.now())) return 'Inactive';
+  if (tenancy.isScheduledAt(DateTime.now())) return 'Ending';
   if (tenant.accountCreated) return 'Granted';
   return 'Pending';
 }
@@ -21718,6 +22025,7 @@ class TenantStatusChip extends StatelessWidget {
     final color = switch (label) {
       'Active' || 'Granted' => Colors.green,
       'Inactive' => Colors.grey,
+      'Ending' => Colors.orange,
       _ => Colors.orange,
     };
     return Chip(
@@ -26734,17 +27042,145 @@ void showTenantProfileDialog(
           bill.status == PaymentStatus.rejected)
       .toList();
 
-  Future<void> markInactive(BuildContext dialogContext) async {
+  Future<void> scheduleInactivation(BuildContext dialogContext) async {
+    final today = DateTime.now();
+    var lastActiveDate = tenancy.lastActiveDate ??
+        (tenancy.leaseEnd.isBefore(today) ? today : tenancy.leaseEnd);
+    var reason = tenancy.inactiveReason.isEmpty
+        ? 'Tenancy completed'
+        : tenancy.inactiveReason;
+    final remark = TextEditingController(text: tenancy.inactiveRemark);
+    var finalDecisionAccepted = false;
+    final scheduled = await showDialog<bool>(
+      context: dialogContext,
+      barrierDismissible: false,
+      builder: (decisionContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Schedule tenancy ending'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'The tenant remains active through the selected date. The account becomes view-only on the following day.',
+                  ),
+                  const SizedBox(height: 16),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.event_rounded),
+                    title: const Text('Last active date'),
+                    subtitle: Text(dateLabel(lastActiveDate)),
+                    trailing: const Icon(Icons.edit_calendar_rounded),
+                    onTap: () async {
+                      final selected = await showDatePicker(
+                        context: context,
+                        initialDate: lastActiveDate,
+                        firstDate: DateTime(today.year, today.month, today.day),
+                        lastDate: DateTime(today.year + 10),
+                      );
+                      if (selected != null) {
+                        setDialogState(() => lastActiveDate = selected);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: reason,
+                    decoration: const InputDecoration(
+                      labelText: 'Reason',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      'Tenancy completed',
+                      'Early termination',
+                      'Owner decision',
+                      'Other',
+                    ]
+                        .map((item) =>
+                            DropdownMenuItem(value: item, child: Text(item)))
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) setDialogState(() => reason = value);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: remark,
+                    minLines: 3,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      labelText: 'Owner remark',
+                      hintText: 'Add a short reason or handover note.',
+                      border: OutlineInputBorder(),
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: finalDecisionAccepted,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text(
+                      'I understand reactivation is available for only one month after the tenancy becomes inactive.',
+                    ),
+                    onChanged: (value) => setDialogState(
+                      () => finalDecisionAccepted = value ?? false,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(decisionContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton.icon(
+              onPressed: finalDecisionAccepted
+                  ? () => Navigator.pop(decisionContext, true)
+                  : null,
+              icon: const Icon(Icons.event_available_rounded),
+              label: const Text('Schedule ending'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final remarkText = remark.text;
+    remark.dispose();
+    if (scheduled != true || !dialogContext.mounted) return;
+    store.scheduleTenancyInactivation(
+      tenancy,
+      lastActiveDate: lastActiveDate,
+      reason: reason,
+      remark: remarkText,
+    );
+  }
+
+  Future<void> cancelScheduledInactivation(BuildContext dialogContext) async {
     final confirmed = await showActionConfirmation(
       dialogContext,
-      title: tr(dialogContext, 'Mark tenant inactive?'),
-      message: tr(dialogContext,
-          'Future billing will stop. Existing billing and payment history will remain.'),
-      confirmLabel: tr(dialogContext, 'Mark Inactive'),
+      title: 'Cancel scheduled tenancy ending?',
+      message:
+          'The tenant will remain active and future billing will continue.',
+      confirmLabel: 'Keep Tenant Active',
     );
-    if (!confirmed || !dialogContext.mounted) return;
-    store.deactivateTenancy(tenancy);
-    Navigator.pop(dialogContext);
+    if (confirmed) store.cancelScheduledTenancyInactivation(tenancy);
+  }
+
+  Future<void> reactivate(BuildContext dialogContext) async {
+    final confirmed = await showActionConfirmation(
+      dialogContext,
+      title: 'Reactivate tenancy?',
+      message:
+          'The tenant will regain normal access and future monthly billing will resume. No past invoices will be recreated.',
+      confirmLabel: 'Reactivate',
+    );
+    if (confirmed) store.reactivateTenancy(tenancy);
   }
 
   showDialog<void>(
@@ -26801,27 +27237,52 @@ void showTenantProfileDialog(
                                 ?.copyWith(fontWeight: FontWeight.w700),
                           ),
                         ),
-                        if (tenancy.active)
-                          TextButton.icon(
-                            onPressed: () => markInactive(context),
-                            icon: const Icon(
-                              Icons.person_off_rounded,
-                              size: 15,
-                            ),
-                            label: Text(
-                              tr(context, 'Mark Inactive'),
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                            style: TextButton.styleFrom(
-                              foregroundColor: const Color(0xFFB42318),
-                              visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 4,
+                        if (!store.isTenancyInactive(tenancy))
+                          Wrap(
+                            spacing: 4,
+                            children: [
+                              TextButton.icon(
+                                onPressed: () => scheduleInactivation(context),
+                                icon: Icon(
+                                  store.isTenancyScheduledForInactivation(
+                                          tenancy)
+                                      ? Icons.edit_calendar_rounded
+                                      : Icons.person_off_rounded,
+                                  size: 15,
+                                ),
+                                label: Text(
+                                  store.isTenancyScheduledForInactivation(
+                                          tenancy)
+                                      ? 'Edit ending'
+                                      : 'End tenancy',
+                                  style: const TextStyle(fontSize: 11),
+                                ),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: const Color(0xFFB42318),
+                                  visualDensity: VisualDensity.compact,
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
                               ),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
+                              if (store
+                                  .isTenancyScheduledForInactivation(tenancy))
+                                IconButton(
+                                  tooltip: 'Cancel scheduled ending',
+                                  onPressed: () =>
+                                      cancelScheduledInactivation(context),
+                                  icon:
+                                      const Icon(Icons.undo_rounded, size: 18),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                            ],
+                          )
+                        else if (store.canReactivateTenancy(tenancy))
+                          FilledButton.tonalIcon(
+                            onPressed: () => reactivate(context),
+                            icon: const Icon(Icons.person_add_alt_1_rounded,
+                                size: 16),
+                            label: const Text('Reactivate'),
                           ),
                       ],
                     ),
@@ -26870,6 +27331,31 @@ void showTenantProfileDialog(
                       label: tr(context, 'Status'),
                       value: tr(context, tenantStatusText(tenant, tenancy)),
                     ),
+                    if (tenancy.lastActiveDate != null) ...[
+                      ProfileInfoRow(
+                        label: 'Last active date',
+                        value: dateLabel(tenancy.lastActiveDate!),
+                      ),
+                      ProfileInfoRow(
+                        label: 'Ending reason',
+                        value: tenancy.inactiveReason.isEmpty
+                            ? 'Not provided'
+                            : tenancy.inactiveReason,
+                      ),
+                      if (tenancy.inactiveRemark.isNotEmpty)
+                        ProfileInfoRow(
+                          label: 'Owner remark',
+                          value: tenancy.inactiveRemark,
+                        ),
+                      if (store.isTenancyInactive(tenancy))
+                        ProfileInfoRow(
+                          label: 'Reactivation available until',
+                          value: store.canReactivateTenancy(tenancy)
+                              ? dateLabel(
+                                  store.tenancyReactivationDeadline(tenancy)!)
+                              : 'Expired — register a new tenancy',
+                        ),
+                    ],
                     ProfileInfoRow(
                       label: tr(context, 'Profile setup'),
                       value: tenant.accountCreated
@@ -27384,6 +27870,13 @@ void showTenantRequestAttachmentDialog(
 
 void showAddRequestDialog(BuildContext context) {
   final store = RentalStoreScope.of(context);
+  if (store.isCurrentTenantReadOnly) {
+    showTenantToast(
+      context,
+      'Your tenancy is view-only. New requests are unavailable.',
+    );
+    return;
+  }
   const requestTypes = [
     'Repair & Maintenance',
     'Extend Tenancy',

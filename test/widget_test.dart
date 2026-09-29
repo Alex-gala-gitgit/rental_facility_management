@@ -2017,6 +2017,84 @@ void main() {
     );
   });
 
+  test('scheduled tenancy remains active through the last active date', () {
+    final store = RentalStore(now: DateTime(2026, 10, 20));
+    final tenancy = store.tenancies.firstWhere((item) => item.active);
+
+    store.scheduleTenancyInactivation(
+      tenancy,
+      lastActiveDate: DateTime(2026, 10, 29),
+      reason: 'Tenancy completed',
+      remark: 'Keys to be returned to the owner.',
+    );
+
+    expect(store.isTenancyScheduledForInactivation(tenancy), isTrue);
+    expect(
+      store.isTenancyInactive(tenancy, at: DateTime(2026, 10, 29, 23, 59)),
+      isFalse,
+    );
+    expect(
+      store.isTenancyInactive(tenancy, at: DateTime(2026, 10, 30)),
+      isTrue,
+    );
+    expect(tenancy.inactiveReason, 'Tenancy completed');
+    expect(tenancy.inactiveRemark, 'Keys to be returned to the owner.');
+  });
+
+  test('inactive tenancy can reactivate only during the one-month window', () {
+    final store = RentalStore(now: DateTime(2026, 10, 30));
+    final tenancy = store.tenancies.firstWhere((item) => item.active);
+    tenancy
+      ..lastActiveDate = DateTime(2026, 10, 29)
+      ..inactivatedAt = DateTime(2026, 10, 30)
+      ..active = false;
+
+    expect(store.canReactivateTenancy(tenancy), isTrue);
+    expect(
+      store.canReactivateTenancy(tenancy, at: DateTime(2026, 11, 29)),
+      isTrue,
+    );
+    expect(
+      store.canReactivateTenancy(tenancy, at: DateTime(2026, 11, 30)),
+      isFalse,
+    );
+
+    expect(store.reactivateTenancy(tenancy), isTrue);
+    expect(tenancy.active, isTrue);
+    expect(tenancy.lastActiveDate, isNull);
+    expect(store.userFor(tenancy.tenantId).accountStatus, 'Active');
+  });
+
+  test('scheduled tenancy lifecycle survives workspace persistence', () async {
+    final persistence = TestPersistence();
+    final first = RentalStore(
+      now: DateTime(2026, 10, 20),
+      persistence: persistence,
+    );
+    await first.initializePersistence();
+    final tenancy = first.tenancies.firstWhere((item) => item.active);
+    first.scheduleTenancyInactivation(
+      tenancy,
+      lastActiveDate: DateTime(2026, 10, 29),
+      reason: 'Tenancy completed',
+      remark: 'Handover arranged.',
+    );
+    await first.flushPersistence();
+
+    final restored = RentalStore(
+      now: DateTime(2026, 10, 20),
+      persistence: persistence,
+    );
+    await restored.initializePersistence();
+    final restoredTenancy =
+        restored.tenancies.firstWhere((item) => item.id == tenancy.id);
+
+    expect(restoredTenancy.lastActiveDate, DateTime(2026, 10, 29));
+    expect(restoredTenancy.inactiveReason, 'Tenancy completed');
+    expect(restoredTenancy.inactiveRemark, 'Handover arranged.');
+    expect(restored.isTenancyScheduledForInactivation(restoredTenancy), isTrue);
+  });
+
   test('sold facility stops commitments and deactivates every tenancy', () {
     final store = RentalStore(now: DateTime(2026, 7, 18));
     final facility = store.facilities.first;

@@ -16,6 +16,9 @@ verify_jwt = true
 [functions.platform-event]
 verify_jwt = false
 
+[functions.tenant-lifecycle]
+verify_jwt = false
+
 [auth]
 site_url = "https://homeops360.app"
 additional_redirect_urls = ["https://facility-billing-management.pages.dev/**", "https://homeops360.app/**", "https://admin.homeops360.app/**"]

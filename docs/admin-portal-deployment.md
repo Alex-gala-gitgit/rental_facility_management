@@ -27,7 +27,15 @@ npx supabase functions deploy invoice-portal --no-verify-jwt
 npx supabase functions deploy invite-tenant --no-verify-jwt
 npx supabase functions deploy meter-reading-ocr --no-verify-jwt
 npx supabase functions deploy tenant-profile-invitation --no-verify-jwt
+npx supabase functions deploy tenant-lifecycle --no-verify-jwt
 ```
+
+The tenant lifecycle scheduler also requires matching secrets in Supabase Edge
+Functions and Vault. Set `TENANT_LIFECYCLE_CRON_SECRET` for the function, then
+create Vault secrets named `tenant_lifecycle_cron_secret` and `project_url`
+before applying the scheduler migration. The hourly job suspends tenants who do
+not sign in during the seven-day grace period and finalizes every inactive
+account when its one-month reactivation window expires.
 
 Then build and deploy the Flutter web application through the existing
 Cloudflare Pages workflow:
