@@ -1715,6 +1715,20 @@ class RentalStore extends ChangeNotifier {
         !_dateOnly(at ?? _now).isBefore(inactiveFrom);
   }
 
+  List<Tenancy> activeTenanciesForFacility(
+    Facility facility, {
+    DateTime? at,
+  }) =>
+      tenancies
+          .where((tenancy) =>
+              tenancy.facilityId == facility.id &&
+              !isTenancyInactive(tenancy, at: at))
+          .toList();
+
+  bool canMarkFacilitySold(Facility facility, {DateTime? at}) =>
+      facility.status != FacilityStatus.sold &&
+      activeTenanciesForFacility(facility, at: at).isEmpty;
+
   DateTime? tenancyReactivationDeadline(Tenancy tenancy) {
     final inactiveFrom = tenancy.inactivatedAt == null
         ? tenancyInactiveFrom(tenancy)
@@ -4563,18 +4577,13 @@ class RentalStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  void markFacilitySold(Facility facility) {
-    if (isReadOnlyObserver) return;
+  bool markFacilitySold(Facility facility) {
+    if (isReadOnlyObserver || !canMarkFacilitySold(facility)) return false;
     facility.status = FacilityStatus.sold;
-    facility.soldAt = DateTime.now();
-    for (final tenancy in tenancies.where((item) {
-      return item.facilityId == facility.id;
-    })) {
-      tenancy.active = false;
-      userFor(tenancy.tenantId).accountStatus = 'Inactive';
-    }
+    facility.soldAt = _now;
     _notify('${facility.name} was marked as sold and inactive.');
     notifyListeners();
+    return true;
   }
 
   void removeSoldFacility(Facility facility) {
@@ -23488,6 +23497,7 @@ class _FacilityConfigurationScreenState
       (item) => item.id == selectedFacilityId,
       orElse: () => facilities.first,
     );
+    final activeTenancies = store.activeTenanciesForFacility(facility);
     return Scaffold(
       backgroundColor: oceanCanvas,
       appBar: AppBar(
@@ -23688,12 +23698,18 @@ class _FacilityConfigurationScreenState
                 ),
                 title: Text(tr(context, 'Mark Facility as Sold')),
                 subtitle: Text(
-                  tr(
-                    context,
-                    'Stops future billing while preserving all historical records.',
-                  ),
+                  activeTenancies.isEmpty
+                      ? tr(
+                          context,
+                          'Stops future billing while preserving all historical records.',
+                        )
+                      : '${activeTenancies.length} active ${activeTenancies.length == 1 ? 'tenancy must' : 'tenancies must'} be closed first.',
                 ),
-                trailing: const Icon(Icons.chevron_right_rounded),
+                trailing: Icon(
+                  activeTenancies.isEmpty
+                      ? Icons.chevron_right_rounded
+                      : Icons.lock_outline_rounded,
+                ),
                 onTap: () => showMarkSoldDialog(context, facility),
               ),
             ),
@@ -23859,23 +23875,75 @@ void showFacilityCostHistoryDialog(BuildContext context, Facility facility) {
 
 void showMarkSoldDialog(BuildContext context, Facility facility) {
   final store = RentalStoreScope.of(context);
+  final activeTenancies = store.activeTenanciesForFacility(facility);
+  if (activeTenancies.isNotEmpty) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+        title: const Text('Property cannot be marked as sold'),
+        content: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${activeTenancies.length} active ${activeTenancies.length == 1 ? 'tenancy is' : 'tenancies are'} still linked to ${facility.name}. End every tenancy and wait until its last active date has passed before marking this property as sold.',
+              ),
+              const SizedBox(height: 14),
+              for (final tenancy in activeTenancies)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.person_outline_rounded,
+                        size: 19,
+                        color: oceanBlue,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${store.userFor(tenancy.tenantId).name} • ${tenancy.unitName}\n${store.isTenancyScheduledForInactivation(tenancy) ? 'Active until ${dateLabel(tenancy.lastActiveDate!)}' : 'Active tenancy'}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+    return;
+  }
   showDialog<void>(
     context: context,
-    builder: (context) => AlertDialog(
+    builder: (dialogContext) => AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
       title: Text('Mark ${facility.name} as sold?'),
       content: const Text(
-        'This will keep the facility records but mark it inactive and stop active tenancy tracking. You can remove it only after it is marked sold.',
+        'No active tenants were found. This will preserve historical records, mark the property inactive, and stop future billing.',
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.pop(dialogContext),
           child: const Text('Cancel'),
         ),
         FilledButton.icon(
           onPressed: () {
-            store.markFacilitySold(facility);
-            Navigator.pop(context);
+            if (store.markFacilitySold(facility)) {
+              Navigator.pop(dialogContext);
+            }
           },
           icon: const Icon(Icons.sell_rounded),
           label: const Text('Confirm Sold'),

@@ -2138,13 +2138,27 @@ void main() {
     expect(restored.isTenancyScheduledForInactivation(restoredTenancy), isTrue);
   });
 
-  test('sold facility stops commitments and deactivates every tenancy', () {
+  test('facility can be sold only after every tenancy is inactive', () {
     final store = RentalStore(now: DateTime(2026, 7, 18));
     final facility = store.facilities.first;
     final historicalBillCount =
         store.bills.where((bill) => bill.facilityId == facility.id).length;
+    final activeTenancies = store.activeTenanciesForFacility(facility);
 
-    store.markFacilitySold(facility);
+    expect(activeTenancies, isNotEmpty);
+    expect(store.markFacilitySold(facility), isFalse);
+    expect(facility.status, isNot(FacilityStatus.sold));
+    expect(
+      store.activeTenanciesForFacility(facility),
+      hasLength(activeTenancies.length),
+    );
+
+    for (final tenancy in activeTenancies) {
+      store.deactivateTenancy(tenancy);
+    }
+
+    expect(store.activeTenanciesForFacility(facility), isEmpty);
+    expect(store.markFacilitySold(facility), isTrue);
 
     expect(facility.status, FacilityStatus.sold);
     expect(store.monthlyFacilityOutflow(facility), 0);
