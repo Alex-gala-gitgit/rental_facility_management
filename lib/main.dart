@@ -32044,8 +32044,22 @@ void showNotifications(BuildContext context) {
   );
 }
 
-class NotificationsScreen extends StatelessWidget {
+class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
+
+  @override
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32057,8 +32071,19 @@ class NotificationsScreen extends StatelessWidget {
         animation: store,
         builder: (context, _) {
           final unread = store.unreadNotificationCount;
+          final normalizedQuery = _query.trim().toLowerCase();
+          final visibleNotifications = normalizedQuery.isEmpty
+              ? store.notifications
+              : store.notifications.where((notification) {
+                  final category =
+                      notificationCategoryFor(notification.message);
+                  return notification.message
+                          .toLowerCase()
+                          .contains(normalizedQuery) ||
+                      category.toLowerCase().contains(normalizedQuery);
+                }).toList();
           final grouped = <String, List<AppNotification>>{};
-          for (final notification in store.notifications) {
+          for (final notification in visibleNotifications) {
             final category = notificationCategoryFor(notification.message);
             grouped.putIfAbsent(category, () => []).add(notification);
           }
@@ -32083,6 +32108,37 @@ class NotificationsScreen extends StatelessWidget {
                 key: const Key('notifications_full_page'),
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
                 children: [
+                  if (store.isOwner)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: TextField(
+                          key: const Key('owner_notification_search'),
+                          controller: _searchController,
+                          onChanged: (value) => setState(() => _query = value),
+                          decoration: InputDecoration(
+                            labelText: 'Search notifications',
+                            hintText: 'Type a keyword',
+                            prefixIcon: const Icon(Icons.search_rounded),
+                            suffixIcon: normalizedQuery.isEmpty
+                                ? null
+                                : IconButton(
+                                    key: const Key(
+                                        'owner_notification_search_clear'),
+                                    tooltip: 'Clear search',
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _query = '');
+                                    },
+                                    icon: const Icon(Icons.close_rounded),
+                                  ),
+                            helperText: normalizedQuery.isEmpty
+                                ? 'Search by message or category'
+                                : '${visibleNotifications.length} result${visibleNotifications.length == 1 ? '' : 's'}',
+                          ),
+                        ),
+                      ),
+                    ),
                   if (store.notifications.isNotEmpty)
                     Card(
                       child: CheckboxListTile(
@@ -32107,6 +32163,16 @@ class NotificationsScreen extends StatelessWidget {
                   if (store.notifications.isEmpty)
                     const Card(
                       child: ListTile(title: Text('No notifications yet')),
+                    ),
+                  if (store.notifications.isNotEmpty &&
+                      visibleNotifications.isEmpty)
+                    Card(
+                      key: const Key('owner_notification_no_results'),
+                      child: ListTile(
+                        leading: const Icon(Icons.search_off_rounded),
+                        title: const Text('No matching notifications'),
+                        subtitle: Text('Try a different keyword.'),
+                      ),
                     ),
                   for (final category in categories) ...[
                     _NotificationCategoryHeader(

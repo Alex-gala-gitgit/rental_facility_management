@@ -657,6 +657,49 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('owner can search notifications by keyword', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(820, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final store = RentalStore(now: DateTime(2026, 9, 30));
+    store.loginAs(UserRole.owner);
+    store.notifications
+      ..clear()
+      ..addAll([
+        AppNotification(
+          id: 'maintenance-notification',
+          message: 'Maintenance request for leaking tap',
+          createdAt: DateTime(2026, 9, 30, 9),
+        ),
+        AppNotification(
+          id: 'payment-notification',
+          message: 'Payment proof received from tenant',
+          createdAt: DateTime(2026, 9, 30, 10),
+        ),
+      ]);
+
+    await tester.pumpWidget(RentalStoreScope(
+      store: store,
+      child: const MaterialApp(home: NotificationsScreen()),
+    ));
+    await tester.pumpAndSettle();
+
+    final search = find.byKey(const Key('owner_notification_search'));
+    expect(search, findsOneWidget);
+    await tester.enterText(search, 'leaking');
+    await tester.pump();
+
+    expect(find.text('Maintenance request for leaking tap'), findsOneWidget);
+    expect(find.text('Payment proof received from tenant'), findsNothing);
+    expect(find.text('1 result'), findsOneWidget);
+
+    await tester.enterText(search, 'not found');
+    await tester.pump();
+    expect(
+      find.byKey(const Key('owner_notification_no_results')),
+      findsOneWidget,
+    );
+  });
+
   test('business data and payment metadata survive an app restart', () async {
     final persistence = TestPersistence();
     final now = DateTime(2026, 7, 1);
