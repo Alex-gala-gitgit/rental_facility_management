@@ -90,6 +90,17 @@ class FakeWorkspaceService extends SupabaseWorkspaceService {
   }
 }
 
+void enableTestOwnerFeatures(RentalStore store) {
+  store.ownerAccessConfig = const OwnerAccessConfig(
+    propertyLimit: 100,
+    tenantLimit: 100,
+    exploreListingLimit: 100,
+    electricityTariffEnabled: true,
+    explorePromotionEnabled: true,
+    marketplaceEnabled: true,
+  );
+}
+
 void main() {
   testWidgets('long operations show the branded loading overlay',
       (tester) async {
@@ -908,6 +919,7 @@ void main() {
     );
     await source.initializePersistence();
     source.loginAs(UserRole.owner);
+    enableTestOwnerFeatures(source);
     source.addFacility(
       name: 'Genuine Owner Facility',
       addressLine: '1 Real Road',
@@ -1419,6 +1431,7 @@ void main() {
 
   test('tiered electricity calculation is progressive and rounded', () {
     final store = RentalStore(seedDemoData: false);
+    enableTestOwnerFeatures(store);
     store.updateElectricityTariffTiers(const [
       ElectricityTariffTier(fromKwh: 0, toKwh: 100, ratePerKwh: 0.50),
       ElectricityTariffTier(fromKwh: 101, toKwh: 200, ratePerKwh: 0.60),
@@ -1433,6 +1446,7 @@ void main() {
   test('each facility keeps and applies its own electricity tariff', () {
     final store = RentalStore(now: DateTime(2026, 7, 1));
     store.loginAs(UserRole.owner);
+    enableTestOwnerFeatures(store);
     final first = store.ownerFacilities[0];
     final second = store.ownerFacilities[1];
     final secondBefore = List<ElectricityTariffTier>.from(
@@ -2868,6 +2882,7 @@ void main() {
   test('developing facility only records its progression fee', () {
     final store = RentalStore(now: DateTime(2026, 7, 18));
     store.loginAs(UserRole.owner);
+    enableTestOwnerFeatures(store);
     final facility = store.addFacility(
       name: 'Development',
       addressLine: '1 Build Road',
@@ -2887,6 +2902,7 @@ void main() {
   test('developing progression commitment updates the dashboard outflow', () {
     final store = RentalStore(now: DateTime(2026, 7, 18));
     store.loginAs(UserRole.owner);
+    enableTestOwnerFeatures(store);
     final facility = store.addFacility(
       name: 'Development',
       addressLine: '1 Build Road',
@@ -3028,6 +3044,7 @@ void main() {
       () {
     final store = RentalStore(now: DateTime(2026, 7, 18));
     store.loginAs(UserRole.owner);
+    enableTestOwnerFeatures(store);
     final facility = store.addFacility(
       name: 'Development',
       addressLine: '1 Old Road',
@@ -3159,6 +3176,7 @@ void main() {
   test('monthly commitment total excludes scheduled non-monthly costs', () {
     final store = RentalStore(now: DateTime(2026, 8, 18));
     store.loginAs(UserRole.owner);
+    enableTestOwnerFeatures(store);
     final facility = store.addFacility(
       name: 'Commitment Test',
       addressLine: '1 Test Road',
@@ -3463,6 +3481,7 @@ void main() {
       (tester) async {
     final store = RentalStore(now: DateTime(2026, 7, 18));
     store.loginAs(UserRole.owner);
+    enableTestOwnerFeatures(store);
     await tester.pumpWidget(
       RentalStoreScope(
         store: store,
@@ -3610,7 +3629,7 @@ void main() {
         child: const MaterialApp(home: Scaffold(body: OwnerReportTab())),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
 
     Text collectionText() => tester.widget<Text>(
           find.byKey(const Key('dashboard_collection_total')),
@@ -3652,7 +3671,7 @@ void main() {
     expect(find.textContaining('Portfolio overview · 2026'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('dashboard_period_toggle')));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(collectionText().data, money(monthCollection));
     expect(netCashFlowText().data, money(monthCollection - monthExpenses));
     expect(
@@ -3668,13 +3687,13 @@ void main() {
       find.byKey(const Key('financial_chart_touch_area')),
     );
     await tester.tapAt(Offset(chartRect.left + 5, chartRect.center.dy));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(collectionText().data, money(januaryCollection));
     expect(
         find.textContaining('Portfolio overview · Jan 2026'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('dashboard_period_toggle')));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(collectionText().data, money(yearCollection));
     expect(tester.takeException(), isNull);
     await tester.binding.setSurfaceSize(null);
@@ -3684,6 +3703,7 @@ void main() {
       (tester) async {
     final store = RentalStore(now: DateTime(2026, 7, 18));
     store.loginAs(UserRole.owner);
+    enableTestOwnerFeatures(store);
     final facility = store.addFacility(
       name: 'Development',
       addressLine: '1 Build Road',
@@ -3727,6 +3747,7 @@ void main() {
       (tester) async {
     final store = RentalStore(now: DateTime(2026, 8, 18));
     store.loginAs(UserRole.owner);
+    enableTestOwnerFeatures(store);
     final facility = store.addFacility(
       name: 'Ready Home',
       addressLine: '1 Ready Road',
@@ -3778,9 +3799,8 @@ void main() {
     expect(find.text('Complete billing'), findsOneWidget);
     expect(find.byKey(const Key('billing_attention_pulse')), findsOneWidget);
     for (final bill in store.ownerCurrentMonthBills) {
-      bill.status = PaymentStatus.pendingTenantPayment;
+      store.recordInvoicePortalExpiry(bill, DateTime(2026, 7, 21));
     }
-    store.notifyListeners();
     await tester.pump();
     expect(find.byKey(const Key('billing_attention_pulse')), findsNothing);
     for (final label in <String>[
@@ -3950,11 +3970,17 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    final addEntry = find.byKey(const Key('variable_expense_add_button'));
+    await tester.scrollUntilVisible(
+      addEntry,
+      240,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+
     expect(find.byKey(const Key('variable_expense_grid')), findsOneWidget);
     expect(find.byKey(const Key('scheduled_expense_grid')), findsNothing);
 
-    final addEntry = find.byKey(const Key('variable_expense_add_button'));
-    await tester.ensureVisible(addEntry);
     await tester.tap(addEntry);
     await tester.pumpAndSettle();
 

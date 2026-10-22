@@ -12500,6 +12500,7 @@ class _BillingAttentionPulse extends StatefulWidget {
 class _BillingAttentionPulseState extends State<_BillingAttentionPulse>
     with SingleTickerProviderStateMixin {
   late final AnimationController controller;
+  bool disableAnimations = false;
 
   @override
   void initState() {
@@ -12517,8 +12518,17 @@ class _BillingAttentionPulseState extends State<_BillingAttentionPulse>
     if (oldWidget.enabled != widget.enabled) _syncAnimation();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final nextDisableAnimations = MediaQuery.disableAnimationsOf(context);
+    if (disableAnimations == nextDisableAnimations) return;
+    disableAnimations = nextDisableAnimations;
+    _syncAnimation();
+  }
+
   void _syncAnimation() {
-    if (widget.enabled) {
+    if (widget.enabled && !disableAnimations) {
       controller.repeat();
     } else {
       controller
@@ -12536,8 +12546,6 @@ class _BillingAttentionPulseState extends State<_BillingAttentionPulse>
   @override
   Widget build(BuildContext context) {
     if (!widget.enabled) return widget.child;
-    final disableAnimations =
-        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     if (disableAnimations) {
       return _pulseFrame(opacity: .72, scale: 1, child: widget.child);
     }
