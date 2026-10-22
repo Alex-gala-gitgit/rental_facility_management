@@ -1,0 +1,10 @@
+Communication job: By the end, prospective investors or partners should understand how HomeOps360 converts recurring rental-management workflows into scalable, recurring platform revenue.
+
+Product and brand sources:
+- README.md — owner and tenant roles; facility management, rent/utilities, payment proof, and reporting.
+- lib/branding/homeops_brand.dart — HomeOps360 name and brand colors.
+- lib/explore/room_explore.dart — room marketplace and promoted-listing capability.
+- docs/admin-portal-deployment.md — configurable owner limits and feature access.
+
+Assumption:
+- The repository does not specify commercial pricing. Monetization is therefore presented as a proposed model: tiered SaaS, promoted listings, and future transaction/service fees.

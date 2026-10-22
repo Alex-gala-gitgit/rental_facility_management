@@ -93,7 +93,7 @@ const ownerContextualTourSteps = <ContextualGuidedTourStep>[
 
 const tenantContextualTourSteps = <ContextualGuidedTourStep>[
   ContextualGuidedTourStep(
-    tabIndex: 0,
+    tabIndex: 2,
     targetId: 'tenant_pay_now',
     fallbackTargetId: 'tenant_home_nav',
     icon: Icons.payments_outlined,
@@ -102,7 +102,7 @@ const tenantContextualTourSteps = <ContextualGuidedTourStep>[
         'Your Home dashboard shows the current amount due. Tap Pay now to begin reviewing the real invoice.',
   ),
   ContextualGuidedTourStep(
-    tabIndex: 2,
+    tabIndex: 1,
     targetId: 'tenant_pay_nav',
     icon: Icons.picture_as_pdf_outlined,
     title: 'Review the invoice PDF',
@@ -110,7 +110,7 @@ const tenantContextualTourSteps = <ContextualGuidedTourStep>[
         'Open Pay, choose the invoice and review its rent, utilities, beneficiary, due date and PDF before transferring payment.',
   ),
   ContextualGuidedTourStep(
-    tabIndex: 2,
+    tabIndex: 1,
     targetId: 'tenant_pay_nav',
     icon: Icons.upload_file_outlined,
     title: 'Upload payment proof',
@@ -118,7 +118,7 @@ const tenantContextualTourSteps = <ContextualGuidedTourStep>[
         'After payment, attach the correct JPG, PNG or PDF receipt and enter the payment reference for owner verification.',
   ),
   ContextualGuidedTourStep(
-    tabIndex: 2,
+    tabIndex: 1,
     targetId: 'tenant_pay_nav',
     icon: Icons.pending_actions_outlined,
     title: 'Track the payment status',

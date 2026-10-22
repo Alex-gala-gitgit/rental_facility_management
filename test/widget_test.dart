@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:excel/excel.dart' as xlsx;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rental_facility_management/branding/homeops_loading.dart';
 import 'package:rental_facility_management/cloud/supabase_workspace_service.dart';
 import 'package:rental_facility_management/cloud/supabase_config.dart';
 import 'package:rental_facility_management/cloud/supabase_auth_service.dart';
@@ -37,6 +39,8 @@ class FakeWorkspaceService extends SupabaseWorkspaceService {
       : super(SupabaseClient('https://example.supabase.co', 'test-key'));
 
   Map<String, dynamic>? ownerSnapshot;
+  final Map<String, Map<String, dynamic>> tenantSnapshots = {};
+  final Map<String, String> tenantSnapshotOwnerIds = {};
 
   @override
   Future<Map<String, dynamic>?> readOwnerSnapshot(String ownerId) async =>
@@ -44,17 +48,160 @@ class FakeWorkspaceService extends SupabaseWorkspaceService {
 
   @override
   Future<List<TenantCloudSnapshot>> readOwnerTenantSnapshots(
-          String ownerId) async =>
-      const [];
+    String ownerId,
+  ) async =>
+      tenantSnapshots.entries
+          .where((entry) => tenantSnapshotOwnerIds[entry.key] == ownerId)
+          .map((entry) => TenantCloudSnapshot(
+                ownerId: ownerId,
+                tenantEmail: entry.key,
+                payload: entry.value,
+              ))
+          .toList();
+
+  @override
+  Future<TenantCloudSnapshot?> readTenantSnapshot(String email) async {
+    final normalizedEmail = email.toLowerCase();
+    final payload = tenantSnapshots[normalizedEmail];
+    final ownerId = tenantSnapshotOwnerIds[normalizedEmail];
+    if (payload == null || ownerId == null) return null;
+    return TenantCloudSnapshot(
+      ownerId: ownerId,
+      tenantEmail: normalizedEmail,
+      payload: payload,
+    );
+  }
 
   @override
   Future<void> writeOwnerSnapshot(
       String ownerId, Map<String, dynamic> payload) async {
     ownerSnapshot = payload;
   }
+
+  @override
+  Future<void> writeTenantSnapshot({
+    required String ownerId,
+    required String tenantEmail,
+    required Map<String, dynamic> payload,
+  }) async {
+    final normalizedEmail = tenantEmail.toLowerCase();
+    tenantSnapshots[normalizedEmail] = payload;
+    tenantSnapshotOwnerIds[normalizedEmail] = ownerId;
+  }
 }
 
 void main() {
+  testWidgets('long operations show the branded loading overlay',
+      (tester) async {
+    final store = RentalStore(seedDemoData: false);
+    final release = Completer<void>();
+
+    await tester.pumpWidget(RentalFacilityApp(initialStore: store));
+    await tester.pump(const Duration(milliseconds: 2200));
+
+    final operation = store.runWithLoading(
+      'Saving property',
+      () => release.future,
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('homeops_loading_card')), findsOneWidget);
+    expect(find.text('Saving property'), findsOneWidget);
+
+    release.complete();
+    await operation;
+    await tester.pump();
+
+    expect(find.byKey(const Key('homeops_loading_card')), findsNothing);
+  });
+
+  testWidgets('inline loading indicator stays circular on compact cards',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 40,
+            height: 40,
+            child: HomeOpsInlineLoader(semanticLabel: 'Syncing'),
+          ),
+        ),
+      ),
+    );
+
+    final spinner = find.byType(CircularProgressIndicator);
+    expect(spinner, findsOneWidget);
+    expect(tester.getSize(spinner), const Size.square(18));
+    expect(find.byKey(const Key('homeops_inline_loader')), findsOneWidget);
+  });
+
+  testWidgets('branded loading card uses only the animated logo and label',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Center(child: HomeOpsLoadingCard(label: 'Loading rooms')),
+        ),
+      ),
+    );
+
+    expect(find.text('Loading rooms'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('tenant-style home navigation is large and centered',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          bottomNavigationBar: AppBottomNavigator(
+            selectedIndex: 2,
+            onSelected: (_) {},
+            items: const [
+              AppBottomNavItem(
+                icon: Icons.explore_outlined,
+                activeIcon: Icons.explore_rounded,
+                label: 'Explore',
+              ),
+              AppBottomNavItem(
+                icon: Icons.payments_outlined,
+                activeIcon: Icons.payments_rounded,
+                label: 'Pay',
+              ),
+              AppBottomNavItem(
+                icon: Icons.home_outlined,
+                activeIcon: Icons.home_rounded,
+                label: 'Home',
+                prominent: true,
+              ),
+              AppBottomNavItem(
+                icon: Icons.handyman_outlined,
+                activeIcon: Icons.handyman_rounded,
+                label: 'Requests',
+              ),
+              AppBottomNavItem(
+                icon: Icons.person_outline_rounded,
+                activeIcon: Icons.person_rounded,
+                label: 'Profile',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final homeButton = find.byKey(const Key('prominent_home_button'));
+    expect(homeButton, findsOneWidget);
+    expect(tester.getSize(homeButton), const Size.square(50));
+    expect(
+      tester.getCenter(homeButton).dx,
+      closeTo(
+        tester.view.physicalSize.width / tester.view.devicePixelRatio / 2,
+        1,
+      ),
+    );
+  });
+
   test('temporary profile lookup failures preserve an active cloud session',
       () {
     expect(
@@ -94,7 +241,7 @@ void main() {
   testWidgets(
       'cloud login offers tenant access, language switch, and no Google action',
       (tester) async {
-    tester.view.physicalSize = const Size(500, 900);
+    tester.view.physicalSize = const Size(360, 640);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -108,13 +255,41 @@ void main() {
         ),
       ),
     );
+    store.updateRememberedOwnerEmail(
+      remember: true,
+      email: 'owner@example.com',
+    );
+    store.updatePasswordHint(
+      previousEmail: 'owner@example.com',
+      email: 'owner@example.com',
+      roleKey: 'owner',
+      hint: 'First home + favorite year',
+    );
 
     await tester.pumpWidget(RentalFacilityApp(initialStore: store));
     await tester.pump(const Duration(milliseconds: 2200));
 
     expect(find.text('EN'), findsOneWidget);
     expect(find.text('Tenant'), findsOneWidget);
+    expect(find.text('Technician'), findsOneWidget);
+    expect(find.text('Agent'), findsOneWidget);
+    expect(find.text('Observer'), findsNothing);
+    expect(find.byIcon(Icons.lightbulb_outline_rounded), findsOneWidget);
     expect(find.textContaining('Continue with Google'), findsNothing);
+
+    await tester.tap(find.byIcon(Icons.lightbulb_outline_rounded));
+    await tester.pump();
+    expect(find.text('First home + favorite year'), findsOneWidget);
+
+    await tester.tap(find.text('Technician'));
+    await tester.pump();
+    expect(find.text('Log in as Technician'), findsOneWidget);
+    await tester.tap(find.text('Log in as Technician'));
+    await tester.pump();
+    expect(
+      find.text('Technician access is not available yet.'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Tenant'));
     await tester.pump();
@@ -124,8 +299,98 @@ void main() {
 
     await tester.tap(find.text('中'));
     await tester.pump();
-    expect(find.text('欢迎回来'), findsOneWidget);
+    expect(find.text('登录'), findsOneWidget);
     expect(find.text('记住我'), findsOneWidget);
+    expect(find.text('技术人员'), findsOneWidget);
+    expect(find.text('代理'), findsOneWidget);
+    expect(find.text('Technician'), findsNothing);
+    expect(find.text('Agent'), findsNothing);
+  });
+
+  testWidgets('password hint appears after entering its matching email',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final store = RentalStore(seedDemoData: false);
+    store.updatePasswordHint(
+      previousEmail: 'owner@example.com',
+      email: 'owner@example.com',
+      roleKey: 'owner',
+      hint: 'First home + favorite year',
+    );
+
+    await tester.pumpWidget(RentalFacilityApp(initialStore: store));
+    await tester.pump(const Duration(milliseconds: 2200));
+
+    expect(find.byIcon(Icons.lightbulb_outline_rounded), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.lightbulb_outline_rounded));
+    await tester.pump();
+    expect(find.text('Enter your email'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('compact_login_email_field')),
+      'owner@example.com',
+    );
+    await tester.pump();
+
+    expect(find.text('Hint available'), findsOneWidget);
+    expect(find.byIcon(Icons.lightbulb_outline_rounded), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.lightbulb_outline_rounded));
+    await tester.pump();
+    expect(find.text('First home + favorite year'), findsOneWidget);
+  });
+
+  test('password hints are limited to 20 words', () {
+    final twentyWords = List.filled(20, 'word').join(' ');
+    final twentyOneWords = '$twentyWords extra';
+    final store = RentalStore(seedDemoData: false);
+
+    expect(passwordHintWordCount(twentyWords), 20);
+    expect(isPasswordHintWithinLimit(twentyWords), isTrue);
+    expect(isPasswordHintWithinLimit(twentyOneWords), isFalse);
+    expect(
+      () => store.updatePasswordHint(
+        previousEmail: 'tenant@example.com',
+        email: 'tenant@example.com',
+        roleKey: 'tenant',
+        hint: twentyOneWords,
+      ),
+      throwsStateError,
+    );
+  });
+
+  test('tenant can change a local account password', () async {
+    final store = RentalStore(seedDemoData: false);
+    final tenant = AppUser(
+      id: 'tenant-password-test',
+      name: 'Tenant Test',
+      email: 'tenant@example.com',
+      role: UserRole.tenant,
+    );
+    store.users.add(tenant);
+    store.localAuthAccounts.add(LocalAuthAccount(
+      userId: tenant.id,
+      email: tenant.email,
+      password: 'old-password',
+      role: UserRole.tenant,
+    ));
+    store.currentUser = tenant;
+
+    await store.changeCurrentAccountPassword(
+      currentPassword: 'old-password',
+      newPassword: 'new-password',
+    );
+    store.currentUser = null;
+
+    expect(
+      store.signInLocalAccount(
+        email: tenant.email,
+        password: 'new-password',
+        role: UserRole.tenant,
+      ),
+      isTrue,
+    );
   });
 
   test('login identifier and language persist independently of workspace data',
@@ -140,6 +405,12 @@ void main() {
       email: 'tenant@example.com',
     );
     first.updateLanguage(AppLanguage.chinese);
+    first.updatePasswordHint(
+      previousEmail: 'tenant@example.com',
+      email: 'tenant@example.com',
+      roleKey: 'tenant',
+      hint: 'Blue gate',
+    );
     await Future<void>.delayed(Duration.zero);
 
     final restored = RentalStore(
@@ -151,6 +422,13 @@ void main() {
     expect(restored.rememberOwnerEmail, isTrue);
     expect(restored.rememberedOwnerEmail, 'tenant@example.com');
     expect(restored.appLanguage, AppLanguage.chinese);
+    expect(
+      restored.passwordHintFor(
+        email: 'tenant@example.com',
+        roleKey: 'tenant',
+      ),
+      'Blue gate',
+    );
   });
 
   test('production and UAT hosts never share Supabase projects or redirects',
@@ -531,6 +809,56 @@ void main() {
     );
   });
 
+  test('matching published invoice can safely reuse its existing PDF', () {
+    final invoice = RentalInvoice(
+      id: 'INV-BILL-1',
+      tenant: const TenantAccount(
+        id: 'tenant-1',
+        name: 'Tenant',
+        email: 'tenant@example.com',
+        phone: '+60123456789',
+        property: 'Property A',
+        unit: 'M2',
+        rent: 675,
+        water: 0,
+        internet: 0,
+      ),
+      period: 'Oct 2026',
+      usagePeriod: 'Sep 2026',
+      previousReading: 0,
+      currentReading: 53.46,
+      evidenceName: 'meter.jpg',
+      electricityAmountOverride: 27.59,
+      generalElectricAmount: 0,
+      parkingRentalAmount: 0,
+      dueDate: DateTime(2026, 10, 4),
+    );
+    final row = <String, dynamic>{
+      'tenant_id': 'tenant-1',
+      'tenant_email': 'tenant@example.com',
+      'property_name': 'Property A',
+      'unit_name': 'M2',
+      'period': 'Oct 2026',
+      'usage_period': 'Sep 2026',
+      'rent': 675,
+      'water': 0,
+      'internet': 0,
+      'current_reading': 53.46,
+      'electricity_amount': 27.59,
+      'general_electric': 0,
+      'parking_rental': 0,
+    };
+
+    expect(rentalInvoiceMatchesCloudRecord(invoice, row), isTrue);
+    expect(
+      rentalInvoiceMatchesCloudRecord(
+        invoice,
+        <String, dynamic>{...row, 'electricity_amount': 30},
+      ),
+      isFalse,
+    );
+  });
+
   test('tenant input validation rejects malformed contact and profile data',
       () {
     expect(isValidEmailInput('alex@gmail..co.asd'), isFalse);
@@ -727,6 +1055,7 @@ void main() {
       ..paymentReference = 'MBB-12345'
       ..portalExpiresAt = DateTime(2026, 7, 4, 12)
       ..utilityEvidenceFileName = 'meter-evidence.jpg'
+      ..utilityEvidencePath = 'owner/meter/bill/meter-evidence.jpg'
       ..utilityEvidenceBytes = Uint8List.fromList(<int>[1, 2, 3, 4]);
     first.tenancies.first.electricityBillingMode =
         ElectricityBillingMode.combined;
@@ -756,6 +1085,10 @@ void main() {
     expect(restoredBill.paymentDate, DateTime(2026, 7, 3));
     expect(restoredBill.portalExpiresAt, DateTime(2026, 7, 4, 12));
     expect(restoredBill.utilityEvidenceFileName, 'meter-evidence.jpg');
+    expect(
+      restoredBill.utilityEvidencePath,
+      'owner/meter/bill/meter-evidence.jpg',
+    );
     expect(restoredBill.utilityEvidenceBytes, <int>[1, 2, 3, 4]);
     expect(
       restored.tenancies.first.electricityBillingMode,
@@ -811,6 +1144,239 @@ void main() {
     expect(restored.currentUser!.bankBeneficiary, 'LAU YIK FEI');
     expect(restored.currentUser!.paymentQrName, 'owner-qr.png');
     expect(restored.currentUser!.paymentQrBase64, 'cXItYnl0ZXM=');
+  });
+
+  test('cloud workspace snapshots omit large binary attachments', () async {
+    final persistence = TestPersistence();
+    final source = RentalStore(
+      now: DateTime(2026, 7, 30),
+      persistence: persistence,
+    );
+    await source.initializePersistence();
+    source.bills.first
+      ..invoicePdfBytes = Uint8List.fromList(<int>[1, 2, 3, 4])
+      ..utilityEvidencePath = 'owner/meter/bill/evidence.jpg'
+      ..utilityEvidenceBytes = Uint8List.fromList(<int>[5, 6, 7])
+      ..slipBytes = Uint8List.fromList(<int>[8, 9]);
+    source.tenancies.first.agreementBytes = Uint8List.fromList(<int>[10, 11]);
+    await source.flushPersistence();
+
+    final localSnapshot =
+        jsonDecode(persistence.snapshot!) as Map<String, dynamic>;
+    final localBill = (localSnapshot['bills'] as List<dynamic>).first as Map;
+    expect(localBill['invoicePdfBytesBase64'], isNotNull);
+    expect(localBill['utilityEvidenceBytesBase64'], isNotNull);
+
+    final workspace = FakeWorkspaceService(localSnapshot);
+    final restored = RentalStore(
+      now: DateTime(2026, 7, 30),
+      seedDemoData: false,
+      cloudWorkspace: workspace,
+      cloudAuthoritative: true,
+    );
+    await restored.restoreCloudWorkspace(const CloudProfile(
+      id: 'cloud-owner',
+      email: 'owner@example.com',
+      fullName: 'Cloud Owner',
+      role: 'owner',
+    ));
+    await restored.flushCloudPersistence(rethrowOnError: true);
+
+    final cloudBill =
+        (workspace.ownerSnapshot!['bills'] as List<dynamic>).first as Map;
+    final cloudTenancy =
+        (workspace.ownerSnapshot!['tenancies'] as List<dynamic>).first as Map;
+    expect(cloudBill['invoicePdfBytesBase64'], isNull);
+    expect(cloudBill['utilityEvidenceBytesBase64'], isNull);
+    expect(
+      cloudBill['utilityEvidencePath'],
+      'owner/meter/bill/evidence.jpg',
+    );
+    expect(cloudBill['slipBytesBase64'], isNull);
+    expect(cloudTenancy['agreementBytesBase64'], isNull);
+  });
+
+  test('tenant dashboard only exposes bills released by the owner', () {
+    final store = RentalStore(now: DateTime(2026, 10, 1));
+    store.loginAs(UserRole.tenant);
+    final tenant = store.currentUser!;
+    final bill = store.bills.firstWhere(
+      (item) => item.tenantId == tenant.id,
+    );
+
+    bill.status = PaymentStatus.notSubmitted;
+    expect(store.tenantBills.any((item) => item.id == bill.id), isFalse);
+
+    bill.status = PaymentStatus.pendingTenantPayment;
+    expect(store.tenantBills.any((item) => item.id == bill.id), isTrue);
+    expect(store.tenantPayableBills.any((item) => item.id == bill.id), isTrue);
+  });
+
+  test('stale tenant snapshot cannot roll a released bill back to draft',
+      () async {
+    final persistence = TestPersistence();
+    final source = RentalStore(
+      now: DateTime(2026, 10, 1),
+      persistence: persistence,
+    );
+    await source.initializePersistence();
+    source.loginAs(UserRole.owner);
+    final bill = source.bills.first;
+    final tenant = source.userFor(bill.tenantId);
+    bill
+      ..status = PaymentStatus.pendingTenantPayment
+      ..portalToken = 'released-token';
+    await source.flushPersistence();
+
+    final ownerSnapshot =
+        jsonDecode(persistence.snapshot!) as Map<String, dynamic>;
+    final staleTenantSnapshot =
+        jsonDecode(jsonEncode(ownerSnapshot)) as Map<String, dynamic>;
+    final staleBill = (staleTenantSnapshot['bills'] as List<dynamic>)
+        .cast<Map<String, dynamic>>()
+        .firstWhere((item) => item['id'] == bill.id);
+    staleBill
+      ..['status'] = PaymentStatus.notSubmitted.name
+      ..['electricityAmount'] = 999.0
+      ..['portalToken'] = null;
+
+    final workspace = FakeWorkspaceService(ownerSnapshot);
+    workspace.tenantSnapshots[tenant.email.toLowerCase()] = staleTenantSnapshot;
+    workspace.tenantSnapshotOwnerIds[tenant.email.toLowerCase()] =
+        'cloud-owner';
+    final restored = RentalStore(
+      now: DateTime(2026, 10, 1),
+      seedDemoData: false,
+      cloudWorkspace: workspace,
+      cloudAuthoritative: true,
+    );
+    await restored.restoreCloudWorkspace(const CloudProfile(
+      id: 'cloud-owner',
+      email: 'owner@example.com',
+      fullName: 'Cloud Owner',
+      role: 'owner',
+    ));
+
+    final restoredBill =
+        restored.bills.firstWhere((item) => item.id == bill.id);
+    expect(restoredBill.status, PaymentStatus.pendingTenantPayment);
+    expect(restoredBill.portalToken, 'released-token');
+    expect(restoredBill.electricityAmount, bill.electricityAmount);
+
+    await restored.flushTenantCloudPersistence(
+      restored.userFor(restoredBill.tenantId),
+      rethrowOnError: true,
+    );
+    final repairedBills = workspace
+        .tenantSnapshots[tenant.email.toLowerCase()]!['bills'] as List<dynamic>;
+    final repairedBill = repairedBills
+        .cast<Map<String, dynamic>>()
+        .firstWhere((item) => item['id'] == bill.id);
+    expect(repairedBill['status'], PaymentStatus.pendingTenantPayment.name);
+    expect(repairedBill['portalToken'], 'released-token');
+  });
+
+  test('tenant refresh cannot roll a submitted payment back to unpaid',
+      () async {
+    final persistence = TestPersistence();
+    final source = RentalStore(
+      now: DateTime(2026, 10, 2),
+      persistence: persistence,
+    );
+    await source.initializePersistence();
+    source.loginAs(UserRole.owner);
+    final sourceBill = source.bills.first;
+    final tenant = source.userFor(sourceBill.tenantId);
+    sourceBill.status = PaymentStatus.pendingTenantPayment;
+    await source.flushPersistence();
+
+    final staleSnapshot =
+        jsonDecode(persistence.snapshot!) as Map<String, dynamic>;
+    final workspace = FakeWorkspaceService(null);
+    workspace.tenantSnapshots[tenant.email.toLowerCase()] = staleSnapshot;
+    workspace.tenantSnapshotOwnerIds[tenant.email.toLowerCase()] =
+        'cloud-owner';
+    final restored = RentalStore(
+      now: DateTime(2026, 10, 2),
+      seedDemoData: false,
+      cloudWorkspace: workspace,
+      cloudAuthoritative: true,
+    );
+    await restored.restoreCloudWorkspace(CloudProfile(
+      id: tenant.id,
+      email: tenant.email,
+      fullName: tenant.name,
+      role: 'tenant',
+    ));
+
+    final bill = restored.bills.firstWhere((item) => item.id == sourceBill.id);
+    final submittedAt = DateTime(2026, 10, 2, 11, 2);
+    bill
+      ..status = PaymentStatus.pendingApproval
+      ..slipFileName = 'payment.jpg'
+      ..amountPaid = bill.totalAmount
+      ..paymentDate = DateTime(2026, 10, 2)
+      ..submittedAt = submittedAt;
+
+    await restored.refreshCurrentTenantWorkspace();
+
+    expect(bill.status, PaymentStatus.pendingApproval);
+    expect(bill.slipFileName, 'payment.jpg');
+    expect(bill.amountPaid, bill.totalAmount);
+    expect(bill.submittedAt, submittedAt);
+    expect(
+      tenantBillingMonthState([bill]),
+      TenantBillingMonthState.awaitingReview,
+    );
+  });
+
+  test('tenant login repairs a stale unpaid snapshot from the live invoice',
+      () async {
+    final persistence = TestPersistence();
+    final source = RentalStore(
+      now: DateTime(2026, 10, 2),
+      persistence: persistence,
+    );
+    await source.initializePersistence();
+    source.loginAs(UserRole.owner);
+    final sourceBill = source.bills.first;
+    final tenant = source.userFor(sourceBill.tenantId);
+    sourceBill.status = PaymentStatus.pendingTenantPayment;
+    await source.flushPersistence();
+
+    final staleSnapshot =
+        jsonDecode(persistence.snapshot!) as Map<String, dynamic>;
+    final workspace = FakeWorkspaceService(null);
+    workspace.tenantSnapshots[tenant.email.toLowerCase()] = staleSnapshot;
+    workspace.tenantSnapshotOwnerIds[tenant.email.toLowerCase()] =
+        'cloud-owner';
+    final restored = RentalStore(
+      now: DateTime(2026, 10, 2),
+      seedDemoData: false,
+      cloudWorkspace: workspace,
+      cloudAuthoritative: true,
+      tenantInvoiceLoader: (invoiceId) async => {
+        'id': invoiceId,
+        'status': 'paid',
+        'slip_name': 'payment.jpg',
+        'amount_paid': sourceBill.totalAmount,
+        'payment_date': '2026-10-02T00:00:00.000Z',
+        'slip_submitted_at': '2026-10-02T01:00:00.000Z',
+        'updated_at': '2026-10-02T02:00:00.000Z',
+      },
+    );
+
+    await restored.restoreCloudWorkspace(CloudProfile(
+      id: tenant.id,
+      email: tenant.email,
+      fullName: tenant.name,
+      role: 'tenant',
+    ));
+
+    final repaired =
+        restored.bills.firstWhere((item) => item.id == sourceBill.id);
+    expect(repaired.status, PaymentStatus.approved);
+    expect(tenantBillingMonthState([repaired]), TenantBillingMonthState.paid);
   });
 
   test('monthly invoice workflow is created once and owner is notified', () {
@@ -1048,6 +1614,35 @@ void main() {
     );
   });
 
+  testWidgets('Chinese utility workflow does not mix English status copy',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final store = RentalStore(now: DateTime(2026, 10, 2));
+    store.loginAs(UserRole.owner);
+    store.updateLanguage(AppLanguage.chinese);
+
+    await tester.pumpWidget(
+      RentalStoreScope(
+        store: store,
+        child: const MaterialApp(home: Scaffold(body: UtilitiesTab())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('的电费按以下电费阶梯计算'), findsOneWidget);
+    expect(find.textContaining('2026年10月'), findsWidgets);
+    expect(find.text('水电录入'), findsWidgets);
+    expect(find.text('填写并上传'), findsWidgets);
+    expect(
+        find.textContaining('Electricity is calculated using'), findsNothing);
+    expect(find.textContaining('above kWh'), findsNothing);
+    expect(find.text('UTILITY ENTRY'), findsNothing);
+    expect(
+        find.textContaining('Reading and attachment required'), findsNothing);
+    expect(find.text('Review & Send'), findsNothing);
+  });
+
   test('unfinished past-month bill saves detected kWh before generation', () {
     final store = RentalStore(now: DateTime(2026, 7, 18));
     final bill = store.bills.firstWhere(
@@ -1260,6 +1855,11 @@ void main() {
 
     expect(find.text('Open PDF'), findsOneWidget);
     expect(find.text('Download PDF'), findsOneWidget);
+  });
+
+  test('JPEG payment slips are recognized as previewable images', () {
+    expect(isImageFileName('IMG_2656.jpeg'), isTrue);
+    expect(isImageFileName('IMG_2656.JPEG'), isTrue);
   });
 
   testWidgets('bill performance reviews the exact monthly payment slip',
@@ -1520,6 +2120,65 @@ void main() {
     );
   });
 
+  test('manual tenant sync applies the cloud payment review status', () {
+    final bill = MonthlyBill(
+      id: 'bill-1',
+      facilityId: 'facility',
+      tenantId: 'tenant',
+      month: DateTime(2026, 10),
+      rentAmount: 100,
+      electricityAmount: 41.27,
+      waterAmount: 0,
+      internetAmount: 0,
+      status: PaymentStatus.pendingTenantPayment,
+    );
+    final submittedAt = DateTime.utc(2026, 10, 2, 9, 15, 28);
+
+    final changed = applySyncedTenantInvoiceStatus(bill, {
+      'status': 'slipSubmitted',
+      'slip_name': 'payment.png',
+      'amount_paid': 141.27,
+      'payment_date': '2026-10-02T09:15:27.000Z',
+      'slip_submitted_at': submittedAt.toIso8601String(),
+      'payment_reference': 'October rent',
+    });
+
+    expect(changed, isTrue);
+    expect(bill.status, PaymentStatus.pendingApproval);
+    expect(bill.slipFileName, 'payment.png');
+    expect(bill.amountPaid, 141.27);
+    expect(bill.submittedAt, submittedAt);
+    expect(
+      tenantBillingMonthState([bill]),
+      TenantBillingMonthState.awaitingReview,
+    );
+  });
+
+  test('stale sent invoice cannot turn a paid tenant month red', () {
+    final bill = MonthlyBill(
+      id: 'paid-bill',
+      facilityId: 'facility',
+      tenantId: 'tenant',
+      month: DateTime(2026, 10),
+      rentAmount: 141.27,
+      electricityAmount: 0,
+      waterAmount: 0,
+      internetAmount: 0,
+      status: PaymentStatus.approved,
+      amountPaid: 141.27,
+    );
+
+    final changed = applySyncedTenantInvoiceStatus(bill, {
+      'status': 'sent',
+      'amount_paid': 0,
+    });
+
+    expect(changed, isFalse);
+    expect(bill.status, PaymentStatus.approved);
+    expect(bill.amountPaid, 141.27);
+    expect(tenantBillingMonthState([bill]), TenantBillingMonthState.paid);
+  });
+
   testWidgets('invoice preview badge uses the bill payment status',
       (tester) async {
     final store = RentalStore(now: DateTime(2026, 9, 2));
@@ -1650,6 +2309,38 @@ void main() {
     expect(store.ownerCurrentMonthBills, isEmpty);
     expect(store.completedPaymentsThisMonth, 0);
     expect(store.paymentWorkflowsThisMonth, 0);
+  });
+
+  test('owner dashboard ignores unreleased current-month status rows', () {
+    final store = RentalStore(now: DateTime(2026, 7, 18));
+    store.loginAs(UserRole.owner);
+    final currentBills = store.ownerCurrentMonthBills;
+
+    for (final bill in currentBills) {
+      bill
+        ..status = PaymentStatus.approved
+        ..amountPaid = 0
+        ..slipFileName = null
+        ..slipBytes = null
+        ..submittedAt = null
+        ..paymentDate = null
+        ..paymentReference = null
+        ..reviewedAt = null
+        ..portalExpiresAt = null
+        ..portalToken = null
+        ..invoicePdfFileName = null
+        ..invoicePdfBytes = null;
+    }
+
+    expect(store.completedPaymentsThisMonth, 0);
+    expect(store.completedBillingsThisMonth, 0);
+
+    final releasedBill = currentBills.first
+      ..status = PaymentStatus.pendingTenantPayment;
+    store.recordInvoicePortalExpiry(releasedBill, DateTime(2026, 7, 21));
+
+    expect(store.completedPaymentsThisMonth, 0);
+    expect(store.completedBillingsThisMonth, 1);
   });
 
   test('owner dashboard counts one workflow per active tenancy', () {

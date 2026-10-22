@@ -1,0 +1,159 @@
+import 'dart:convert';
+import 'dart:math';
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../persistence/app_persistence.dart';
+import '../persistence/persistence_contract.dart';
+import 'settlement_model.dart';
+import 'settlement_pdf.dart';
+
+abstract class SettlementRemote {
+  Future<Map<String, dynamic>?> read();
+  Future<void> save(String snapshot, Uint8List pdf, int? expectedRevision);
+  Future<Uint8List> pdf(String path);
+}
+
+class SupabaseSettlementRemote implements SettlementRemote {
+  SupabaseSettlementRemote(this.client, this.key,
+      {this.tenantId, this.tenancyId, this.facilityId})
+      : ownerId = client.auth.currentUser?.id ??
+            (throw StateError('Sign in to save settlement records.'));
+  final SupabaseClient client;
+  final String key, ownerId;
+  final String? tenantId, tenancyId, facilityId;
+  void _checkSession() {
+    if (client.auth.currentUser?.id != ownerId)
+      throw StateError('Session changed. Sign in again.');
+  }
+
+  @override
+  Future<Map<String, dynamic>?> read() async {
+    _checkSession();
+    return await client
+        .from('move_out_settlements')
+        .select()
+        .eq('owner_id', ownerId)
+        .eq('record_key', key)
+        .maybeSingle();
+  }
+
+  @override
+  Future<Uint8List> pdf(String path) async {
+    _checkSession();
+    return client.storage.from('move-out-settlements').download(path);
+  }
+
+  @override
+  Future<void> save(
+      String snapshot, Uint8List pdf, int? expectedRevision) async {
+    _checkSession();
+    final suffix =
+        '${DateTime.now().microsecondsSinceEpoch}_${Random.secure().nextInt(1 << 32)}';
+    final path = '$ownerId/${base64Url.encode(utf8.encode(key))}/$suffix.pdf';
+    final bucket = client.storage.from('move-out-settlements');
+    await bucket.uploadBinary(path, pdf,
+        fileOptions: const FileOptions(contentType: 'application/pdf'));
+    try {
+      _checkSession();
+      final row = <String, dynamic>{
+        'owner_id': ownerId,
+        'record_key': key,
+        if (tenantId != null) 'tenant_id': tenantId,
+        if (tenancyId != null) 'tenancy_id': tenancyId,
+        if (facilityId != null) 'facility_id': facilityId,
+        'payload': jsonDecode(snapshot),
+        'pdf_path': path,
+        'revision': (expectedRevision ?? 0) + 1,
+        'updated_at': DateTime.now().toUtc().toIso8601String()
+      };
+      if (expectedRevision == null) {
+        await client.from('move_out_settlements').insert(row);
+      } else {
+        final updated = await client
+            .from('move_out_settlements')
+            .update(row)
+            .eq('owner_id', ownerId)
+            .eq('record_key', key)
+            .eq('revision', expectedRevision)
+            .select('record_key');
+        if (updated.isEmpty)
+          throw StateError(
+              'Settlement changed on another device. Reopen it before saving.');
+      }
+    } catch (_) {
+      // Remove only the new, unreferenced PDF; preserve previous versions.
+      try {
+        await bucket.remove([path]);
+      } catch (_) {}
+      rethrow;
+    }
+  }
+}
+
+/// Cloud is authoritative. Local data is retained as a migration/backup source,
+/// never used to silently overwrite newer cloud records or mask network errors.
+class SettlementCloudPersistence implements AppPersistence {
+  SettlementCloudPersistence(this.remote, this.local,
+      {this.buildPdf = buildSettlementPdf});
+  final SettlementRemote remote;
+  final AppPersistence local;
+  final Future<Uint8List> Function(MoveOutSettlement) buildPdf;
+  int? _revision;
+  String? _pdfPath;
+  bool _loaded = false;
+  @override
+  Future<String?> readSnapshot() async {
+    final row = await remote.read();
+    _loaded = true;
+    if (row != null) {
+      _revision = row['revision'] as int;
+      _pdfPath = row['pdf_path'] as String;
+      return jsonEncode(row['payload']);
+    }
+    final legacy = await local.readSnapshot();
+    if (legacy != null) {
+      await writeSnapshot(legacy);
+      return legacy;
+    }
+    return null;
+  }
+
+  @override
+  Future<void> writeSnapshot(String snapshot) async {
+    if (!_loaded) throw StateError('Load the cloud record before saving.');
+    final value = MoveOutSettlement.fromJson(
+        Map<String, dynamic>.from(jsonDecode(snapshot)));
+    final bytes = await buildPdf(value);
+    await remote.save(snapshot, bytes, _revision);
+    _revision = (_revision ?? 0) + 1;
+    _pdfPath = null;
+    // Cloud save has succeeded. A local backup failure must not report failure.
+    try {
+      await local.writeSnapshot(snapshot);
+    } catch (_) {}
+  }
+
+  Future<Uint8List> readPdf() async {
+    final row = await remote.read();
+    if (row == null) throw StateError('Cloud invoice unavailable.');
+    _pdfPath = row['pdf_path'] as String;
+    return remote.pdf(_pdfPath!);
+  }
+
+  @override
+  Future<void> clear() async =>
+      throw UnsupportedError('Central records are retained.');
+  @override
+  Future<void> close() async {}
+  @override
+  String get storageDescription => 'Private centralized settlement records';
+}
+
+Future<AppPersistence> createSettlementPersistence(String draftKey,
+    {String? tenantId, String? tenancyId, String? facilityId}) async {
+  final local = await createAppPersistence(namespace: 'settlement_$draftKey');
+  return SettlementCloudPersistence(
+      SupabaseSettlementRemote(Supabase.instance.client, draftKey,
+          tenantId: tenantId, tenancyId: tenancyId, facilityId: facilityId),
+      local);
+}

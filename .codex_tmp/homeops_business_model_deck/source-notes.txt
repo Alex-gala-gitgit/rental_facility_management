@@ -1,0 +1,11 @@
+Communication job: By the end, prospective investors, partners, or pilot customers should understand how HomeOps360 solves recurring rental-management pain, creates stakeholder value, earns recurring revenue, and validates the model through a pilot.
+
+Repository sources:
+- README.md: owner/tenant roles, facility management, rent/utilities, payment proof, reports.
+- lib/branding/homeops_brand.dart: brand identity and colors.
+- lib/explore/room_explore.dart: room marketplace and promoted listing capability.
+- docs/admin-portal-deployment.md: owner limits and feature controls.
+
+Commercial assumptions:
+- Exact prices, market size, traction and payment fee economics are not defined in the repository.
+- Tiered subscriptions, promoted listings and future partner/payment fees are presented as a proposed model for validation.

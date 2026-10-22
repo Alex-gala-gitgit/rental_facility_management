@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'admin_service.dart';
+import '../branding/homeops_loading.dart';
 import '../subscription/diamond_crown.dart';
 import '../subscription/premium_key.dart';
 
@@ -728,7 +729,9 @@ class _AdminPortalShellState extends State<AdminPortalShell> {
             ),
           Expanded(
             child: refreshing
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(
+                    child: HomeOpsLoadingCard(label: 'Loading console'),
+                  )
                 : SingleChildScrollView(
                     padding: EdgeInsets.fromLTRB(
                         desktop ? 28 : 16, 20, desktop ? 28 : 16, 40),

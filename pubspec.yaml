@@ -30,6 +30,9 @@ flutter:
   uses-material-design: true
   assets:
     - web/customize/index.html
+    - assets/fonts/NotoSansSC-Variable.ttf
+    - assets/fonts/Manrope-PdfRegular.ttf
+    - assets/fonts/Manrope-PdfBold.ttf
   fonts:
     - family: Manrope
       fonts:

@@ -1,0 +1,267 @@
+{"kind":"deck","id":"pr/p7idz1","name":"Deck"}
+{"kind":"layout","layoutId":"/ppt/slideMasters/slideMaster1.xml","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout1.xml","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/xagwpu","slide":1,"title":"HomeOps","textShapes":22}
+{"kind":"shape","id":"sh/29wn21kf","slide":1,"name":"customer-region","bbox":[56,261,331,355]}
+{"kind":"shape","id":"sh/3i1c3q1g","slide":1,"name":"platform-region","bbox":[456,261,368,355]}
+{"kind":"shape","id":"sh/ihsbul0v","slide":1,"name":"revenue-region","bbox":[893,261,331,355]}
+{"kind":"shape","id":"sh/hgju1gja","slide":1,"name":"customer-accent","bbox":[56,261,331,7]}
+{"kind":"shape","id":"sh/wfatsvi5","slide":1,"name":"platform-accent","bbox":[456,261,368,7]}
+{"kind":"shape","id":"sh/vehczq1k","slide":1,"name":"revenue-accent","bbox":[893,261,331,7]}
+{"kind":"shape","id":"sh/ud8bql0z","slide":1,"name":"flywheel-band","bbox":[56,643,1168,43]}
+{"kind":"textbox","id":"sh/8rqtobit","slide":1,"name":"brand-homeops","text":"HomeOps","textPreview":"HomeOps","textChars":7,"textLines":1,"bbox":[102,32,116,35]}
+{"kind":"textbox","id":"sh/2l8v2dov","slide":1,"name":"brand-360","text":"360","textPreview":"360","textChars":3,"textLines":1,"bbox":[202,32,52,35]}
+{"kind":"textbox","id":"sh/3mhcbi5g","slide":1,"name":"eyebrow","text":"BUSINESS MODEL","textPreview":"BUSINESS MODEL","textChars":14,"textLines":1,"bbox":[995,37,229,23]}
+{"kind":"textbox","id":"sh/4nqd4n61","slide":1,"name":"title","text":"HomeOps360 converts rental workflows into recurring revenue","textPreview":"HomeOps360 converts rental workflows into recurring revenue","textChars":59,"textLines":1,"bbox":[56,99,1168,61]}
+{"kind":"textbox","id":"sh/pozud8nm","slide":1,"name":"subtitle","text":"Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.","textPreview":"Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.","textChars":102,"textLines":1,"bbox":[56,169,1168,32]}
+{"kind":"shape","id":"sh/uxobytoz","slide":1,"name":"title-rule","bbox":[56,227,1168,2]}
+{"kind":"textbox","id":"sh/fyxc7y5k","slide":1,"name":"step-01","text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[80,294,56,31]}
+{"kind":"textbox","id":"sh/gz6t0365","slide":1,"name":"who-pays","text":"WHO PAYS","textPreview":"WHO PAYS","textChars":8,"textLines":1,"bbox":[80,331,253,32]}
+{"kind":"textbox","id":"sh/hkzu98nq","slide":1,"name":"payer-heading","text":"Owners &\nagents","textPreview":"Owners & | agents","textChars":15,"textLines":2,"bbox":[80,373,269,83]}
+{"kind":"textbox","id":"sh/6tobuto3","slide":1,"name":"payer-body","text":"Manage more units with less admin:\n\n• Properties & tenancies\n• Rent, utilities & expenses\n• Payment proof & reporting","textPreview":"Manage more units with less admin: |  | • Properties & tenancies | • Rent, utilities & expenses | • Payment proof & reporting","textChars":117,"textLines":5,"bbox":[80,461,269,139]}
+{"kind":"textbox","id":"sh/7uxc3y58","slide":1,"name":"step-02","text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[482,294,56,31]}
+{"kind":"textbox","id":"sh/bytsvul0","slide":1,"name":"operating-layer","text":"THE OPERATING LAYER","textPreview":"THE OPERATING LAYER","textChars":19,"textLines":1,"bbox":[482,331,293,32]}
+{"kind":"textbox","id":"sh/axkr2p4v","slide":1,"name":"platform-heading","text":"One workspace for\nthe full rental cycle","textPreview":"One workspace for | the full rental cycle","textChars":39,"textLines":2,"bbox":[482,373,301,83]}
+{"kind":"textbox","id":"sh/x0bax436","slide":1,"name":"platform-body","text":"OWNER APP\nPortfolio • billing • approvals\nTENANT PORTAL\nBills • proof • requests\nEXPLORE\nVerified room discovery","textPreview":"OWNER APP | Portfolio • billing • approvals | TENANT PORTAL | Bills • proof • requests | EXPLORE | Verified room discovery","textChars":112,"textLines":6,"bbox":[482,453,301,155]}
+{"kind":"textbox","id":"sh/wz294zml","slide":1,"name":"step-03","text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[920,294,56,31]}
+{"kind":"textbox","id":"sh/j2dszulc","slide":1,"name":"how-monetizes","text":"HOW IT MONETIZES","textPreview":"HOW IT MONETIZES","textChars":16,"textLines":1,"bbox":[920,331,253,32]}
+{"kind":"textbox","id":"sh/i14r6p4r","slide":1,"name":"revenue-heading","text":"SaaS first.\nExpand with usage.","textPreview":"SaaS first. | Expand with usage.","textChars":30,"textLines":2,"bbox":[920,373,269,83]}
+{"kind":"textbox","id":"sh/54va143i","slide":1,"name":"revenue-body","text":"1  Tiered subscription\n    Units • tenants • features\n2  Promoted listings\n    Paid Explore visibility\n3  Future service fees\n    Payments • partners","textPreview":"1  Tiered subscription |     Units • tenants • features | 2  Promoted listings |     Paid Explore visibility | 3  Future service fees |  ...","textChars":149,"textLines":6,"bbox":[920,453,269,155]}
+{"kind":"textbox","id":"sh/k3m98zmx","slide":1,"name":"arrow-one","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[392,405,59,53]}
+{"kind":"textbox","id":"sh/z698nal8","slide":1,"name":"arrow-two","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[829,405,59,53]}
+{"kind":"textbox","id":"sh/e50ru54n","slide":1,"name":"flywheel-label","text":"LAND-AND-EXPAND ENGINE","textPreview":"LAND-AND-EXPAND ENGINE","textChars":22,"textLines":1,"bbox":[75,654,221,19]}
+{"kind":"textbox","id":"sh/4byp4b25","slide":1,"name":"flywheel-copy","text":"More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion","textPreview":"More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion","textChars":95,"textLines":1,"bbox":[304,651,891,24]}
+{"kind":"textbox","id":"sh/pc76xgjq","slide":1,"name":"assumption-note","text":"Proposed monetization model; final packaging and pricing to be validated with pilot customers.","textPreview":"Proposed monetization model; final packaging and pricing to be validated with pilot customers.","textChars":94,"textLines":1,"bbox":[56,691,1168,15]}
+{"kind":"image","id":"im/kjux8f6t","slide":1,"name":"","bbox":[56,32,38,38]}
+{"kind":"notes","id":"nt/xagwpu","slide":1,"text":"[Sources]\n- README.md (product roles and workflows)\n- lib/branding/homeops_brand.dart (brand colors and naming)\n- lib/explore/room_explore.dart (Explore marketplace and promotion capability)\n- docs/admin-portal-deployment.md (owner limits and feature access)\n[/Sources]\n\nPricing and transaction-fee streams are proposed; the repository does not define commercial rates."}
+{"kind":"slide","id":"sl/okltj6","slide":2,"title":"HomeOps","textShapes":22}
+{"kind":"shape","id":"sh/e5k7q1k3","slide":2,"name":"customer-region","bbox":[56,261,331,355]}
+{"kind":"shape","id":"sh/7yd0bmlw","slide":2,"name":"platform-region","bbox":[456,261,368,355]}
+{"kind":"shape","id":"sh/mx4z2h4r","slide":2,"name":"revenue-region","bbox":[893,261,331,355]}
+{"kind":"shape","id":"sh/lcvy9cn6","slide":2,"name":"customer-accent","bbox":[56,261,331,7]}
+{"kind":"shape","id":"sh/kbmh07ml","slide":2,"name":"platform-accent","bbox":[456,261,368,7]}
+{"kind":"shape","id":"sh/zadg7250","slide":2,"name":"revenue-accent","bbox":[893,261,331,7]}
+{"kind":"shape","id":"sh/y9kzyx4f","slide":2,"name":"flywheel-band","bbox":[56,643,1168,43]}
+{"kind":"textbox","id":"sh/c72hw7m9","slide":2,"name":"brand-homeops","text":"HomeOps","textPreview":"HomeOps","textChars":7,"textLines":1,"bbox":[102,32,116,35]}
+{"kind":"textbox","id":"sh/ytw3mhsv","slide":2,"name":"brand-360","text":"360","textPreview":"360","textChars":3,"textLines":1,"bbox":[202,32,52,35]}
+{"kind":"textbox","id":"sh/zu54fm9g","slide":2,"name":"eyebrow","text":"BUSINESS MODEL","textPreview":"BUSINESS MODEL","textChars":14,"textLines":1,"bbox":[995,37,229,23]}
+{"kind":"textbox","id":"sh/0velo7a1","slide":2,"name":"title","text":"HomeOps360 converts rental workflows into recurring revenue","textPreview":"HomeOps360 converts rental workflows into recurring revenue","textChars":59,"textLines":1,"bbox":[56,99,1168,61]}
+{"kind":"textbox","id":"sh/lwnmhcrm","slide":2,"name":"subtitle","text":"Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.","textPreview":"Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.","textChars":102,"textLines":1,"bbox":[56,169,1168,32]}
+{"kind":"shape","id":"sh/q5c3ixsz","slide":2,"name":"title-rule","bbox":[56,227,1168,2]}
+{"kind":"textbox","id":"sh/bql4b29k","slide":2,"name":"step-01","text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[80,294,56,31]}
+{"kind":"textbox","id":"sh/crelk7a5","slide":2,"name":"who-pays","text":"WHO PAYS","textPreview":"WHO PAYS","textChars":8,"textLines":1,"bbox":[80,331,253,32]}
+{"kind":"textbox","id":"sh/dsnmdcrq","slide":2,"name":"payer-heading","text":"Owners &\nagents","textPreview":"Owners & | agents","textChars":15,"textLines":2,"bbox":[80,373,269,83]}
+{"kind":"textbox","id":"sh/21c3exsn","slide":2,"name":"payer-body","text":"Manage more units with less admin:\n\n• Properties & tenancies\n• Rent, utilities & expenses\n• Payment proof & reporting","textPreview":"Manage more units with less admin: |  | • Properties & tenancies | • Rent, utilities & expenses | • Payment proof & reporting","textChars":117,"textLines":5,"bbox":[80,461,269,139]}
+{"kind":"textbox","id":"sh/32l47298","slide":2,"name":"step-02","text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[482,294,56,31]}
+{"kind":"textbox","id":"sh/7uxszul4","slide":2,"name":"operating-layer","text":"THE OPERATING LAYER","textPreview":"THE OPERATING LAYER","textChars":19,"textLines":1,"bbox":[482,331,293,32]}
+{"kind":"textbox","id":"sh/6torqp4j","slide":2,"name":"platform-heading","text":"One workspace for\nthe full rental cycle","textPreview":"One workspace for | the full rental cycle","textChars":39,"textLines":2,"bbox":[482,373,301,83]}
+{"kind":"textbox","id":"sh/twza143u","slide":2,"name":"platform-body","text":"OWNER APP\nPortfolio • billing • approvals\nTENANT PORTAL\nBills • proof • requests\nEXPLORE\nVerified room discovery","textPreview":"OWNER APP | Portfolio • billing • approvals | TENANT PORTAL | Bills • proof • requests | EXPLORE | Verified room discovery","textChars":112,"textLines":6,"bbox":[482,453,301,155]}
+{"kind":"textbox","id":"sh/svq9szm9","slide":2,"name":"step-03","text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[920,294,56,31]}
+{"kind":"textbox","id":"sh/fyhs3el0","slide":2,"name":"how-monetizes","text":"HOW IT MONETIZES","textPreview":"HOW IT MONETIZES","textChars":16,"textLines":1,"bbox":[920,331,253,32]}
+{"kind":"textbox","id":"sh/ux8ru94f","slide":2,"name":"revenue-heading","text":"SaaS first.\nExpand with usage.","textPreview":"SaaS first. | Expand with usage.","textChars":30,"textLines":2,"bbox":[920,373,269,83]}
+{"kind":"textbox","id":"sh/hkza5436","slide":2,"name":"revenue-body","text":"1  Tiered subscription\n    Units • tenants • features\n2  Promoted listings\n    Paid Explore visibility\n3  Future service fees\n    Payments • partners","textPreview":"1  Tiered subscription |     Units • tenants • features | 2  Promoted listings |     Paid Explore visibility | 3  Future service fees |  ...","textChars":149,"textLines":6,"bbox":[920,453,269,155]}
+{"kind":"textbox","id":"sh/gzqtwjml","slide":2,"name":"arrow-one","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[392,405,59,53]}
+{"kind":"textbox","id":"sh/b2dsralw","slide":2,"name":"arrow-two","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[829,405,59,53]}
+{"kind":"textbox","id":"sh/a14ri54b","slide":2,"name":"flywheel-label","text":"LAND-AND-EXPAND ENGINE","textPreview":"LAND-AND-EXPAND ENGINE","textChars":22,"textLines":1,"bbox":[75,654,221,19]}
+{"kind":"textbox","id":"sh/072psb29","slide":2,"name":"flywheel-copy","text":"More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion","textPreview":"More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion","textChars":95,"textLines":1,"bbox":[304,651,891,24]}
+{"kind":"textbox","id":"sh/18b61gje","slide":2,"name":"assumption-note","text":"Proposed monetization model; final packaging and pricing to be validated with pilot customers.","textPreview":"Proposed monetization model; final packaging and pricing to be validated with pilot customers.","textChars":94,"textLines":1,"bbox":[56,691,1168,15]}
+{"kind":"image","id":"im/4vepkvmh","slide":2,"name":"","bbox":[56,32,38,38]}
+{"kind":"notes","id":"nt/okltj6","slide":2,"text":"[Sources]\n- README.md (product roles and workflows)\n- lib/branding/homeops_brand.dart (brand colors and naming)\n- lib/explore/room_explore.dart (Explore marketplace and promotion capability)\n- docs/admin-portal-deployment.md (owner limits and feature access)\n[/Sources]\n\nPricing and transaction-fee streams are proposed; the repository does not define commercial rates."}
+{"kind":"slide","id":"sl/74ey8t","slide":3,"title":"HomeOps","textShapes":22}
+{"kind":"shape","id":"sh/lob6xkfa","slide":3,"name":"customer-region","bbox":[56,261,331,355]}
+{"kind":"shape","id":"sh/ipw3epgr","slide":3,"name":"platform-region","bbox":[456,261,368,355]}
+{"kind":"shape","id":"sh/ja547uhw","slide":3,"name":"revenue-region","bbox":[893,261,331,355]}
+{"kind":"shape","id":"sh/sfel4zyt","slide":3,"name":"customer-accent","bbox":[56,261,331,7]}
+{"kind":"shape","id":"sh/tg7md4ze","slide":3,"name":"platform-accent","bbox":[456,261,368,7]}
+{"kind":"shape","id":"sh/6dw32pgn","slide":3,"name":"revenue-accent","bbox":[893,261,331,7]}
+{"kind":"shape","id":"sh/re54buh8","slide":3,"name":"flywheel-band","bbox":[56,643,1168,43]}
+{"kind":"textbox","id":"sh/9k3m10zu","slide":3,"name":"brand-homeops","text":"HomeOps","textPreview":"HomeOps","textChars":7,"textLines":1,"bbox":[102,32,116,35]}
+{"kind":"textbox","id":"sh/xsbqxo3e","slide":3,"name":"brand-360","text":"360","textPreview":"360","textChars":3,"textLines":1,"bbox":[202,32,52,35]}
+{"kind":"textbox","id":"sh/wr294j2t","slide":3,"name":"eyebrow","text":"BUSINESS MODEL","textPreview":"BUSINESS MODEL","textChars":14,"textLines":1,"bbox":[995,37,229,23]}
+{"kind":"textbox","id":"sh/bqt8vel8","slide":3,"name":"title","text":"HomeOps360 converts rental workflows into recurring revenue","textPreview":"HomeOps360 converts rental workflows into recurring revenue","textChars":59,"textLines":1,"bbox":[56,99,1168,61]}
+{"kind":"textbox","id":"sh/apkr29kn","slide":3,"name":"subtitle","text":"Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.","textPreview":"Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.","textChars":102,"textLines":1,"bbox":[56,169,1168,32]}
+{"kind":"shape","id":"sh/lgvq1o3a","slide":3,"name":"title-rule","bbox":[56,227,1168,2]}
+{"kind":"textbox","id":"sh/kf298j25","slide":3,"name":"step-01","text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[80,294,56,31]}
+{"kind":"textbox","id":"sh/jut8zelk","slide":3,"name":"who-pays","text":"WHO PAYS","textPreview":"WHO PAYS","textChars":8,"textLines":1,"bbox":[80,331,253,32]}
+{"kind":"textbox","id":"sh/ytkr6tkz","slide":3,"name":"payer-heading","text":"Owners &\nagents","textPreview":"Owners & | agents","textChars":15,"textLines":2,"bbox":[80,373,269,83]}
+{"kind":"textbox","id":"sh/tkva583m","slide":3,"name":"payer-body","text":"Manage more units with less admin:\n\n• Properties & tenancies\n• Rent, utilities & expenses\n• Payment proof & reporting","textPreview":"Manage more units with less admin: |  | • Properties & tenancies | • Rent, utilities & expenses | • Payment proof & reporting","textChars":117,"textLines":5,"bbox":[80,461,269,139]}
+{"kind":"textbox","id":"sh/8jm9c321","slide":3,"name":"step-02","text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[482,294,56,31]}
+{"kind":"textbox","id":"sh/snut87ad","slide":3,"name":"operating-layer","text":"THE OPERATING LAYER","textPreview":"THE OPERATING LAYER","textChars":19,"textLines":1,"bbox":[482,331,293,32]}
+{"kind":"textbox","id":"sh/to3u1cry","slide":3,"name":"platform-heading","text":"One workspace for\nthe full rental cycle","textPreview":"One workspace for | the full rental cycle","textChars":39,"textLines":2,"bbox":[482,373,301,83]}
+{"kind":"textbox","id":"sh/61cb6xs7","slide":3,"name":"platform-body","text":"OWNER APP\nPortfolio • billing • approvals\nTENANT PORTAL\nBills • proof • requests\nEXPLORE\nVerified room discovery","textPreview":"OWNER APP | Portfolio • billing • approvals | TENANT PORTAL | Bills • proof • requests | EXPLORE | Verified room discovery","textChars":112,"textLines":6,"bbox":[482,453,301,155]}
+{"kind":"textbox","id":"sh/rmlsz2ts","slide":3,"name":"step-03","text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[920,294,56,31]}
+{"kind":"textbox","id":"sh/grutcra9","slide":3,"name":"how-monetizes","text":"HOW IT MONETIZES","textPreview":"HOW IT MONETIZES","textChars":16,"textLines":1,"bbox":[920,331,253,32]}
+{"kind":"textbox","id":"sh/1snu5cru","slide":3,"name":"revenue-heading","text":"SaaS first.\nExpand with usage.","textPreview":"SaaS first. | Expand with usage.","textChars":30,"textLines":2,"bbox":[920,373,269,83]}
+{"kind":"textbox","id":"sh/epcbahs3","slide":3,"name":"revenue-body","text":"1  Tiered subscription\n    Units • tenants • features\n2  Promoted listings\n    Paid Explore visibility\n3  Future service fees\n    Payments • partners","textPreview":"1  Tiered subscription |     Units • tenants • features | 2  Promoted listings |     Paid Explore visibility | 3  Future service fees |  ...","textChars":149,"textLines":6,"bbox":[920,453,269,155]}
+{"kind":"textbox","id":"sh/fqlc3m9o","slide":3,"name":"arrow-one","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[392,405,59,53]}
+{"kind":"textbox","id":"sh/wvat0na5","slide":3,"name":"arrow-two","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[829,405,59,53]}
+{"kind":"textbox","id":"sh/hwjatsbq","slide":3,"name":"flywheel-label","text":"LAND-AND-EXPAND ENGINE","textPreview":"LAND-AND-EXPAND ENGINE","textChars":22,"textLines":1,"bbox":[75,654,221,19]}
+{"kind":"textbox","id":"sh/j294vuxk","slide":3,"name":"flywheel-copy","text":"More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion","textPreview":"More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion","textChars":95,"textLines":1,"bbox":[304,651,891,24]}
+{"kind":"textbox","id":"sh/y10nmpgz","slide":3,"name":"assumption-note","text":"Proposed monetization model; final packaging and pricing to be validated with pilot customers.","textPreview":"Proposed monetization model; final packaging and pricing to be validated with pilot customers.","textChars":94,"textLines":1,"bbox":[56,691,1168,15]}
+{"kind":"image","id":"im/nylgvq9k","slide":3,"name":"","bbox":[56,32,38,38]}
+{"kind":"notes","id":"nt/74ey8t","slide":3,"text":"[Sources]\n- README.md (product roles and workflows)\n- lib/branding/homeops_brand.dart (brand colors and naming)\n- lib/explore/room_explore.dart (Explore marketplace and promotion capability)\n- docs/admin-portal-deployment.md (owner limits and feature access)\n[/Sources]\n\nPricing and transaction-fee streams are proposed; the repository does not define commercial rates."}
+{"kind":"slide","id":"sl/1dy5i3","slide":4,"title":"HomeOps","textShapes":22}
+{"kind":"shape","id":"sh/rit0fq9s","slide":4,"name":"customer-region","bbox":[56,261,331,355]}
+{"kind":"shape","id":"sh/4f61cz2p","slide":4,"name":"platform-region","bbox":[456,261,368,355]}
+{"kind":"shape","id":"sh/50fi543a","slide":4,"name":"revenue-region","bbox":[893,261,331,355]}
+{"kind":"shape","id":"sh/61oje9kv","slide":4,"name":"customer-accent","bbox":[56,261,331,7]}
+{"kind":"shape","id":"sh/r2x07ulg","slide":4,"name":"platform-accent","bbox":[456,261,368,7]}
+{"kind":"shape","id":"sh/s361gz21","slide":4,"name":"revenue-accent","bbox":[893,261,331,7]}
+{"kind":"shape","id":"sh/t4z2943m","slide":4,"name":"flywheel-band","bbox":[56,643,1168,43]}
+{"kind":"textbox","id":"sh/76d0valw","slide":4,"name":"brand-homeops","text":"HomeOps","textPreview":"HomeOps","textChars":7,"textLines":1,"bbox":[102,32,116,35]}
+{"kind":"textbox","id":"sh/fetwf6lo","slide":4,"name":"brand-360","text":"360","textPreview":"360","textChars":3,"textLines":1,"bbox":[202,32,52,35]}
+{"kind":"textbox","id":"sh/ud0f6143","slide":4,"name":"eyebrow","text":"BUSINESS MODEL","textPreview":"BUSINESS MODEL","textChars":14,"textLines":1,"bbox":[995,37,229,23]}
+{"kind":"textbox","id":"sh/1gbyhg3u","slide":4,"name":"title","text":"HomeOps360 converts rental workflows into recurring revenue","textPreview":"HomeOps360 converts rental workflows into recurring revenue","textChars":59,"textLines":1,"bbox":[56,99,1168,61]}
+{"kind":"textbox","id":"sh/gf2x8bm9","slide":4,"name":"subtitle","text":"Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.","textPreview":"Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.","textChars":102,"textLines":1,"bbox":[56,169,1168,32]}
+{"kind":"shape","id":"sh/7q9wbm5s","slide":4,"name":"title-rule","bbox":[56,227,1168,2]}
+{"kind":"textbox","id":"sh/6p0f2h47","slide":4,"name":"step-01","text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[80,294,56,31]}
+{"kind":"textbox","id":"sh/tsredw3i","slide":4,"name":"who-pays","text":"WHO PAYS","textPreview":"WHO PAYS","textChars":8,"textLines":1,"bbox":[80,331,253,32]}
+{"kind":"textbox","id":"sh/srix4rmd","slide":4,"name":"payer-heading","text":"Owners &\nagents","textPreview":"Owners & | agents","textChars":15,"textLines":2,"bbox":[80,373,269,83]}
+{"kind":"textbox","id":"sh/jm9w7m5g","slide":4,"name":"payer-body","text":"Manage more units with less admin:\n\n• Properties & tenancies\n• Rent, utilities & expenses\n• Payment proof & reporting","textPreview":"Manage more units with less admin: |  | • Properties & tenancies | • Rent, utilities & expenses | • Payment proof & reporting","textChars":117,"textLines":5,"bbox":[80,461,269,139]}
+{"kind":"textbox","id":"sh/ilgfyh4v","slide":4,"name":"step-02","text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[482,294,56,31]}
+{"kind":"textbox","id":"sh/mhgfqho3","slide":4,"name":"operating-layer","text":"THE OPERATING LAYER","textPreview":"THE OPERATING LAYER","textChars":19,"textLines":1,"bbox":[482,331,293,32]}
+{"kind":"textbox","id":"sh/nipgjmpo","slide":4,"name":"platform-heading","text":"One workspace for\nthe full rental cycle","textPreview":"One workspace for | the full rental cycle","textChars":39,"textLines":2,"bbox":[482,373,301,83]}
+{"kind":"textbox","id":"sh/8jyxsr6t","slide":4,"name":"platform-body","text":"OWNER APP\nPortfolio • billing • approvals\nTENANT PORTAL\nBills • proof • requests\nEXPLORE\nVerified room discovery","textPreview":"OWNER APP | Portfolio • billing • approvals | TENANT PORTAL | Bills • proof • requests | EXPLORE | Verified room discovery","textChars":112,"textLines":6,"bbox":[482,453,301,155]}
+{"kind":"textbox","id":"sh/9k7ylc7e","slide":4,"name":"step-03","text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[920,294,56,31]}
+{"kind":"textbox","id":"sh/algfuhoz","slide":4,"name":"how-monetizes","text":"HOW IT MONETIZES","textPreview":"HOW IT MONETIZES","textChars":16,"textLines":1,"bbox":[920,331,253,32]}
+{"kind":"textbox","id":"sh/vmpgnmpk","slide":4,"name":"revenue-heading","text":"SaaS first.\nExpand with usage.","textPreview":"SaaS first. | Expand with usage.","textChars":30,"textLines":2,"bbox":[920,373,269,83]}
+{"kind":"textbox","id":"sh/wnihwr65","slide":4,"name":"revenue-body","text":"1  Tiered subscription\n    Units • tenants • features\n2  Promoted listings\n    Paid Explore visibility\n3  Future service fees\n    Payments • partners","textPreview":"1  Tiered subscription |     Units • tenants • features | 2  Promoted listings |     Paid Explore visibility | 3  Future service fees |  ...","textChars":149,"textLines":6,"bbox":[920,453,269,155]}
+{"kind":"textbox","id":"sh/xorypw7q","slide":4,"name":"arrow-one","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[392,405,59,53]}
+{"kind":"textbox","id":"sh/ip0zy1ob","slide":4,"name":"arrow-two","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[829,405,59,53]}
+{"kind":"textbox","id":"sh/jq9gr6pg","slide":4,"name":"flywheel-label","text":"LAND-AND-EXPAND ENGINE","textPreview":"LAND-AND-EXPAND ENGINE","textChars":22,"textLines":1,"bbox":[75,654,221,19]}
+{"kind":"textbox","id":"sh/tkbih0ry","slide":4,"name":"flywheel-copy","text":"More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion","textPreview":"More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion","textChars":95,"textLines":1,"bbox":[304,651,891,24]}
+{"kind":"textbox","id":"sh/sj21ovqd","slide":4,"name":"assumption-note","text":"Proposed monetization model; final packaging and pricing to be validated with pilot customers.","textPreview":"Proposed monetization model; final packaging and pricing to be validated with pilot customers.","textChars":94,"textLines":1,"bbox":[56,691,1168,15]}
+{"kind":"image","id":"im/xozy9gzu","slide":4,"name":"","bbox":[56,32,38,38]}
+{"kind":"notes","id":"nt/1dy5i3","slide":4,"text":"[Sources]\n- README.md (product roles and workflows)\n- lib/branding/homeops_brand.dart (brand colors and naming)\n- lib/explore/room_explore.dart (Explore marketplace and promotion capability)\n- docs/admin-portal-deployment.md (owner limits and feature access)\n[/Sources]\n\nPricing and transaction-fee streams are proposed; the repository does not define commercial rates."}
+{"kind":"slide","id":"sl/axyjwb","slide":5,"title":"HomeOps","textShapes":22}
+{"kind":"shape","id":"sh/bm9oryx4","slide":5,"name":"customer-region","bbox":[56,261,331,355]}
+{"kind":"shape","id":"sh/sjqdwru5","slide":5,"name":"platform-region","bbox":[456,261,368,355]}
+{"kind":"shape","id":"sh/tkzupwvq","slide":5,"name":"revenue-region","bbox":[893,261,331,355]}
+{"kind":"shape","id":"sh/idobqhc3","slide":5,"name":"customer-accent","bbox":[56,261,331,7]}
+{"kind":"shape","id":"sh/jexcjmdo","slide":5,"name":"platform-accent","bbox":[456,261,368,7]}
+{"kind":"shape","id":"sh/4f6ts7ut","slide":5,"name":"revenue-accent","bbox":[893,261,331,7]}
+{"kind":"shape","id":"sh/5gfulcve","slide":5,"name":"flywheel-band","bbox":[56,643,1168,43]}
+{"kind":"textbox","id":"sh/3a1cv6ds","slide":5,"name":"brand-homeops","text":"HomeOps","textPreview":"HomeOps","textChars":7,"textLines":1,"bbox":[102,32,116,35]}
+{"kind":"textbox","id":"sh/zehkv6t4","slide":5,"name":"brand-360","text":"360","textPreview":"360","textChars":3,"textLines":1,"bbox":[202,32,52,35]}
+{"kind":"textbox","id":"sh/yd8jm1sz","slide":5,"name":"eyebrow","text":"BUSINESS MODEL","textPreview":"BUSINESS MODEL","textChars":14,"textLines":1,"bbox":[995,37,229,23]}
+{"kind":"textbox","id":"sh/lgj2xwba","slide":5,"name":"title","text":"HomeOps360 converts rental workflows into recurring revenue","textPreview":"HomeOps360 converts rental workflows into recurring revenue","textChars":59,"textLines":1,"bbox":[56,99,1168,61]}
+{"kind":"textbox","id":"sh/kfa1orap","slide":5,"name":"subtitle","text":"Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.","textPreview":"Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.","textChars":102,"textLines":1,"bbox":[56,169,1168,32]}
+{"kind":"shape","id":"sh/721kz6tg","slide":5,"name":"title-rule","bbox":[56,227,1168,2]}
+{"kind":"textbox","id":"sh/m1sjq1sv","slide":5,"name":"step-01","text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[80,294,56,31]}
+{"kind":"textbox","id":"sh/94j21gbm","slide":5,"name":"who-pays","text":"WHO PAYS","textPreview":"WHO PAYS","textChars":8,"textLines":1,"bbox":[80,331,253,32]}
+{"kind":"textbox","id":"sh/83a1sba1","slide":5,"name":"payer-heading","text":"Owners &\nagents","textPreview":"Owners & | agents","textChars":15,"textLines":2,"bbox":[80,373,269,83]}
+{"kind":"textbox","id":"sh/v61k3qtc","slide":5,"name":"payer-body","text":"Manage more units with less admin:\n\n• Properties & tenancies\n• Rent, utilities & expenses\n• Payment proof & reporting","textPreview":"Manage more units with less admin: |  | • Properties & tenancies | • Rent, utilities & expenses | • Payment proof & reporting","textChars":117,"textLines":5,"bbox":[80,461,269,139]}
+{"kind":"textbox","id":"sh/u5sjulsr","slide":5,"name":"step-02","text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[482,294,56,31]}
+{"kind":"textbox","id":"sh/61wn2pcz","slide":5,"name":"operating-layer","text":"THE OPERATING LAYER","textPreview":"THE OPERATING LAYER","textChars":19,"textLines":1,"bbox":[482,331,293,32]}
+{"kind":"textbox","id":"sh/r254vadk","slide":5,"name":"platform-heading","text":"One workspace for\nthe full rental cycle","textPreview":"One workspace for | the full rental cycle","textChars":39,"textLines":2,"bbox":[482,373,301,83]}
+{"kind":"textbox","id":"sh/s3e54fu5","slide":5,"name":"platform-body","text":"OWNER APP\nPortfolio • billing • approvals\nTENANT PORTAL\nBills • proof • requests\nEXPLORE\nVerified room discovery","textPreview":"OWNER APP | Portfolio • billing • approvals | TENANT PORTAL | Bills • proof • requests | EXPLORE | Verified room discovery","textChars":112,"textLines":6,"bbox":[482,453,301,155]}
+{"kind":"textbox","id":"sh/t4nmxkvq","slide":5,"name":"step-03","text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[920,294,56,31]}
+{"kind":"textbox","id":"sh/ixc3y5c3","slide":5,"name":"how-monetizes","text":"HOW IT MONETIZES","textPreview":"HOW IT MONETIZES","textChars":16,"textLines":1,"bbox":[920,331,253,32]}
+{"kind":"textbox","id":"sh/jy54rado","slide":5,"name":"revenue-heading","text":"SaaS first.\nExpand with usage.","textPreview":"SaaS first. | Expand with usage.","textChars":30,"textLines":2,"bbox":[920,373,269,83]}
+{"kind":"textbox","id":"sh/4zel0fu9","slide":5,"name":"revenue-body","text":"1  Tiered subscription\n    Units • tenants • features\n2  Promoted listings\n    Paid Explore visibility\n3  Future service fees\n    Payments • partners","textPreview":"1  Tiered subscription |     Units • tenants • features | 2  Promoted listings |     Paid Explore visibility | 3  Future service fees |  ...","textChars":149,"textLines":6,"bbox":[920,453,269,155]}
+{"kind":"textbox","id":"sh/50nmtkvu","slide":5,"name":"arrow-one","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[392,405,59,53]}
+{"kind":"textbox","id":"sh/2tgna9c7","slide":5,"name":"arrow-two","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[829,405,59,53]}
+{"kind":"textbox","id":"sh/3up43uds","slide":5,"name":"flywheel-label","text":"LAND-AND-EXPAND ENGINE","textPreview":"LAND-AND-EXPAND ENGINE","textChars":22,"textLines":1,"bbox":[75,654,221,19]}
+{"kind":"textbox","id":"sh/xorqt8fu","slide":5,"name":"flywheel-copy","text":"More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion","textPreview":"More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion","textChars":95,"textLines":1,"bbox":[304,651,891,24]}
+{"kind":"textbox","id":"sh/cnip03ep","slide":5,"name":"assumption-note","text":"Proposed monetization model; final packaging and pricing to be validated with pilot customers.","textPreview":"Proposed monetization model; final packaging and pricing to be validated with pilot customers.","textChars":94,"textLines":1,"bbox":[56,691,1168,15]}
+{"kind":"image","id":"im/t4fqxcf2","slide":5,"name":"","bbox":[56,32,38,38]}
+{"kind":"notes","id":"nt/axyjwb","slide":5,"text":"[Sources]\n- README.md (product roles and workflows)\n- lib/branding/homeops_brand.dart (brand colors and naming)\n- lib/explore/room_explore.dart (Explore marketplace and promotion capability)\n- docs/admin-portal-deployment.md (owner limits and feature access)\n[/Sources]\n\nPricing and transaction-fee streams are proposed; the repository does not define commercial rates."}
+{"kind":"slide","id":"sl/2rz8bv","slide":6,"title":"HomeOps","textShapes":22}
+{"kind":"shape","id":"sh/614ru1ob","slide":6,"name":"customer-region","bbox":[56,261,331,355]}
+{"kind":"shape","id":"sh/bmpg7mp4","slide":6,"name":"platform-region","bbox":[456,261,368,355]}
+{"kind":"shape","id":"sh/q1gfyhoj","slide":6,"name":"revenue-region","bbox":[893,261,331,355]}
+{"kind":"shape","id":"sh/ls7ydw76","slide":6,"name":"customer-accent","bbox":[56,261,331,7]}
+{"kind":"shape","id":"sh/0ryh4r6l","slide":6,"name":"platform-accent","bbox":[456,261,368,7]}
+{"kind":"shape","id":"sh/zqpgbmpg","slide":6,"name":"revenue-accent","bbox":[893,261,331,7]}
+{"kind":"shape","id":"sh/ypgz2hov","slide":6,"name":"flywheel-band","bbox":[56,643,1168,43]}
+{"kind":"textbox","id":"sh/8vih8r6x","slide":6,"name":"brand-homeops","text":"HomeOps","textPreview":"HomeOps","textChars":7,"textLines":1,"bbox":[102,32,116,35]}
+{"kind":"textbox","id":"sh/6dwfadsr","slide":6,"name":"brand-360","text":"360","textPreview":"360","textChars":3,"textLines":1,"bbox":[202,32,52,35]}
+{"kind":"textbox","id":"sh/7e5g3i9c","slide":6,"name":"eyebrow","text":"BUSINESS MODEL","textPreview":"BUSINESS MODEL","textChars":14,"textLines":1,"bbox":[995,37,229,23]}
+{"kind":"textbox","id":"sh/8fexcnax","slide":6,"name":"title","text":"HomeOps360 converts rental workflows into recurring revenue","textPreview":"HomeOps360 converts rental workflows into recurring revenue","textChars":59,"textLines":1,"bbox":[56,99,1168,61]}
+{"kind":"textbox","id":"sh/tg7y5sri","slide":6,"name":"subtitle","text":"Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.","textPreview":"Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.","textChars":102,"textLines":1,"bbox":[56,169,1168,32]}
+{"kind":"shape","id":"sh/uhgzeds3","slide":6,"name":"title-rule","bbox":[56,227,1168,2]}
+{"kind":"textbox","id":"sh/vipg7i9o","slide":6,"name":"step-01","text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[80,294,56,31]}
+{"kind":"textbox","id":"sh/gjyhgnq9","slide":6,"name":"who-pays","text":"WHO PAYS","textPreview":"WHO PAYS","textChars":8,"textLines":1,"bbox":[80,331,253,32]}
+{"kind":"textbox","id":"sh/h47y9sre","slide":6,"name":"payer-heading","text":"Owners &\nagents","textPreview":"Owners & | agents","textChars":15,"textLines":2,"bbox":[80,373,269,83]}
+{"kind":"textbox","id":"sh/alcf2tsz","slide":6,"name":"payer-body","text":"Manage more units with less admin:\n\n• Properties & tenancies\n• Rent, utilities & expenses\n• Payment proof & reporting","textPreview":"Manage more units with less admin: |  | • Properties & tenancies | • Rent, utilities & expenses | • Payment proof & reporting","textChars":117,"textLines":5,"bbox":[80,461,269,139]}
+{"kind":"textbox","id":"sh/bmlgvy94","slide":6,"name":"step-02","text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[482,294,56,31]}
+{"kind":"textbox","id":"sh/fq1c3upw","slide":6,"name":"operating-layer","text":"THE OPERATING LAYER","textPreview":"THE OPERATING LAYER","textChars":19,"textLines":1,"bbox":[482,331,293,32]}
+{"kind":"textbox","id":"sh/epsvup8r","slide":6,"name":"platform-heading","text":"One workspace for\nthe full rental cycle","textPreview":"One workspace for | the full rental cycle","textChars":39,"textLines":2,"bbox":[482,373,301,83]}
+{"kind":"textbox","id":"sh/1sju5472","slide":6,"name":"platform-body","text":"OWNER APP\nPortfolio • billing • approvals\nTENANT PORTAL\nBills • proof • requests\nEXPLORE\nVerified room discovery","textPreview":"OWNER APP | Portfolio • billing • approvals | TENANT PORTAL | Bills • proof • requests | EXPLORE | Verified room discovery","textChars":112,"textLines":6,"bbox":[482,453,301,155]}
+{"kind":"textbox","id":"sh/0radwzqh","slide":6,"name":"step-03","text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[920,294,56,31]}
+{"kind":"textbox","id":"sh/rmhczap0","slide":6,"name":"how-monetizes","text":"HOW IT MONETIZES","textPreview":"HOW IT MONETIZES","textChars":16,"textLines":1,"bbox":[920,331,253,32]}
+{"kind":"textbox","id":"sh/ql8vqp8f","slide":6,"name":"revenue-heading","text":"SaaS first.\nExpand with usage.","textPreview":"SaaS first. | Expand with usage.","textChars":30,"textLines":2,"bbox":[920,373,269,83]}
+{"kind":"textbox","id":"sh/dozu1k76","slide":6,"name":"revenue-body","text":"1  Tiered subscription\n    Units • tenants • features\n2  Promoted listings\n    Paid Explore visibility\n3  Future service fees\n    Payments • partners","textPreview":"1  Tiered subscription |     Units • tenants • features | 2  Promoted listings |     Paid Explore visibility | 3  Future service fees |  ...","textChars":149,"textLines":6,"bbox":[920,453,269,155]}
+{"kind":"textbox","id":"sh/snqdsfql","slide":6,"name":"arrow-one","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[392,405,59,53]}
+{"kind":"textbox","id":"sh/bilwbep4","slide":6,"name":"arrow-two","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[829,405,59,53]}
+{"kind":"textbox","id":"sh/ahcv298j","slide":6,"name":"flywheel-label","text":"LAND-AND-EXPAND ENGINE","textPreview":"LAND-AND-EXPAND ENGINE","textChars":22,"textLines":1,"bbox":[75,654,221,19]}
+{"kind":"textbox","id":"sh/83m9wb61","slide":6,"name":"flywheel-copy","text":"More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion","textPreview":"More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion","textChars":95,"textLines":1,"bbox":[304,651,891,24]}
+{"kind":"textbox","id":"sh/t4va5gnm","slide":6,"name":"assumption-note","text":"Proposed monetization model; final packaging and pricing to be validated with pilot customers.","textPreview":"Proposed monetization model; final packaging and pricing to be validated with pilot customers.","textChars":94,"textLines":1,"bbox":[56,691,1168,15]}
+{"kind":"image","id":"im/gvut4nmh","slide":6,"name":"","bbox":[56,32,38,38]}
+{"kind":"notes","id":"nt/2rz8bv","slide":6,"text":"[Sources]\n- README.md (product roles and workflows)\n- lib/branding/homeops_brand.dart (brand colors and naming)\n- lib/explore/room_explore.dart (Explore marketplace and promotion capability)\n- docs/admin-portal-deployment.md (owner limits and feature access)\n[/Sources]\n\nPricing and transaction-fee streams are proposed; the repository does not define commercial rates."}
+{"kind":"slide","id":"sl/wuzsj7","slide":7,"title":"HomeOps","textShapes":22}
+{"kind":"shape","id":"sh/sjmpgzqt","slide":7,"name":"customer-region","bbox":[56,261,331,355]}
+{"kind":"shape","id":"sh/50fits3i","slide":7,"name":"platform-region","bbox":[456,261,368,355]}
+{"kind":"shape","id":"sh/kz6h0n2d","slide":7,"name":"revenue-region","bbox":[893,261,331,355]}
+{"kind":"shape","id":"sh/72h0v2lo","slide":7,"name":"customer-accent","bbox":[56,261,331,7]}
+{"kind":"shape","id":"sh/618z2xk3","slide":7,"name":"platform-accent","bbox":[456,261,368,7]}
+{"kind":"shape","id":"sh/t4zixsju","slide":7,"name":"revenue-accent","bbox":[893,261,331,7]}
+{"kind":"shape","id":"sh/s3qh4n29","slide":7,"name":"flywheel-band","bbox":[56,643,1168,43]}
+{"kind":"textbox","id":"sh/u58z6xkf","slide":7,"name":"brand-homeops","text":"HomeOps","textPreview":"HomeOps","textChars":7,"textLines":1,"bbox":[102,32,116,35]}
+{"kind":"textbox","id":"sh/s7u1gnmx","slide":7,"name":"brand-360","text":"360","textPreview":"360","textChars":3,"textLines":1,"bbox":[202,32,52,35]}
+{"kind":"textbox","id":"sh/t8329s3i","slide":7,"name":"eyebrow","text":"BUSINESS MODEL","textPreview":"BUSINESS MODEL","textChars":14,"textLines":1,"bbox":[995,37,229,23]}
+{"kind":"textbox","id":"sh/65sjed47","slide":7,"name":"title","text":"HomeOps360 converts rental workflows into recurring revenue","textPreview":"HomeOps360 converts rental workflows into recurring revenue","textChars":59,"textLines":1,"bbox":[56,99,1168,61]}
+{"kind":"textbox","id":"sh/761k7ilc","slide":7,"name":"subtitle","text":"Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.","textPreview":"Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.","textChars":102,"textLines":1,"bbox":[56,169,1168,32]}
+{"kind":"shape","id":"sh/gvu1knm9","slide":7,"name":"title-rule","bbox":[56,227,1168,2]}
+{"kind":"textbox","id":"sh/hw32ds3u","slide":7,"name":"step-01","text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[80,294,56,31]}
+{"kind":"textbox","id":"sh/u9cjix43","slide":7,"name":"who-pays","text":"WHO PAYS","textPreview":"WHO PAYS","textChars":8,"textLines":1,"bbox":[80,331,253,32]}
+{"kind":"textbox","id":"sh/fulkbilo","slide":7,"name":"payer-heading","text":"Owners &\nagents","textPreview":"Owners & | agents","textChars":15,"textLines":2,"bbox":[80,373,269,83]}
+{"kind":"textbox","id":"sh/4ze1o7m5","slide":7,"name":"payer-body","text":"Manage more units with less admin:\n\n• Properties & tenancies\n• Rent, utilities & expenses\n• Payment proof & reporting","textPreview":"Manage more units with less admin: |  | • Properties & tenancies | • Rent, utilities & expenses | • Payment proof & reporting","textChars":117,"textLines":5,"bbox":[80,461,269,139]}
+{"kind":"textbox","id":"sh/p0n2hc3q","slide":7,"name":"step-02","text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[482,294,56,31]}
+{"kind":"textbox","id":"sh/dgj21cvu","slide":7,"name":"operating-layer","text":"THE OPERATING LAYER","textPreview":"THE OPERATING LAYER","textChars":19,"textLines":1,"bbox":[482,331,293,32]}
+{"kind":"textbox","id":"sh/cfa187e9","slide":7,"name":"platform-heading","text":"One workspace for\nthe full rental cycle","textPreview":"One workspace for | the full rental cycle","textChars":39,"textLines":2,"bbox":[482,373,301,83]}
+{"kind":"textbox","id":"sh/be10z2do","slide":7,"name":"platform-body","text":"OWNER APP\nPortfolio • billing • approvals\nTENANT PORTAL\nBills • proof • requests\nEXPLORE\nVerified room discovery","textPreview":"OWNER APP | Portfolio • billing • approvals | TENANT PORTAL | Bills • proof • requests | EXPLORE | Verified room discovery","textChars":112,"textLines":6,"bbox":[482,453,301,155]}
+{"kind":"textbox","id":"sh/qtsj6xwj","slide":7,"name":"step-03","text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[920,294,56,31]}
+{"kind":"textbox","id":"sh/lkj25cv6","slide":7,"name":"how-monetizes","text":"HOW IT MONETIZES","textPreview":"HOW IT MONETIZES","textChars":16,"textLines":1,"bbox":[920,331,253,32]}
+{"kind":"textbox","id":"sh/0ja1c7el","slide":7,"name":"revenue-heading","text":"SaaS first.\nExpand with usage.","textPreview":"SaaS first. | Expand with usage.","textChars":30,"textLines":2,"bbox":[920,373,269,83]}
+{"kind":"textbox","id":"sh/zi1k32d0","slide":7,"name":"revenue-body","text":"1  Tiered subscription\n    Units • tenants • features\n2  Promoted listings\n    Paid Explore visibility\n3  Future service fees\n    Payments • partners","textPreview":"1  Tiered subscription |     Units • tenants • features | 2  Promoted listings |     Paid Explore visibility | 3  Future service fees |  ...","textChars":149,"textLines":6,"bbox":[920,453,269,155]}
+{"kind":"textbox","id":"sh/yhsjaxwf","slide":7,"name":"arrow-one","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[392,405,59,53]}
+{"kind":"textbox","id":"sh/1ozit8vm","slide":7,"name":"arrow-two","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[829,405,59,53]}
+{"kind":"textbox","id":"sh/gnq10ne1","slide":7,"name":"flywheel-label","text":"LAND-AND-EXPAND ENGINE","textPreview":"LAND-AND-EXPAND ENGINE","textChars":22,"textLines":1,"bbox":[75,654,221,19]}
+{"kind":"textbox","id":"sh/6h47ep8n","slide":7,"name":"flywheel-copy","text":"More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion","textPreview":"More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion","textChars":95,"textLines":1,"bbox":[304,651,891,24]}
+{"kind":"textbox","id":"sh/7id8nup8","slide":7,"name":"assumption-note","text":"Proposed monetization model; final packaging and pricing to be validated with pilot customers.","textPreview":"Proposed monetization model; final packaging and pricing to be validated with pilot customers.","textChars":94,"textLines":1,"bbox":[56,691,1168,15]}
+{"kind":"image","id":"im/2dkry58j","slide":7,"name":"","bbox":[56,32,38,38]}
+{"kind":"notes","id":"nt/wuzsj7","slide":7,"text":"[Sources]\n- README.md (product roles and workflows)\n- lib/branding/homeops_brand.dart (brand colors and naming)\n- lib/explore/room_explore.dart (Explore marketplace and promotion capability)\n- docs/admin-portal-deployment.md (owner limits and feature access)\n[/Sources]\n\nPricing and transaction-fee streams are proposed; the repository does not define commercial rates."}
+{"kind":"slide","id":"sl/wczzcx","slide":8,"title":"HomeOps","textShapes":22}
+{"kind":"shape","id":"sh/por2107q","slide":8,"name":"customer-region","bbox":[56,261,331,355]}
+{"kind":"shape","id":"sh/udsza14j","slide":8,"name":"platform-region","bbox":[456,261,368,355]}
+{"kind":"shape","id":"sh/vy1036l4","slide":8,"name":"revenue-region","bbox":[893,261,331,355]}
+{"kind":"shape","id":"sh/43ahgbml","slide":8,"name":"customer-accent","bbox":[56,261,331,7]}
+{"kind":"shape","id":"sh/54ji9g36","slide":8,"name":"platform-accent","bbox":[456,261,368,7]}
+{"kind":"shape","id":"sh/i1sze14v","slide":8,"name":"revenue-accent","bbox":[893,261,331,7]}
+{"kind":"shape","id":"sh/j21076l0","slide":8,"name":"flywheel-band","bbox":[56,643,1168,43]}
+{"kind":"textbox","id":"sh/l8zyxw32","slide":8,"name":"brand-homeops","text":"HomeOps","textPreview":"HomeOps","textChars":7,"textLines":1,"bbox":[102,32,116,35]}
+{"kind":"textbox","id":"sh/1srmhkvu","slide":8,"name":"brand-360","text":"360","textPreview":"360","textChars":3,"textLines":1,"bbox":[202,32,52,35]}
+{"kind":"textbox","id":"sh/gri58fu9","slide":8,"name":"eyebrow","text":"BUSINESS MODEL","textPreview":"BUSINESS MODEL","textChars":14,"textLines":1,"bbox":[995,37,229,23]}
+{"kind":"textbox","id":"sh/fq94fado","slide":8,"name":"title","text":"HomeOps360 converts rental workflows into recurring revenue","textPreview":"HomeOps360 converts rental workflows into recurring revenue","textChars":59,"textLines":1,"bbox":[56,99,1168,61]}
+{"kind":"textbox","id":"sh/ep0n65cj","slide":8,"name":"subtitle","text":"Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.","textPreview":"Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.","textChars":102,"textLines":1,"bbox":[56,169,1168,32]}
+{"kind":"shape","id":"sh/pgb6lkv6","slide":8,"name":"title-rule","bbox":[56,227,1168,2]}
+{"kind":"textbox","id":"sh/of25czul","slide":8,"name":"step-01","text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[80,294,56,31]}
+{"kind":"textbox","id":"sh/3etojud0","slide":8,"name":"who-pays","text":"WHO PAYS","textPreview":"WHO PAYS","textChars":8,"textLines":1,"bbox":[80,331,253,32]}
+{"kind":"textbox","id":"sh/2d0napcf","slide":8,"name":"payer-heading","text":"Owners &\nagents","textPreview":"Owners & | agents","textChars":15,"textLines":2,"bbox":[80,373,269,83]}
+{"kind":"textbox","id":"sh/dkb6p4v2","slide":8,"name":"payer-body","text":"Manage more units with less admin:\n\n• Properties & tenancies\n• Rent, utilities & expenses\n• Payment proof & reporting","textPreview":"Manage more units with less admin: |  | • Properties & tenancies | • Rent, utilities & expenses | • Payment proof & reporting","textChars":117,"textLines":5,"bbox":[80,461,269,139]}
+{"kind":"textbox","id":"sh/cj25gzuh","slide":8,"name":"step-02","text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[482,294,56,31]}
+{"kind":"textbox","id":"sh/wnapc32t","slide":8,"name":"operating-layer","text":"THE OPERATING LAYER","textPreview":"THE OPERATING LAYER","textChars":19,"textLines":1,"bbox":[482,331,293,32]}
+{"kind":"textbox","id":"sh/xojql8je","slide":8,"name":"platform-heading","text":"One workspace for\nthe full rental cycle","textPreview":"One workspace for | the full rental cycle","textChars":39,"textLines":2,"bbox":[482,373,301,83]}
+{"kind":"textbox","id":"sh/als7adkn","slide":8,"name":"platform-body","text":"OWNER APP\nPortfolio • billing • approvals\nTENANT PORTAL\nBills • proof • requests\nEXPLORE\nVerified room discovery","textPreview":"OWNER APP | Portfolio • billing • approvals | TENANT PORTAL | Bills • proof • requests | EXPLORE | Verified room discovery","textChars":112,"textLines":6,"bbox":[482,453,301,155]}
+{"kind":"textbox","id":"sh/bm18jy18","slide":8,"name":"step-03","text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[920,294,56,31]}
+{"kind":"textbox","id":"sh/krupgn2p","slide":8,"name":"how-monetizes","text":"HOW IT MONETIZES","textPreview":"HOW IT MONETIZES","textChars":16,"textLines":1,"bbox":[920,331,253,32]}
+{"kind":"textbox","id":"sh/ls3qpsja","slide":8,"name":"revenue-heading","text":"SaaS first.\nExpand with usage.","textPreview":"SaaS first. | Expand with usage.","textChars":30,"textLines":2,"bbox":[920,373,269,83]}
+{"kind":"textbox","id":"sh/ypc7edkz","slide":8,"name":"revenue-body","text":"1  Tiered subscription\n    Units • tenants • features\n2  Promoted listings\n    Paid Explore visibility\n3  Future service fees\n    Payments • partners","textPreview":"1  Tiered subscription |     Units • tenants • features | 2  Promoted listings |     Paid Explore visibility | 3  Future service fees |  ...","textChars":149,"textLines":6,"bbox":[920,453,269,155]}
+{"kind":"textbox","id":"sh/jql8ni14","slide":8,"name":"arrow-one","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[392,405,59,53]}
+{"kind":"textbox","id":"sh/0vqp4j2l","slide":8,"name":"arrow-two","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[829,405,59,53]}
+{"kind":"textbox","id":"sh/1wz6do36","slide":8,"name":"flywheel-label","text":"LAND-AND-EXPAND ENGINE","textPreview":"LAND-AND-EXPAND ENGINE","textChars":22,"textLines":1,"bbox":[75,654,221,19]}
+{"kind":"textbox","id":"sh/3m9kzqp0","slide":8,"name":"flywheel-copy","text":"More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion","textPreview":"More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion","textChars":95,"textLines":1,"bbox":[304,651,891,24]}
+{"kind":"textbox","id":"sh/2lgj6l8f","slide":8,"name":"assumption-note","text":"Proposed monetization model; final packaging and pricing to be validated with pilot customers.","textPreview":"Proposed monetization model; final packaging and pricing to be validated with pilot customers.","textChars":94,"textLines":1,"bbox":[56,691,1168,15]}
+{"kind":"image","id":"im/vels3ah0","slide":8,"name":"","bbox":[56,32,38,38]}
+{"kind":"notes","id":"nt/wczzcx","slide":8,"text":"[Sources]\n- README.md (product roles and workflows)\n- lib/branding/homeops_brand.dart (brand colors and naming)\n- lib/explore/room_explore.dart (Explore marketplace and promotion capability)\n- docs/admin-portal-deployment.md (owner limits and feature access)\n[/Sources]\n\nPricing and transaction-fee streams are proposed; the repository does not define commercial rates."}

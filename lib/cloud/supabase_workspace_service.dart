@@ -182,12 +182,50 @@ class SupabaseWorkspaceService {
     required String tenantEmail,
     required Map<String, dynamic> payload,
   }) async {
-    await client.from('tenant_workspace_snapshots').upsert({
-      'owner_id': ownerId,
-      'tenant_email': tenantEmail.toLowerCase(),
-      'payload': payload,
-      'updated_at': DateTime.now().toIso8601String(),
-    });
+    final email = tenantEmail.toLowerCase();
+    for (var attempt = 0; attempt < 3; attempt++) {
+      final row = await client
+          .from('tenant_workspace_snapshots')
+          .select('payload, updated_at')
+          .eq('owner_id', ownerId)
+          .eq('tenant_email', email)
+          .maybeSingle();
+      if (row == null) {
+        // Only owners may create rows. Tenants must update an assigned row.
+        if (client.auth.currentUser?.id != ownerId) {
+          throw StateError(
+              'Your assigned cloud workspace is unavailable. Please contact your owner.');
+        }
+        try {
+          await client.from('tenant_workspace_snapshots').insert({
+            'owner_id': ownerId,
+            'tenant_email': email,
+            'payload': payload,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          });
+          return;
+        } on PostgrestException catch (error) {
+          if (error.code != '23505') rethrow;
+          continue;
+        }
+      }
+      final merged =
+          preserveTenantRequests(_payload(row['payload']) ?? {}, payload);
+      final updated = await client
+          .from('tenant_workspace_snapshots')
+          .update({
+            'payload': merged,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('owner_id', ownerId)
+          .eq('tenant_email', email)
+          .eq('updated_at', row['updated_at'])
+          .select('tenant_email');
+      if (updated.isNotEmpty) return;
+      // Another device saved first; re-read and merge rather than overwrite it.
+    }
+    throw StateError(
+        'Your request could not be saved because the workspace changed. Please try again.');
   }
 
   Future<void> deleteOwnerTenantSnapshots(String ownerId) async {
@@ -215,6 +253,29 @@ class SupabaseWorkspaceService {
             ))
         .toList();
   }
+
+  RealtimeChannel subscribeOwnerRequests({
+    required String ownerId,
+    required void Function(Map<String, dynamic> payload) onChange,
+    required void Function() onConnected,
+  }) =>
+      client
+          .channel('owner-requests-$ownerId')
+          .onPostgresChanges(
+              event: PostgresChangeEvent.all,
+              schema: 'public',
+              table: 'tenant_workspace_snapshots',
+              filter: PostgresChangeFilter(
+                  type: PostgresChangeFilterType.eq,
+                  column: 'owner_id',
+                  value: ownerId),
+              callback: (event) {
+                final payload = _payload(event.newRecord['payload']);
+                if (payload != null) onChange(payload);
+              })
+          .subscribe((status, error) {
+        if (status == RealtimeSubscribeStatus.subscribed) onConnected();
+      });
 
   RealtimeChannel subscribeOwnerNotifications({
     required String ownerId,
@@ -261,4 +322,52 @@ class SupabaseWorkspaceService {
     if (value == null) return null;
     return Map<String, dynamic>.from(value as Map);
   }
+}
+
+Map<String, dynamic> preserveTenantRequests(
+    Map<String, dynamic> saved, Map<String, dynamic> incoming) {
+  final requests = <String, Map<String, dynamic>>{};
+  for (final value in (saved['tenantRequests'] as List? ?? [])) {
+    final row = Map<String, dynamic>.from(value as Map);
+    requests[row['id'] as String] = row;
+  }
+  for (final value in (incoming['tenantRequests'] as List? ?? [])) {
+    final row = Map<String, dynamic>.from(value as Map);
+    final id = row['id'] as String;
+    final previous = requests[id];
+    if (previous == null) {
+      requests[id] = row;
+      continue;
+    }
+    final oldReview =
+        DateTime.tryParse(previous['reviewedAt'] as String? ?? '');
+    final newReview = DateTime.tryParse(row['reviewedAt'] as String? ?? '');
+    final oldEdit =
+        DateTime.tryParse(previous['tenantEditedAt'] as String? ?? '');
+    final newEdit = DateTime.tryParse(row['tenantEditedAt'] as String? ?? '');
+    var merged = {...previous};
+    if (newEdit != null && (oldEdit == null || newEdit.isAfter(oldEdit))) {
+      merged.addAll({
+        'requestedMoveOutDate': row['requestedMoveOutDate'],
+        'message': row['message'],
+        'tenantEditedAt': row['tenantEditedAt'],
+        'bankName': row['bankName'],
+        'bankAccountNumber': row['bankAccountNumber'],
+      });
+    }
+    if (newReview != null &&
+        (oldReview == null || newReview.isAfter(oldReview))) {
+      merged.addAll({
+        'status': row['status'],
+        'reviewedAt': row['reviewedAt'],
+        'rejectionReason': row['rejectionReason']
+      });
+    }
+    if (previous['status'] == 'Withdrawn' ||
+        (row['status'] == 'Withdrawn' && newEdit != null)) {
+      merged['status'] = 'Withdrawn';
+    }
+    requests[id] = merged;
+  }
+  return {...incoming, 'tenantRequests': requests.values.toList()};
 }

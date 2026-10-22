@@ -1,0 +1,28 @@
+Source deck: HomeOps360_Business_Model.pptx
+Source slide inventory: one 16:9 executive-summary slide.
+
+Reusable structure:
+- Persistent brand lockup at upper left and BUSINESS MODEL eyebrow at upper right.
+- One-line takeaway title, one-line subtitle, and a thin rule.
+- Three equal narrative regions with teal/blue top accents.
+- Dark navy center region for the product engine.
+- Bottom land-and-expand band and a small assumption/source footnote.
+
+Typography:
+- Aptos Display for the main title and column headings.
+- Aptos for labels and body copy.
+- Source font sizes, weights, alignment, and color hierarchy are preserved by inherited element type.
+
+Assets:
+- Authentic HomeOps360 app mark extracted from the source PPTX.
+- Brand colors: teal #10C8B0, blue #2E6BFF, navy #0E1B33, muted #54617A.
+
+Placeholders and hierarchy:
+- Source contains no structural PowerPoint placeholders and no charts/tables.
+- It contains one slide, 22 text elements, 8 presentation shapes, and one image.
+- Imported master/layout hierarchy will be retained; all output slides are duplicated from source slide 1.
+
+Insertion contract:
+- Every output slide maps to source slide 1.
+- All inherited elements are classified rewrite-and-reposition because the one available source silhouette must support eight distinct narrative roles.
+- No parallel overlay design or new decorative system will be introduced.

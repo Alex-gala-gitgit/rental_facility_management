@@ -1,0 +1,299 @@
+{"kind":"deck","id":"pr/7cn0r2","name":"Deck"}
+{"kind":"layout","layoutId":"e3aef370-37e2-4c81-90b8-f21128daf2c2","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"aafa9df5-b1fb-4784-ad11-2e10c83e10ea","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/6z41ry","slide":1,"title":"HomeOps","textShapes":7}
+{"kind":"shape","id":"sh/47y5kzul","slide":1,"name":"cover-blue","bbox":[0,0,1280,10]}
+{"kind":"shape","id":"sh/36p4bud0","slide":1,"name":"cover-teal","bbox":[0,10,560,10]}
+{"kind":"textbox","id":"sh/hknm9kvu","slide":1,"name":"brand-1","text":"HomeOps","textPreview":"HomeOps","textChars":7,"textLines":1,"bbox":[100,36,108,31]}
+{"kind":"textbox","id":"sh/gje5gfup","slide":1,"name":"brand360-1","text":"360","textPreview":"360","textChars":3,"textLines":1,"bbox":[206,36,64,31]}
+{"kind":"textbox","id":"sh/fi547ad4","slide":1,"name":"section-1","text":"SPONSOR PRESENTATION","textPreview":"SPONSOR PRESENTATION","textChars":20,"textLines":1,"bbox":[850,42,374,18]}
+{"kind":"textbox","id":"sh/uhwne5cj","slide":1,"name":"page-1","text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[1170,682,54,18]}
+{"kind":"textbox","id":"sh/1gr6love","slide":1,"name":"cover-title","text":"Sponsor the pilot that proves HomeOps360 at portfolio scale","textPreview":"Sponsor the pilot that proves HomeOps360 at portfolio scale","textChars":59,"textLines":1,"bbox":[72,172,1060,190]}
+{"kind":"textbox","id":"sh/0fi5sjut","slide":1,"name":"cover-subtitle","text":"A focused path from working product to validated recurring business.","textPreview":"A focused path from working product to validated recurring business.","textChars":68,"textLines":1,"bbox":[76,392,880,40]}
+{"kind":"shape","id":"sh/6ponydcn","slide":1,"name":"cover-rule","bbox":[76,489,140,5]}
+{"kind":"textbox","id":"sh/rqxorit8","slide":1,"name":"cover-meta","text":"HOMEOPS360  /  PILOT SPONSORSHIP  /  2026","textPreview":"HOMEOPS360  /  PILOT SPONSORSHIP  /  2026","textChars":41,"textLines":1,"bbox":[76,520,620,24]}
+{"kind":"image","id":"im/zax8vut8","slide":1,"name":"","alt":"HomeOps360 brand mark","bbox":[56,34,34,34]}
+{"kind":"notes","id":"nt/6z41ry","slide":1,"text":"[Sources]\n- README.md (owner and tenant workflows)\n- lib/branding/homeops_brand.dart (brand identity)\n[/Sources]\n\nOpening: ask the sponsor to evaluate a scoped pilot—not a blind scale-up. The deck uses only repository-backed product capabilities and labels proposed commercial structures as proposals."}
+{"kind":"slide","id":"sl/sahy80","slide":2,"title":"HomeOps","textShapes":17}
+{"kind":"textbox","id":"sh/0j2lg7qx","slide":2,"name":"brand-2","text":"HomeOps","textPreview":"HomeOps","textChars":7,"textLines":1,"bbox":[100,36,108,31]}
+{"kind":"textbox","id":"sh/1kv2pcri","slide":2,"name":"brand360-2","text":"360","textPreview":"360","textChars":3,"textLines":1,"bbox":[206,36,64,31]}
+{"kind":"textbox","id":"sh/qdk3ax8v","slide":2,"name":"section-2","text":"THE PROBLEM","textPreview":"THE PROBLEM","textChars":11,"textLines":1,"bbox":[850,42,374,18]}
+{"kind":"textbox","id":"sh/retkj29g","slide":2,"name":"page-2","text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[1170,682,54,18]}
+{"kind":"textbox","id":"sh/sf2lcnq1","slide":2,"name":"slide-title","text":"Rental operations repeat work across disconnected tools","textPreview":"Rental operations repeat work across disconnected tools","textChars":55,"textLines":1,"bbox":[56,100,1168,66]}
+{"kind":"textbox","id":"sh/dgb2lsrm","slide":2,"name":"slide-subtitle","text":"The pain is recurring, operational and visible every month.","textPreview":"The pain is recurring, operational and visible every month.","textChars":59,"textLines":1,"bbox":[56,174,1168,34]}
+{"kind":"textbox","id":"sh/a943mh8z","slide":2,"name":"problem-claim","text":"Teams reconcile the same information by hand—then repeat it for every property and tenant.","textPreview":"Teams reconcile the same information by hand—then repeat it for every property and tenant.","textChars":90,"textLines":1,"bbox":[70,262,530,210]}
+{"kind":"shape","id":"sh/badkfm9k","slide":2,"name":"problem-accent","bbox":[70,505,110,6]}
+{"kind":"textbox","id":"sh/3ylkfqxk","slide":2,"name":"problem-meaning","text":"That limits portfolio scale and turns tenant service into follow-up work.","textPreview":"That limits portfolio scale and turns tenant service into follow-up work.","textChars":73,"textLines":1,"bbox":[70,528,500,70]}
+{"kind":"shape","id":"sh/2xcjm5wz","slide":2,"name":"problem-band-0","bbox":[660,250,564,108]}
+{"kind":"shape","id":"sh/pk32h0fq","slide":2,"name":"problem-band-accent-0","bbox":[660,250,8,108]}
+{"kind":"textbox","id":"sh/4ju1ove5","slide":2,"name":"problem-num-0","text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[690,272,48,28]}
+{"kind":"textbox","id":"sh/rmlkjaxg","slide":2,"name":"problem-head-0","text":"Money","textPreview":"Money","textChars":5,"textLines":1,"bbox":[750,268,170,32]}
+{"kind":"textbox","id":"sh/qlcjq5wv","slide":2,"name":"problem-body-0","text":"Rent, utilities, expenses and payment proof sit in separate steps.","textPreview":"Rent, utilities, expenses and payment proof sit in separate steps.","textChars":66,"textLines":1,"bbox":[750,304,430,46]}
+{"kind":"shape","id":"sh/don2lkfm","slide":2,"name":"problem-band-1","bbox":[660,382,564,108]}
+{"kind":"shape","id":"sh/cne1sfe1","slide":2,"name":"problem-band-accent-1","bbox":[660,382,8,108]}
+{"kind":"textbox","id":"sh/zq5knuxs","slide":2,"name":"problem-num-1","text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[690,404,48,28]}
+{"kind":"textbox","id":"sh/epwjupw7","slide":2,"name":"problem-head-1","text":"Operations","textPreview":"Operations","textChars":10,"textLines":1,"bbox":[750,400,170,32]}
+{"kind":"textbox","id":"sh/algnmtgf","slide":2,"name":"problem-body-1","text":"Bills, reminders, approvals, documents and reports require repeated admin.","textPreview":"Bills, reminders, approvals, documents and reports require repeated admin.","textChars":74,"textLines":1,"bbox":[750,436,430,46]}
+{"kind":"shape","id":"sh/bm94feh0","slide":2,"name":"problem-band-2","bbox":[660,514,564,108]}
+{"kind":"shape","id":"sh/wni5ojyl","slide":2,"name":"problem-band-accent-2","bbox":[660,514,8,108]}
+{"kind":"textbox","id":"sh/xormhoz6","slide":2,"name":"problem-num-2","text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[690,536,48,28]}
+{"kind":"textbox","id":"sh/mhg3i9g3","slide":2,"name":"problem-head-2","text":"Experience","textPreview":"Experience","textChars":10,"textLines":1,"bbox":[750,532,170,32]}
+{"kind":"textbox","id":"sh/nip4reho","slide":2,"name":"problem-body-2","text":"Requests and status updates scatter across messages and channels.","textPreview":"Requests and status updates scatter across messages and channels.","textChars":65,"textLines":1,"bbox":[750,568,430,46]}
+{"kind":"image","id":"im/m14n2xoz","slide":2,"name":"","alt":"HomeOps360 brand mark","bbox":[56,34,34,34]}
+{"kind":"notes","id":"nt/sahy80","slide":2,"text":"[Sources]\n- README.md (owner and tenant workflows)\n- lib/branding/homeops_brand.dart (brand identity)\n- lib/rentflow/rentflow_app.dart and related modules (owner workflows)\n[/Sources]\n\nThe problem framing is qualitative and grounded in the recurring owner, billing, payment-proof, utility and tenant-service workflows implemented in the repository."}
+{"kind":"slide","id":"sl/h9yudj","slide":3,"title":"HomeOps","textShapes":22}
+{"kind":"textbox","id":"sh/4729gfe9","slide":3,"name":"brand-3","text":"HomeOps","textPreview":"HomeOps","textChars":7,"textLines":1,"bbox":[100,36,108,31]}
+{"kind":"textbox","id":"sh/p8ba9kfu","slide":3,"name":"brand360-3","text":"360","textPreview":"360","textChars":3,"textLines":1,"bbox":[206,36,64,31]}
+{"kind":"textbox","id":"sh/q94ripwf","slide":3,"name":"section-3","text":"THE SOLUTION","textPreview":"THE SOLUTION","textChars":12,"textLines":1,"bbox":[850,42,374,18]}
+{"kind":"textbox","id":"sh/radsbux0","slide":3,"name":"page-3","text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[1170,682,54,18]}
+{"kind":"textbox","id":"sh/cbm9kfel","slide":3,"name":"slide-title","text":"HomeOps360 connects the full rental lifecycle","textPreview":"HomeOps360 connects the full rental lifecycle","textChars":45,"textLines":1,"bbox":[56,100,1168,66]}
+{"kind":"textbox","id":"sh/dwvadkfq","slide":3,"name":"slide-subtitle","text":"One operating layer links portfolio control, monthly billing, tenant service and room discovery.","textPreview":"One operating layer links portfolio control, monthly billing, tenant service and room discovery.","textChars":96,"textLines":1,"bbox":[56,174,1168,34]}
+{"kind":"textbox","id":"sh/ex4rmpwb","slide":3,"name":"flow-arrow-0","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[262,360,60,60]}
+{"kind":"textbox","id":"sh/zydsfuxw","slide":3,"name":"flow-arrow-1","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[486,360,60,60]}
+{"kind":"textbox","id":"sh/nqx03ahg","slide":3,"name":"flow-arrow-2","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[710,360,60,60]}
+{"kind":"textbox","id":"sh/2pozu5gv","slide":3,"name":"flow-arrow-3","text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[934,360,60,60]}
+{"kind":"shape","id":"sh/psfi5kz6","slide":3,"name":"flow-node-0","bbox":[56,280,190,260]}
+{"kind":"shape","id":"sh/or61wfyl","slide":3,"name":"flow-top-0","bbox":[56,280,190,7]}
+{"kind":"textbox","id":"sh/fmd0zqh4","slide":3,"name":"flow-label-0","text":"SET UP","textPreview":"SET UP","textChars":6,"textLines":1,"bbox":[78,315,145,24]}
+{"kind":"textbox","id":"sh/el4zqlgj","slide":3,"name":"flow-body-0","text":"Properties\n& tenancies","textPreview":"Properties | & tenancies","textChars":22,"textLines":2,"bbox":[78,365,150,85]}
+{"kind":"shape","id":"sh/1ovi10za","slide":3,"name":"flow-node-1","bbox":[280,280,190,260]}
+{"kind":"shape","id":"sh/0nmhsvyp","slide":3,"name":"flow-top-1","bbox":[280,280,190,7]}
+{"kind":"textbox","id":"sh/zih0buh8","slide":3,"name":"flow-label-1","text":"BILL","textPreview":"BILL","textChars":4,"textLines":1,"bbox":[302,315,145,24]}
+{"kind":"textbox","id":"sh/yh8j2pg3","slide":3,"name":"flow-body-1","text":"Rent, utilities\n& expenses","textPreview":"Rent, utilities | & expenses","textChars":26,"textLines":2,"bbox":[302,365,150,85]}
+{"kind":"shape","id":"sh/uds3ut0b","slide":3,"name":"flow-node-2","bbox":[504,280,190,260]}
+{"kind":"shape","id":"sh/ve1k3y1g","slide":3,"name":"flow-top-2","bbox":[504,280,190,7]}
+{"kind":"textbox","id":"sh/wfulw3i1","slide":3,"name":"flow-label-2","text":"COLLECT","textPreview":"COLLECT","textChars":7,"textLines":1,"bbox":[526,315,145,24]}
+{"kind":"textbox","id":"sh/hg3m58jm","slide":3,"name":"flow-body-2","text":"Proof, approvals\n& records","textPreview":"Proof, approvals | & records","textChars":26,"textLines":2,"bbox":[526,365,150,85]}
+{"kind":"shape","id":"sh/ihc3yt07","slide":3,"name":"flow-node-3","bbox":[728,280,190,260]}
+{"kind":"shape","id":"sh/jil47y1s","slide":3,"name":"flow-top-3","bbox":[728,280,190,7]}
+{"kind":"textbox","id":"sh/43ul03id","slide":3,"name":"flow-label-3","text":"SERVE","textPreview":"SERVE","textChars":5,"textLines":1,"bbox":[750,315,145,24]}
+{"kind":"textbox","id":"sh/543m98jy","slide":3,"name":"flow-body-3","text":"Requests, status\n& documents","textPreview":"Requests, status | & documents","textChars":28,"textLines":2,"bbox":[750,365,150,85]}
+{"kind":"shape","id":"sh/yl83m903","slide":3,"name":"flow-node-4","bbox":[952,280,190,260]}
+{"kind":"shape","id":"sh/zmhkve1o","slide":3,"name":"flow-top-4","bbox":[952,280,190,7]}
+{"kind":"textbox","id":"sh/10761c36","slide":3,"name":"flow-label-4","text":"EXPAND","textPreview":"EXPAND","textChars":6,"textLines":1,"bbox":[974,315,145,24]}
+{"kind":"textbox","id":"sh/0zy5872l","slide":3,"name":"flow-body-4","text":"Reports, listings\n& new units","textPreview":"Reports, listings | & new units","textChars":29,"textLines":2,"bbox":[974,365,150,85]}
+{"kind":"shape","id":"sh/fy5oz2l0","slide":3,"name":"flow-outcome","bbox":[56,590,1168,64]}
+{"kind":"textbox","id":"sh/exwn6xkf","slide":3,"name":"flow-outcome-label","text":"SPONSOR TAKEAWAY","textPreview":"SPONSOR TAKEAWAY","textChars":16,"textLines":1,"bbox":[82,611,210,18]}
+{"kind":"textbox","id":"sh/p4765c32","slide":3,"name":"flow-outcome-copy","text":"The product sits inside work that repeats—creating a natural retention loop.","textPreview":"The product sits inside work that repeats—creating a natural retention loop.","textChars":76,"textLines":1,"bbox":[308,603,850,30]}
+{"kind":"image","id":"im/yl4b6l4j","slide":3,"name":"","alt":"HomeOps360 brand mark","bbox":[56,34,34,34]}
+{"kind":"notes","id":"nt/h9yudj","slide":3,"text":"[Sources]\n- README.md (owner and tenant workflows)\n- lib/branding/homeops_brand.dart (brand identity)\n- lib/explore/room_explore.dart (room marketplace)\n- lib/cloud/* (invoice, OCR, auth, listings, workspace and invitation services)\n[/Sources]\n\nThe lifecycle synthesizes actual product areas: facilities/tenancies, rent and utilities, payment proof and approvals, tenant requests/documents, reporting and Explore listings."}
+{"kind":"slide","id":"sl/z8ofj6","slide":4,"title":"HomeOps","textShapes":16}
+{"kind":"textbox","id":"sh/czm5k7yd","slide":4,"name":"brand-4","text":"HomeOps","textPreview":"HomeOps","textChars":7,"textLines":1,"bbox":[100,36,108,31]}
+{"kind":"textbox","id":"sh/d0v6dczy","slide":4,"name":"brand360-4","text":"360","textPreview":"360","textChars":3,"textLines":1,"bbox":[206,36,64,31]}
+{"kind":"textbox","id":"sh/y14nmhgj","slide":4,"name":"section-4","text":"PRODUCT FOOTPRINT","textPreview":"PRODUCT FOOTPRINT","textChars":17,"textLines":1,"bbox":[850,42,374,18]}
+{"kind":"textbox","id":"sh/z2dofmho","slide":4,"name":"page-4","text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[1170,682,54,18]}
+{"kind":"textbox","id":"sh/03m5ory9","slide":4,"name":"slide-title","text":"The product already covers the critical operating loop","textPreview":"The product already covers the critical operating loop","textChars":54,"textLines":1,"bbox":[56,100,1168,66]}
+{"kind":"textbox","id":"sh/l4v6hwzu","slide":4,"name":"slide-subtitle","text":"Four connected experiences work from the same rental data.","textPreview":"Four connected experiences work from the same rental data.","textChars":58,"textLines":1,"bbox":[56,174,1168,34]}
+{"kind":"shape","id":"sh/m54nq1gf","slide":4,"name":"hub-line-left","bbox":[265,390,350,3]}
+{"kind":"shape","id":"sh/n6xojmh0","slide":4,"name":"hub-line-right","bbox":[665,390,350,3]}
+{"kind":"shape","id":"sh/3u5kna5w","slide":4,"name":"hub-line-up","bbox":[638,255,3,120]}
+{"kind":"shape","id":"sh/2twje54b","slide":4,"name":"hub-line-down","bbox":[638,455,3,120]}
+{"kind":"shape","id":"sh/pgn2pk32","slide":4,"name":"hub","bbox":[500,300,280,280]}
+{"kind":"textbox","id":"sh/4fe1gfmh","slide":4,"name":"hub-title","text":"HomeOps360","textPreview":"HomeOps360","textChars":10,"textLines":1,"bbox":[540,350,200,38]}
+{"kind":"textbox","id":"sh/vq5kja5k","slide":4,"name":"hub-sub","text":"shared operating layer","textPreview":"shared operating layer","textChars":22,"textLines":1,"bbox":[540,397,200,28]}
+{"kind":"shape","id":"sh/upcja54f","slide":4,"name":"sat-0","bbox":[70,315,250,150]}
+{"kind":"shape","id":"sh/hsn2l0nq","slide":4,"name":"sat-accent-0","bbox":[70,315,7,150]}
+{"kind":"textbox","id":"sh/gre1cvm5","slide":4,"name":"sat-head-0","text":"OWNER APP","textPreview":"OWNER APP","textChars":9,"textLines":1,"bbox":[96,337,202,24]}
+{"kind":"textbox","id":"sh/zmpkvul4","slide":4,"name":"sat-body-0","text":"Portfolio, billing, approvals and reporting","textPreview":"Portfolio, billing, approvals and reporting","textChars":43,"textLines":1,"bbox":[96,371,202,92]}
+{"kind":"shape","id":"sh/elg3mp4j","slide":4,"name":"sat-1","bbox":[960,315,250,150]}
+{"kind":"shape","id":"sh/ahknetor","slide":4,"name":"sat-accent-1","bbox":[960,315,7,150]}
+{"kind":"textbox","id":"sh/bit4ny5c","slide":4,"name":"sat-head-1","text":"TENANT PORTAL","textPreview":"TENANT PORTAL","textChars":13,"textLines":1,"bbox":[986,337,202,24]}
+{"kind":"textbox","id":"sh/wj25g36x","slide":4,"name":"sat-body-1","text":"Bills, payment proof, requests and status","textPreview":"Bills, payment proof, requests and status","textChars":41,"textLines":1,"bbox":[986,371,202,92]}
+{"kind":"shape","id":"sh/x4bmp8n2","slide":4,"name":"sat-2","bbox":[515,205,250,92]}
+{"kind":"shape","id":"sh/y5knidon","slide":4,"name":"sat-accent-2","bbox":[515,205,7,92]}
+{"kind":"textbox","id":"sh/j6tori58","slide":4,"name":"sat-head-2","text":"ADMINISTRATION","textPreview":"ADMINISTRATION","textChars":14,"textLines":1,"bbox":[541,227,202,24]}
+{"kind":"textbox","id":"sh/k725k36t","slide":4,"name":"sat-body-2","text":"Limits and controls","textPreview":"Limits and controls","textChars":19,"textLines":1,"bbox":[541,261,202,34]}
+{"kind":"shape","id":"sh/l8v6t8ne","slide":4,"name":"sat-3","bbox":[515,505,250,110]}
+{"kind":"shape","id":"sh/e90n69oj","slide":4,"name":"sat-accent-3","bbox":[515,505,7,110]}
+{"kind":"textbox","id":"sh/za94fep4","slide":4,"name":"sat-head-3","text":"EXPLORE","textPreview":"EXPLORE","textChars":7,"textLines":1,"bbox":[541,527,202,24]}
+{"kind":"textbox","id":"sh/h4fqlc7m","slide":4,"name":"sat-body-3","text":"Verified room discovery\nand promotion","textPreview":"Verified room discovery | and promotion","textChars":37,"textLines":2,"bbox":[541,561,202,52]}
+{"kind":"image","id":"im/2hs7u9wz","slide":4,"name":"","alt":"HomeOps360 brand mark","bbox":[56,34,34,34]}
+{"kind":"notes","id":"nt/z8ofj6","slide":4,"text":"[Sources]\n- README.md (owner and tenant workflows)\n- lib/branding/homeops_brand.dart (brand identity)\n- lib/admin/admin_app.dart and docs/admin-portal-deployment.md (administration)\n- lib/explore/room_explore.dart (Explore)\n[/Sources]\n\nThis is a product-capability map, not a future-state mock-up. Each satellite corresponds to implemented modules in the repository."}
+{"kind":"slide","id":"sl/c3h5z3","slide":5,"title":"HomeOps","textShapes":27}
+{"kind":"textbox","id":"sh/red476h8","slide":5,"name":"brand-5","text":"HomeOps","textPreview":"HomeOps","textChars":7,"textLines":1,"bbox":[100,36,108,31]}
+{"kind":"textbox","id":"sh/6d4ne1gn","slide":5,"name":"brand360-5","text":"360","textPreview":"360","textChars":3,"textLines":1,"bbox":[206,36,64,31]}
+{"kind":"textbox","id":"sh/5cvm5wz2","slide":5,"name":"section-5","text":"STAKEHOLDER VALUE","textPreview":"STAKEHOLDER VALUE","textChars":17,"textLines":1,"bbox":[850,42,374,18]}
+{"kind":"textbox","id":"sh/4bmlcryh","slide":5,"name":"page-5","text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[1170,682,54,18]}
+{"kind":"textbox","id":"sh/jad43mhw","slide":5,"name":"slide-title","text":"Every stakeholder gets a clearer outcome","textPreview":"Every stakeholder gets a clearer outcome","textChars":40,"textLines":1,"bbox":[56,100,1168,66]}
+{"kind":"textbox","id":"sh/i943a1gr","slide":5,"name":"slide-subtitle","text":"The sponsor is not funding another dashboard—it is funding better operating behavior.","textPreview":"The sponsor is not funding another dashboard—it is funding better operating behavior.","textChars":85,"textLines":1,"bbox":[56,174,1168,34]}
+{"kind":"shape","id":"sh/h8vm1wz6","slide":5,"name":"stake-circle-0","bbox":[290,240,54,54]}
+{"kind":"textbox","id":"sh/w72l8ryl","slide":5,"name":"stake-initial-0","text":"O","textPreview":"O","textChars":1,"textLines":1,"bbox":[290,251,54,32]}
+{"kind":"textbox","id":"sh/uxsrmt0v","slide":5,"name":"stake-head-0","text":"OWNERS","textPreview":"OWNERS","textChars":6,"textLines":1,"bbox":[362,244,210,26]}
+{"kind":"textbox","id":"sh/vy1svy1g","slide":5,"name":"stake-promise-0","text":"Control more units\nwith less admin","textPreview":"Control more units | with less admin","textChars":34,"textLines":2,"bbox":[290,305,275,75]}
+{"kind":"shape","id":"sh/gza9o3i1","slide":5,"name":"stake-circle-1","bbox":[600,240,54,54]}
+{"kind":"textbox","id":"sh/h0jax8jm","slide":5,"name":"stake-initial-1","text":"A","textPreview":"A","textChars":1,"textLines":1,"bbox":[600,251,54,32]}
+{"kind":"textbox","id":"sh/6t8ritkz","slide":5,"name":"stake-head-1","text":"PROPERTY AGENTS","textPreview":"PROPERTY AGENTS","textChars":15,"textLines":1,"bbox":[672,244,210,26]}
+{"kind":"textbox","id":"sh/7uhsry1k","slide":5,"name":"stake-promise-1","text":"Standardise repeatable\nportfolio work","textPreview":"Standardise repeatable | portfolio work","textChars":37,"textLines":2,"bbox":[600,305,275,75]}
+{"kind":"shape","id":"sh/8va9k3i5","slide":5,"name":"stake-circle-2","bbox":[910,240,54,54]}
+{"kind":"textbox","id":"sh/twjatoja","slide":5,"name":"stake-initial-2","text":"T","textPreview":"T","textChars":1,"textLines":1,"bbox":[910,251,54,32]}
+{"kind":"textbox","id":"sh/y58re9kn","slide":5,"name":"stake-head-2","text":"TENANTS","textPreview":"TENANTS","textChars":7,"textLines":1,"bbox":[982,244,210,26]}
+{"kind":"textbox","id":"sh/j6hsne18","slide":5,"name":"stake-promise-2","text":"Understand what is due\nand what happens next","textPreview":"Understand what is due | and what happens next","textChars":44,"textLines":2,"bbox":[910,305,275,75]}
+{"kind":"shape","id":"sh/nytgzqdo","slide":5,"name":"matrix-rule-0","bbox":[56,420,1168,1]}
+{"kind":"textbox","id":"sh/2xkf6lwj","slide":5,"name":"matrix-label-0","text":"DAILY VALUE","textPreview":"DAILY VALUE","textChars":11,"textLines":1,"bbox":[70,442,190,24]}
+{"kind":"textbox","id":"sh/p0vy10vu","slide":5,"name":"matrix-0-1","text":"Portfolio visibility","textPreview":"Portfolio visibility","textChars":20,"textLines":1,"bbox":[290,438,275,32]}
+{"kind":"textbox","id":"sh/ozmx8vu9","slide":5,"name":"matrix-0-2","text":"One repeatable process","textPreview":"One repeatable process","textChars":22,"textLines":1,"bbox":[600,438,275,32]}
+{"kind":"textbox","id":"sh/b2dg3qd0","slide":5,"name":"matrix-0-3","text":"Self-service clarity","textPreview":"Self-service clarity","textChars":20,"textLines":1,"bbox":[910,438,275,32]}
+{"kind":"shape","id":"sh/a14falcf","slide":5,"name":"matrix-rule-1","bbox":[56,492,1168,1]}
+{"kind":"textbox","id":"sh/xovy50v6","slide":5,"name":"matrix-label-1","text":"PROOF","textPreview":"PROOF","textChars":5,"textLines":1,"bbox":[70,514,190,24]}
+{"kind":"textbox","id":"sh/cnmxcvul","slide":5,"name":"matrix-1-1","text":"Approvals and reporting","textPreview":"Approvals and reporting","textChars":23,"textLines":1,"bbox":[290,510,275,32]}
+{"kind":"textbox","id":"sh/r69gr6dw","slide":5,"name":"matrix-1-2","text":"Structured records","textPreview":"Structured records","textChars":18,"textLines":1,"bbox":[600,510,275,32]}
+{"kind":"textbox","id":"sh/q50fy1wb","slide":5,"name":"matrix-1-3","text":"Bills and status","textPreview":"Bills and status","textChars":16,"textLines":1,"bbox":[910,510,275,32]}
+{"kind":"shape","id":"sh/gbyd87ut","slide":5,"name":"matrix-rule-2","bbox":[56,564,1168,1]}
+{"kind":"textbox","id":"sh/hc7u1cbe","slide":5,"name":"matrix-label-2","text":"EXPANSION","textPreview":"EXPANSION","textChars":9,"textLines":1,"bbox":[70,586,190,24]}
+{"kind":"textbox","id":"sh/u9gv6xc3","slide":5,"name":"matrix-2-1","text":"More units and features","textPreview":"More units and features","textChars":23,"textLines":1,"bbox":[290,582,275,32]}
+{"kind":"textbox","id":"sh/vapcz2to","slide":5,"name":"matrix-2-2","text":"More managed portfolios","textPreview":"More managed portfolios","textChars":23,"textLines":1,"bbox":[600,582,275,32]}
+{"kind":"textbox","id":"sh/87ed4nux","slide":5,"name":"matrix-2-3","text":"Marketplace engagement","textPreview":"Marketplace engagement","textChars":22,"textLines":1,"bbox":[910,582,275,32]}
+{"kind":"image","id":"im/5wjmpkfq","slide":5,"name":"","alt":"HomeOps360 brand mark","bbox":[56,34,34,34]}
+{"kind":"notes","id":"nt/c3h5z3","slide":5,"text":"[Sources]\n- README.md (owner and tenant workflows)\n- lib/branding/homeops_brand.dart (brand identity)\n- supabase/migrations/202606290001_initial_rental_schema.sql (owner, agent and tenant roles)\n[/Sources]\n\nStakeholder outcomes are derived from the role-specific workflows in the app and database schema. The slide avoids quantified impact claims until a pilot produces evidence."}
+{"kind":"slide","id":"sl/5t0yrh","slide":6,"title":"HomeOps","textShapes":24}
+{"kind":"textbox","id":"sh/lcfal036","slide":6,"name":"brand-6","text":"HomeOps","textPreview":"HomeOps","textChars":7,"textLines":1,"bbox":[100,36,108,31]}
+{"kind":"textbox","id":"sh/kbm9sfm1","slide":6,"name":"brand360-6","text":"360","textPreview":"360","textChars":3,"textLines":1,"bbox":[206,36,64,31]}
+{"kind":"textbox","id":"sh/bmd8fq54","slide":6,"name":"section-6","text":"BUSINESS MODEL","textPreview":"BUSINESS MODEL","textChars":14,"textLines":1,"bbox":[850,42,374,18]}
+{"kind":"textbox","id":"sh/al4rml4j","slide":6,"name":"page-6","text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[1170,682,54,18]}
+{"kind":"textbox","id":"sh/xovqh0na","slide":6,"name":"slide-title","text":"Recurring workflows create a scalable revenue model","textPreview":"Recurring workflows create a scalable revenue model","textChars":51,"textLines":1,"bbox":[56,100,1168,66]}
+{"kind":"textbox","id":"sh/wnm9ovmp","slide":6,"name":"slide-subtitle","text":"Start with a simple SaaS offer; expand only where usage creates real value.","textPreview":"Start with a simple SaaS offer; expand only where usage creates real value.","textChars":75,"textLines":1,"bbox":[56,174,1168,34]}
+{"kind":"textbox","id":"sh/vixsrulo","slide":6,"name":"stack-label","text":"PROPOSED REVENUE STACK","textPreview":"PROPOSED REVENUE STACK","textChars":22,"textLines":1,"bbox":[70,245,430,24]}
+{"kind":"shape","id":"sh/uhoryp43","slide":6,"name":"stack-3","bbox":[70,300,610,95]}
+{"kind":"textbox","id":"sh/s3q5cjat","slide":6,"name":"stack-3-head","text":"Future services","textPreview":"Future services","textChars":15,"textLines":1,"bbox":[98,322,220,30]}
+{"kind":"textbox","id":"sh/dozml4be","slide":6,"name":"stack-3-body","text":"Payments and partner services—only after validation","textPreview":"Payments and partner services—only after validation","textChars":51,"textLines":1,"bbox":[335,326,315,26]}
+{"kind":"shape","id":"sh/q1o3a9s3","slide":6,"name":"stack-2","bbox":[70,410,610,105]}
+{"kind":"textbox","id":"sh/r2h4jet8","slide":6,"name":"stack-2-head","text":"Growth add-ons","textPreview":"Growth add-ons","textChars":14,"textLines":1,"bbox":[98,437,220,30]}
+{"kind":"textbox","id":"sh/4z6l8zax","slide":6,"name":"stack-2-body","text":"Promoted Explore listings and premium features","textPreview":"Promoted Explore listings and premium features","textChars":46,"textLines":1,"bbox":[335,441,315,26]}
+{"kind":"shape","id":"sh/50fmh4bi","slide":6,"name":"stack-1","bbox":[70,530,610,120]}
+{"kind":"textbox","id":"sh/ixo36psr","slide":6,"name":"stack-1-head","text":"Core subscription","textPreview":"Core subscription","textChars":17,"textLines":1,"bbox":[98,562,240,34]}
+{"kind":"textbox","id":"sh/3yx4futc","slide":6,"name":"stack-1-body","text":"Tier by managed units, active tenants and enabled features","textPreview":"Tier by managed units, active tenants and enabled features","textChars":58,"textLines":1,"bbox":[350,562,300,54]}
+{"kind":"textbox","id":"sh/gv6l4fal","slide":6,"name":"motion-label","text":"LAND-AND-EXPAND MOTION","textPreview":"LAND-AND-EXPAND MOTION","textChars":22,"textLines":1,"bbox":[760,245,420,24]}
+{"kind":"shape","id":"sh/hwfmdkb6","slide":6,"name":"motion-circle-0","bbox":[760,300,50,50]}
+{"kind":"textbox","id":"sh/xs72hg3a","slide":6,"name":"motion-num-0","text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[760,310,50,26]}
+{"kind":"textbox","id":"sh/wry18bmp","slide":6,"name":"motion-head-0","text":"Land","textPreview":"Land","textChars":4,"textLines":1,"bbox":[835,303,210,32]}
+{"kind":"textbox","id":"sh/vqpkf6l4","slide":6,"name":"motion-body-0","text":"Win an owner or agent with one portfolio","textPreview":"Win an owner or agent with one portfolio","textChars":40,"textLines":1,"bbox":[835,342,330,62]}
+{"kind":"shape","id":"sh/apwj614j","slide":6,"name":"motion-circle-1","bbox":[760,420,50,50]}
+{"kind":"textbox","id":"sh/9on2dg3y","slide":6,"name":"motion-num-1","text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[760,430,50,26]}
+{"kind":"textbox","id":"sh/8ne14bmd","slide":6,"name":"motion-head-1","text":"Embed","textPreview":"Embed","textChars":5,"textLines":1,"bbox":[835,423,210,32]}
+{"kind":"textbox","id":"sh/nm5kb6ls","slide":6,"name":"motion-body-1","text":"Run billing, proof and tenant workflows monthly","textPreview":"Run billing, proof and tenant workflows monthly","textChars":47,"textLines":1,"bbox":[835,462,330,62]}
+{"kind":"shape","id":"sh/m1wj214n","slide":6,"name":"motion-circle-2","bbox":[760,540,50,50]}
+{"kind":"textbox","id":"sh/tkr2p032","slide":6,"name":"motion-num-2","text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[760,550,50,26]}
+{"kind":"textbox","id":"sh/sjilgv2x","slide":6,"name":"motion-head-2","text":"Expand","textPreview":"Expand","textChars":6,"textLines":1,"bbox":[835,543,210,32]}
+{"kind":"textbox","id":"sh/qt87udg3","slide":6,"name":"motion-body-2","text":"Add units, features, listings and validated services","textPreview":"Add units, features, listings and validated services","textChars":52,"textLines":1,"bbox":[835,582,330,62]}
+{"kind":"shape","id":"sh/ru18nyxo","slide":6,"name":"model-note","bbox":[760,650,430,35]}
+{"kind":"textbox","id":"sh/svapw3yt","slide":6,"name":"model-note-text","text":"Pricing and fee economics will be validated in the pilot.","textPreview":"Pricing and fee economics will be validated in the pilot.","textChars":57,"textLines":1,"bbox":[782,657,385,20]}
+{"kind":"image","id":"im/b6do7u5k","slide":6,"name":"","alt":"HomeOps360 brand mark","bbox":[56,34,34,34]}
+{"kind":"notes","id":"nt/5t0yrh","slide":6,"text":"[Sources]\n- README.md (owner and tenant workflows)\n- lib/branding/homeops_brand.dart (brand identity)\n- lib/explore/room_explore.dart (promoted listing capability)\n- docs/admin-portal-deployment.md (limits and feature controls)\n[/Sources]\n\nThe revenue architecture is proposed. No price points, revenue forecasts or payment-fee economics are claimed without pilot evidence."}
+{"kind":"slide","id":"sl/ltb03u","slide":7,"title":"HomeOps","textShapes":22}
+{"kind":"textbox","id":"sh/rqh4fmlw","slide":7,"name":"brand-7","text":"HomeOps","textPreview":"HomeOps","textChars":7,"textLines":1,"bbox":[100,36,108,31]}
+{"kind":"textbox","id":"sh/qp83mhkb","slide":7,"name":"brand360-7","text":"360","textPreview":"360","textChars":3,"textLines":1,"bbox":[206,36,64,31]}
+{"kind":"textbox","id":"sh/5ozmdc3q","slide":7,"name":"section-7","text":"PILOT READINESS","textPreview":"PILOT READINESS","textChars":15,"textLines":1,"bbox":[850,42,374,18]}
+{"kind":"textbox","id":"sh/4nqlk725","slide":7,"name":"page-7","text":"07","textPreview":"07","textChars":2,"textLines":1,"bbox":[1170,682,54,18]}
+{"kind":"textbox","id":"sh/3mh4b2lk","slide":7,"name":"slide-title","text":"The product foundation is ready for a structured pilot","textPreview":"The product foundation is ready for a structured pilot","textChars":54,"textLines":1,"bbox":[56,100,1168,66]}
+{"kind":"textbox","id":"sh/il83ix4z","slide":7,"name":"slide-subtitle","text":"Sponsorship accelerates proof, onboarding and measurement—not basic product discovery.","textPreview":"Sponsorship accelerates proof, onboarding and measurement—not basic product discovery.","textChars":86,"textLines":1,"bbox":[56,174,1168,34]}
+{"kind":"shape","id":"sh/pk3mpg3u","slide":7,"name":"readiness-left","bbox":[56,245,430,405]}
+{"kind":"textbox","id":"sh/oju5wb2p","slide":7,"name":"readiness-kicker","text":"WHAT EXISTS TODAY","textPreview":"WHAT EXISTS TODAY","textChars":17,"textLines":1,"bbox":[88,280,250,24]}
+{"kind":"textbox","id":"sh/qlonupsn","slide":7,"name":"readiness-claim","text":"The core operating loop is already implemented.","textPreview":"The core operating loop is already implemented.","textChars":47,"textLines":1,"bbox":[88,335,330,150]}
+{"kind":"textbox","id":"sh/rmxonat8","slide":7,"name":"readiness-small","text":"The pilot can focus on customer value, workflow fit and willingness to pay.","textPreview":"The pilot can focus on customer value, workflow fit and willingness to pay.","textChars":75,"textLines":1,"bbox":[88,530,330,80]}
+{"kind":"shape","id":"sh/s765wfad","slide":7,"name":"ready-check-0","bbox":[555,258,34,34]}
+{"kind":"textbox","id":"sh/d8f6pkby","slide":7,"name":"ready-checkmark-0","text":"✓","textPreview":"✓","textChars":1,"textLines":1,"bbox":[555,262,34,20]}
+{"kind":"textbox","id":"sh/ih4nq5sb","slide":7,"name":"ready-head-0","text":"ROLE-BASED WORKSPACE","textPreview":"ROLE-BASED WORKSPACE","textChars":20,"textLines":1,"bbox":[615,252,490,24]}
+{"kind":"textbox","id":"sh/3idojatw","slide":7,"name":"ready-body-0","text":"Owner, agent and tenant experiences with isolated data access","textPreview":"Owner, agent and tenant experiences with isolated data access","textChars":61,"textLines":1,"bbox":[615,284,520,48]}
+{"kind":"shape","id":"sh/4jm5sfah","slide":7,"name":"ready-rule-0","bbox":[555,342,600,1]}
+{"kind":"shape","id":"sh/5kf6lkb2","slide":7,"name":"ready-check-1","bbox":[555,356,34,34]}
+{"kind":"textbox","id":"sh/md8729sv","slide":7,"name":"ready-checkmark-1","text":"✓","textPreview":"✓","textChars":1,"textLines":1,"bbox":[555,360,34,20]}
+{"kind":"textbox","id":"sh/nehovu90","slide":7,"name":"ready-head-1","text":"MONEY WORKFLOWS","textPreview":"MONEY WORKFLOWS","textChars":15,"textLines":1,"bbox":[615,350,490,24]}
+{"kind":"textbox","id":"sh/z6pc725g","slide":7,"name":"ready-body-1","text":"Invoices, utilities, proof submission, approvals and records","textPreview":"Invoices, utilities, proof submission, approvals and records","textChars":60,"textLines":1,"bbox":[615,382,520,48]}
+{"kind":"shape","id":"sh/ylgbyx4v","slide":7,"name":"ready-rule-1","bbox":[555,440,600,1]}
+{"kind":"shape","id":"sh/l8ru9cnm","slide":7,"name":"ready-check-2","bbox":[555,454,34,34]}
+{"kind":"textbox","id":"sh/k7yt07m1","slide":7,"name":"ready-checkmark-2","text":"✓","textPreview":"✓","textChars":1,"textLines":1,"bbox":[555,458,34,20]}
+{"kind":"textbox","id":"sh/7a9cbm5c","slide":7,"name":"ready-head-2","text":"TENANT + MARKETPLACE","textPreview":"TENANT + MARKETPLACE","textChars":20,"textLines":1,"bbox":[615,448,490,24]}
+{"kind":"textbox","id":"sh/m90b2h4r","slide":7,"name":"ready-body-2","text":"Requests, status, invitations and verified room discovery","textPreview":"Requests, status, invitations and verified room discovery","textChars":57,"textLines":1,"bbox":[615,480,520,48]}
+{"kind":"shape","id":"sh/9crudcni","slide":7,"name":"ready-rule-2","bbox":[555,538,600,1]}
+{"kind":"shape","id":"sh/8bit47mx","slide":7,"name":"ready-check-3","bbox":[555,552,34,34]}
+{"kind":"textbox","id":"sh/ve9cfmlo","slide":7,"name":"ready-checkmark-3","text":"✓","textPreview":"✓","textChars":1,"textLines":1,"bbox":[555,556,34,20]}
+{"kind":"textbox","id":"sh/ud0v6h43","slide":7,"name":"ready-head-3","text":"PLATFORM CONTROL","textPreview":"PLATFORM CONTROL","textChars":16,"textLines":1,"bbox":[615,546,490,24]}
+{"kind":"textbox","id":"sh/s32twr21","slide":7,"name":"ready-body-3","text":"Administration, usage limits, feature controls and operational reporting","textPreview":"Administration, usage limits, feature controls and operational reporting","textChars":72,"textLines":1,"bbox":[615,578,520,48]}
+{"kind":"shape","id":"sh/t4ba5wjm","slide":7,"name":"ready-bottom","bbox":[555,650,600,34]}
+{"kind":"textbox","id":"sh/6hkbuhkb","slide":7,"name":"ready-bottom-text","text":"Pilot scope should test value and adoption under real operating conditions.","textPreview":"Pilot scope should test value and adoption under real operating conditions.","textChars":75,"textLines":1,"bbox":[575,658,560,18]}
+{"kind":"image","id":"im/5kjqxw7a","slide":7,"name":"","alt":"HomeOps360 brand mark","bbox":[56,34,34,34]}
+{"kind":"notes","id":"nt/ltb03u","slide":7,"text":"[Sources]\n- README.md (owner and tenant workflows)\n- lib/branding/homeops_brand.dart (brand identity)\n- docs/supabase-free-production-security.md (security and isolation)\n- lib/admin/admin_app.dart (administration)\n- lib/cloud/* (cloud workflows)\n[/Sources]\n\nReadiness means the core product foundation exists; it does not claim that every deployment, pricing or scale risk is solved. The pilot is intended to validate those remaining questions."}
+{"kind":"slide","id":"sl/0fd9ma","slide":8,"title":"HomeOps","textShapes":24}
+{"kind":"textbox","id":"sh/sf25cfed","slide":8,"name":"brand-8","text":"HomeOps","textPreview":"HomeOps","textChars":7,"textLines":1,"bbox":[100,36,108,31]}
+{"kind":"textbox","id":"sh/dgvm5kvy","slide":8,"name":"brand360-8","text":"360","textPreview":"360","textChars":3,"textLines":1,"bbox":[206,36,64,31]}
+{"kind":"textbox","id":"sh/eh4nepwj","slide":8,"name":"section-8","text":"PROPOSED PILOT","textPreview":"PROPOSED PILOT","textChars":14,"textLines":1,"bbox":[850,42,374,18]}
+{"kind":"textbox","id":"sh/fid47ud4","slide":8,"name":"page-8","text":"08","textPreview":"08","textChars":2,"textLines":1,"bbox":[1170,682,54,18]}
+{"kind":"textbox","id":"sh/0jm5gze9","slide":8,"name":"slide-title","text":"A 12-week pilot answers the sponsor’s key questions","textPreview":"A 12-week pilot answers the sponsor’s key questions","textChars":51,"textLines":1,"bbox":[56,100,1168,66]}
+{"kind":"textbox","id":"sh/1kvm9kvu","slide":8,"name":"slide-subtitle","text":"Proposed structure: scope first, operate with real workflows, then decide from evidence.","textPreview":"Proposed structure: scope first, operate with real workflows, then decide from evidence.","textChars":88,"textLines":1,"bbox":[56,174,1168,34]}
+{"kind":"shape","id":"sh/ul032lwz","slide":8,"name":"timeline-line","bbox":[115,392,1030,5]}
+{"kind":"shape","id":"sh/vm94vqxk","slide":8,"name":"timeline-dot-0","bbox":[160,365,60,60]}
+{"kind":"textbox","id":"sh/rqtkry14","slide":8,"name":"timeline-index-0","text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[160,379,60,26]}
+{"kind":"textbox","id":"sh/qpkjitkj","slide":8,"name":"timeline-weeks-0","text":"WEEKS 1–2","textPreview":"WEEKS 1–2","textChars":9,"textLines":1,"bbox":[90,285,200,24]}
+{"kind":"textbox","id":"sh/dsb2t8ja","slide":8,"name":"timeline-head-0","text":"Scope","textPreview":"Scope","textChars":5,"textLines":1,"bbox":[90,320,200,34]}
+{"kind":"textbox","id":"sh/cr2lk32p","slide":8,"name":"timeline-body-0","text":"Select portfolio, users and success measures","textPreview":"Select portfolio, users and success measures","textChars":44,"textLines":1,"bbox":[90,455,225,88]}
+{"kind":"shape","id":"sh/3m9kne18","slide":8,"name":"timeline-dot-1","bbox":[455,365,60,60]}
+{"kind":"textbox","id":"sh/210jetkn","slide":8,"name":"timeline-index-1","text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[455,379,60,26]}
+{"kind":"textbox","id":"sh/por2pojy","slide":8,"name":"timeline-weeks-1","text":"WEEKS 3–5","textPreview":"WEEKS 3–5","textChars":9,"textLines":1,"bbox":[385,285,200,24]}
+{"kind":"textbox","id":"sh/4ni1gj2t","slide":8,"name":"timeline-head-1","text":"Onboard","textPreview":"Onboard","textChars":7,"textLines":1,"bbox":[385,320,200,34]}
+{"kind":"textbox","id":"sh/fy9kje1w","slide":8,"name":"timeline-body-1","text":"Configure properties, tenants and monthly workflows","textPreview":"Configure properties, tenants and monthly workflows","textChars":51,"textLines":1,"bbox":[385,455,225,88]}
+{"kind":"shape","id":"sh/ux0ja9kb","slide":8,"name":"timeline-dot-2","bbox":[750,365,60,60]}
+{"kind":"textbox","id":"sh/itg3m94j","slide":8,"name":"timeline-index-2","text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[750,379,60,26]}
+{"kind":"textbox","id":"sh/jupkve5o","slide":8,"name":"timeline-weeks-2","text":"WEEKS 6–9","textPreview":"WEEKS 6–9","textChars":9,"textLines":1,"bbox":[680,285,200,24]}
+{"kind":"textbox","id":"sh/kvylojm9","slide":8,"name":"timeline-head-2","text":"Operate","textPreview":"Operate","textChars":7,"textLines":1,"bbox":[680,320,200,34]}
+{"kind":"textbox","id":"sh/5w72x4nu","slide":8,"name":"timeline-body-2","text":"Run billing, proof, requests and reporting","textPreview":"Run billing, proof, requests and reporting","textChars":42,"textLines":1,"bbox":[680,455,225,88]}
+{"kind":"shape","id":"sh/6x03q94f","slide":8,"name":"timeline-dot-3","bbox":[1045,365,60,60]}
+{"kind":"textbox","id":"sh/7y94ze50","slide":8,"name":"timeline-index-3","text":"4","textPreview":"4","textChars":1,"textLines":1,"bbox":[1045,379,60,26]}
+{"kind":"textbox","id":"sh/szilsjml","slide":8,"name":"timeline-weeks-3","text":"WEEKS 10–12","textPreview":"WEEKS 10–12","textChars":11,"textLines":1,"bbox":[975,285,200,24]}
+{"kind":"textbox","id":"sh/tkrm1o36","slide":8,"name":"timeline-head-3","text":"Evaluate","textPreview":"Evaluate","textChars":8,"textLines":1,"bbox":[975,320,200,34]}
+{"kind":"textbox","id":"sh/ul03ut4b","slide":8,"name":"timeline-body-3","text":"Review adoption, value and willingness to pay","textPreview":"Review adoption, value and willingness to pay","textChars":45,"textLines":1,"bbox":[975,455,225,88]}
+{"kind":"shape","id":"sh/fm943ylw","slide":8,"name":"timeline-decision","bbox":[110,590,1060,70]}
+{"kind":"textbox","id":"sh/pgb6ts7e","slide":8,"name":"timeline-decision-label","text":"DECISION GATE","textPreview":"DECISION GATE","textChars":13,"textLines":1,"bbox":[140,614,180,22]}
+{"kind":"textbox","id":"sh/4f25kn6t","slide":8,"name":"timeline-decision-copy","text":"Confirm packaging, operating ownership and the case for scale.","textPreview":"Confirm packaging, operating ownership and the case for scale.","textChars":62,"textLines":1,"bbox":[335,605,760,32]}
+{"kind":"image","id":"im/qxcfelcb","slide":8,"name":"","alt":"HomeOps360 brand mark","bbox":[56,34,34,34]}
+{"kind":"notes","id":"nt/0fd9ma","slide":8,"text":"[Sources]\n- README.md (owner and tenant workflows)\n- lib/branding/homeops_brand.dart (brand identity)\n[/Sources]\n\nThe 12-week structure is a proposed working plan. Dates and success thresholds should be agreed with the sponsor and pilot portfolio before launch."}
+{"kind":"slide","id":"sl/v6ra4b","slide":9,"title":"HomeOps","textShapes":23}
+{"kind":"textbox","id":"sh/kn2t4fep","slide":9,"name":"brand-9","text":"HomeOps","textPreview":"HomeOps","textChars":7,"textLines":1,"bbox":[100,36,108,31]}
+{"kind":"textbox","id":"sh/5obad0vu","slide":9,"name":"brand360-9","text":"360","textPreview":"360","textChars":3,"textLines":1,"bbox":[206,36,64,31]}
+{"kind":"textbox","id":"sh/6pkb65cf","slide":9,"name":"section-9","text":"SPONSORSHIP CASE","textPreview":"SPONSORSHIP CASE","textChars":16,"textLines":1,"bbox":[850,42,374,18]}
+{"kind":"textbox","id":"sh/7qdsfad0","slide":9,"name":"page-9","text":"09","textPreview":"09","textChars":2,"textLines":1,"bbox":[1170,682,54,18]}
+{"kind":"textbox","id":"sh/srmt8ful","slide":9,"name":"slide-title","text":"Sponsorship funds the proof—not an untested scale-up","textPreview":"Sponsorship funds the proof—not an untested scale-up","textChars":52,"textLines":1,"bbox":[56,100,1168,66]}
+{"kind":"textbox","id":"sh/tsvahkv6","slide":9,"name":"slide-subtitle","text":"The requested commitment is a scoped pilot budget, a real portfolio and executive access.","textPreview":"The requested commitment is a scoped pilot budget, a real portfolio and executive access.","textChars":89,"textLines":1,"bbox":[56,174,1168,34]}
+{"kind":"textbox","id":"sh/ut4bapcr","slide":9,"name":"fund-label","text":"SPONSORSHIP ENABLES","textPreview":"SPONSORSHIP ENABLES","textChars":19,"textLines":1,"bbox":[70,250,470,26]}
+{"kind":"textbox","id":"sh/fedsjudc","slide":9,"name":"enable-n-0","text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[70,300,45,24]}
+{"kind":"textbox","id":"sh/rilo3u9k","slide":9,"name":"enable-h-0","text":"Pilot onboarding","textPreview":"Pilot onboarding","textChars":16,"textLines":1,"bbox":[125,297,210,28]}
+{"kind":"textbox","id":"sh/qhc7upsz","slide":9,"name":"enable-b-0","text":"Configure real properties, tenants and workflows","textPreview":"Configure real properties, tenants and workflows","textChars":48,"textLines":1,"bbox":[350,300,285,50]}
+{"kind":"shape","id":"sh/dk3q54rq","slide":9,"name":"enable-rule-0","bbox":[70,366,565,1]}
+{"kind":"textbox","id":"sh/sjupwza5","slide":9,"name":"enable-n-1","text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[70,386,45,24]}
+{"kind":"textbox","id":"sh/3u1oza9o","slide":9,"name":"enable-h-1","text":"Operational support","textPreview":"Operational support","textChars":19,"textLines":1,"bbox":[125,383,210,28]}
+{"kind":"textbox","id":"sh/its7qps3","slide":9,"name":"enable-b-1","text":"Hosting, issue resolution and pilot coordination","textPreview":"Hosting, issue resolution and pilot coordination","textChars":48,"textLines":1,"bbox":[350,386,285,50]}
+{"kind":"shape","id":"sh/5gj61kru","slide":9,"name":"enable-rule-1","bbox":[70,452,565,1]}
+{"kind":"textbox","id":"sh/4fapsfa9","slide":9,"name":"enable-n-2","text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[70,472,45,24]}
+{"kind":"textbox","id":"sh/nq58be9s","slide":9,"name":"enable-h-2","text":"Measurement","textPreview":"Measurement","textChars":11,"textLines":1,"bbox":[125,469,210,28]}
+{"kind":"textbox","id":"sh/2pw72987","slide":9,"name":"enable-b-2","text":"Track adoption, workflow completion and value signals","textPreview":"Track adoption, workflow completion and value signals","textChars":53,"textLines":1,"bbox":[350,472,285,50]}
+{"kind":"shape","id":"sh/y5grudsf","slide":9,"name":"enable-rule-2","bbox":[70,538,565,1]}
+{"kind":"textbox","id":"sh/j6ps3it0","slide":9,"name":"enable-n-3","text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[70,558,45,24]}
+{"kind":"textbox","id":"sh/k7itwnal","slide":9,"name":"enable-h-3","text":"Decision package","textPreview":"Decision package","textChars":16,"textLines":1,"bbox":[125,555,210,28]}
+{"kind":"textbox","id":"sh/l8ra5sb6","slide":9,"name":"enable-b-3","text":"Deliver findings, pricing evidence and scale options","textPreview":"Deliver findings, pricing evidence and scale options","textChars":52,"textLines":1,"bbox":[350,558,285,50]}
+{"kind":"shape","id":"sh/690bydsr","slide":9,"name":"sponsor-value","bbox":[700,245,524,390]}
+{"kind":"textbox","id":"sh/7a9s7itc","slide":9,"name":"sponsor-value-label","text":"THE SPONSOR RECEIVES","textPreview":"THE SPONSOR RECEIVES","textChars":20,"textLines":1,"bbox":[740,285,400,26]}
+{"kind":"textbox","id":"sh/8bit0nax","slide":9,"name":"sponsor-value-title","text":"A controlled path to evidence","textPreview":"A controlled path to evidence","textChars":29,"textLines":1,"bbox":[740,335,405,70]}
+{"kind":"textbox","id":"sh/tcra9sb2","slide":9,"name":"sponsor-value-body","text":"• Direct visibility into pilot adoption\n\n• Influence over the outcomes tested\n\n• A documented value and scale report\n\n• A decision point before further commitment","textPreview":"• Direct visibility into pilot adoption |  | • Influence over the outcomes tested |  | • A documented value and scale report |  | • A dec...","textChars":162,"textLines":7,"bbox":[740,430,405,165]}
+{"kind":"textbox","id":"sh/2dwrmtc7","slide":9,"name":"budget-note","text":"Final budget follows the agreed portfolio size, support scope and pilot responsibilities.","textPreview":"Final budget follows the agreed portfolio size, support scope and pilot responsibilities.","textChars":89,"textLines":1,"bbox":[70,657,1090,24]}
+{"kind":"image","id":"im/210nqhcf","slide":9,"name":"","alt":"HomeOps360 brand mark","bbox":[56,34,34,34]}
+{"kind":"notes","id":"nt/v6ra4b","slide":9,"text":"[Sources]\n- README.md (owner and tenant workflows)\n- lib/branding/homeops_brand.dart (brand identity)\n[/Sources]\n\nThe sponsorship structure is proposed. The sponsor benefits are discussion points, not contractual commitments. A final budget requires an agreed pilot portfolio and operating scope."}
+{"kind":"slide","id":"sl/jvg6ch","slide":10,"title":"HomeOps","textShapes":16}
+{"kind":"shape","id":"sh/o3m5cjmh","slide":10,"name":"close-accent","bbox":[0,0,1280,12]}
+{"kind":"textbox","id":"sh/214na94b","slide":10,"name":"brand-10","text":"HomeOps","textPreview":"HomeOps","textChars":7,"textLines":1,"bbox":[100,36,108,31]}
+{"kind":"textbox","id":"sh/10bmh4nq","slide":10,"name":"brand360-10","text":"360","textPreview":"360","textChars":3,"textLines":1,"bbox":[206,36,64,31]}
+{"kind":"textbox","id":"sh/gz258zm5","slide":10,"name":"section-10","text":"DECISION REQUEST","textPreview":"DECISION REQUEST","textChars":16,"textLines":1,"bbox":[850,42,374,18]}
+{"kind":"textbox","id":"sh/fyt4fu5k","slide":10,"name":"page-10","text":"10","textPreview":"10","textChars":2,"textLines":1,"bbox":[1170,682,54,18]}
+{"kind":"textbox","id":"sh/exk369oz","slide":10,"name":"close-kicker","text":"THE DECISION","textPreview":"THE DECISION","textChars":12,"textLines":1,"bbox":[72,160,220,24]}
+{"kind":"textbox","id":"sh/tcbmd4nu","slide":10,"name":"close-title","text":"Sponsor the HomeOps360 pilot—and decide from evidence","textPreview":"Sponsor the HomeOps360 pilot—and decide from evidence","textChars":53,"textLines":1,"bbox":[72,210,1080,145]}
+{"kind":"textbox","id":"sh/sb2l4z69","slide":10,"name":"close-subtitle","text":"Approve the pilot scope and budget, nominate a real portfolio, and appoint an executive sponsor.","textPreview":"Approve the pilot scope and budget, nominate a real portfolio, and appoint an executive sponsor.","textChars":96,"textLines":1,"bbox":[76,392,980,70]}
+{"kind":"shape","id":"sh/it4j6t8n","slide":10,"name":"close-rule","bbox":[76,505,1100,1]}
+{"kind":"textbox","id":"sh/judkfep8","slide":10,"name":"close-n-0","text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[76,548,48,24]}
+{"kind":"textbox","id":"sh/4vm18jqt","slide":10,"name":"close-h-0","text":"Agree scope","textPreview":"Agree scope","textChars":11,"textLines":1,"bbox":[130,541,250,30]}
+{"kind":"textbox","id":"sh/5wv2ho7e","slide":10,"name":"close-b-0","text":"Portfolio, users and operating boundaries","textPreview":"Portfolio, users and operating boundaries","textChars":41,"textLines":1,"bbox":[130,582,285,60]}
+{"kind":"textbox","id":"sh/upkj298r","slide":10,"name":"close-n-1","text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[446,548,48,24]}
+{"kind":"textbox","id":"sh/vqt0bepw","slide":10,"name":"close-h-1","text":"Set measures","textPreview":"Set measures","textChars":12,"textLines":1,"bbox":[500,541,250,30]}
+{"kind":"textbox","id":"sh/wr214jqh","slide":10,"name":"close-b-1","text":"Adoption, workflow value and willingness to pay","textPreview":"Adoption, workflow value and willingness to pay","textChars":47,"textLines":1,"bbox":[500,582,285,60]}
+{"kind":"textbox","id":"sh/hsbido72","slide":10,"name":"close-n-2","text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[816,548,48,24]}
+{"kind":"textbox","id":"sh/m10jy98f","slide":10,"name":"close-h-2","text":"Launch pilot","textPreview":"Launch pilot","textChars":12,"textLines":1,"bbox":[870,541,250,30]}
+{"kind":"textbox","id":"sh/72t07up0","slide":10,"name":"close-b-2","text":"A controlled 12-week path to a scale decision","textPreview":"A controlled 12-week path to a scale decision","textChars":45,"textLines":1,"bbox":[870,582,285,60]}
+{"kind":"image","id":"im/qlob2lg7","slide":10,"name":"","alt":"HomeOps360 brand mark","bbox":[56,34,34,34]}
+{"kind":"notes","id":"nt/jvg6ch","slide":10,"text":"[Sources]\n- README.md (owner and tenant workflows)\n- lib/branding/homeops_brand.dart (brand identity)\n[/Sources]\n\nClose with the specific decision: approve the pilot scope and budget, nominate a pilot portfolio, and appoint an executive sponsor. Do not negotiate price from this slide; agree scope first."}

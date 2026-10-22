@@ -1,0 +1,15 @@
+Communication job: By the end, a prospective sponsor should approve a scoped HomeOps360 pilot because the product addresses recurring rental-management pain, has a credible recurring-revenue model, and already contains the core technical foundation needed to test value with real portfolios.
+
+Repository evidence:
+- README.md: owner and tenant roles; facilities, rent/utilities, payment proof, dashboard reporting.
+- lib/rentflow/rentflow_app.dart and related lib modules: owner operating workflows.
+- lib/explore/room_explore.dart: verified room marketplace and promoted listing capability.
+- lib/cloud/*: invoice portal, meter-reading OCR, authentication, room listings, workspace sync and tenant invitations.
+- lib/admin/admin_app.dart and docs/admin-portal-deployment.md: protected administration, owner limits and feature controls.
+- docs/supabase-free-production-security.md: owner/tenant isolation, private storage, invoice links and notifications.
+
+Commercial and pilot assumptions:
+- No validated price, market-size, traction, sponsorship amount or financial forecast is supplied.
+- The deck therefore requests approval of pilot scope and budget rather than inventing a funding amount.
+- Tiered SaaS, promoted listings and future partner/payment services are proposed revenue streams.
+- The 12-week pilot structure and sponsor benefits are recommendations for discussion, not existing commitments.

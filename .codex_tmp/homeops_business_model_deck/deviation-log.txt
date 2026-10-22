@@ -1,0 +1,9 @@
+Slides 1-8: Source slide 1 is the only available pattern. Each output slide intentionally reuses and repositions its inherited elements to create pacing variation while keeping the original brand, typography, accents, and three-region logic.
+
+Slide 1: Simplifies the inherited three-region summary into a sparse opening thesis.
+Slides 2-5: Reuses the three-region structure for problem, solution, stakeholder, and workflow narratives.
+Slide 6: Preserves the original business-model summary with shorter copy to remove the source render's right-column text collision.
+Slide 7: Reframes the three regions as a revenue architecture.
+Slide 8: Reframes the three regions as pilot, measurement, and scale decisions.
+
+No invented traction, market-size, pricing, or financial metrics are added.

@@ -1,0 +1,2159 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/1dy5i3",
+    "id": "1dy5i3",
+    "slide": 4,
+    "layoutId": "/ppt/slideLayouts/slideLayout1.xml",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+    "masterLayoutName": "Master",
+    "backgroundColor": "#F7FAFC",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "fontScheme": {
+      "name": "Office",
+      "majorFont": {
+        "latinTypeface": "Calibri Light",
+        "eastAsianTypeface": "Calibri Light",
+        "complexScriptTypeface": "Calibri Light"
+      },
+      "minorFont": {
+        "latinTypeface": "Calibri",
+        "eastAsianTypeface": "Calibri",
+        "complexScriptTypeface": "Calibri"
+      }
+    },
+    "typefaces": [
+      "Aptos",
+      "Aptos Display",
+      "Calibri",
+      "Calibri Light"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "/ppt/slideLayouts/slideLayout1.xml",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "/ppt/slideMasters/slideMaster1.xml",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/rit0fq9s",
+      "id": "32",
+      "name": "customer-region",
+      "bbox": [
+        56,
+        261,
+        331,
+        355
+      ],
+      "geometry": "rect",
+      "fillColor": "#FFFFFF",
+      "lineWidth": 0
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/4f61cz2p",
+      "id": "2",
+      "name": "platform-region",
+      "bbox": [
+        456,
+        261,
+        368,
+        355
+      ],
+      "geometry": "rect",
+      "fillColor": "#0E1B33",
+      "lineWidth": 0
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/50fi543a",
+      "id": "3",
+      "name": "revenue-region",
+      "bbox": [
+        893,
+        261,
+        331,
+        355
+      ],
+      "geometry": "rect",
+      "fillColor": "#FFFFFF",
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/61oje9kv",
+      "id": "4",
+      "name": "customer-accent",
+      "bbox": [
+        56,
+        261,
+        331,
+        7
+      ],
+      "geometry": "rect",
+      "fillColor": "#10C8B0",
+      "lineWidth": 0
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/r2x07ulg",
+      "id": "5",
+      "name": "platform-accent",
+      "bbox": [
+        456,
+        261,
+        368,
+        7
+      ],
+      "geometry": "rect",
+      "fillColor": "#2E6BFF",
+      "lineWidth": 0
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/s361gz21",
+      "id": "6",
+      "name": "revenue-accent",
+      "bbox": [
+        893,
+        261,
+        331,
+        7
+      ],
+      "geometry": "rect",
+      "fillColor": "#2E6BFF",
+      "lineWidth": 0
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/t4z2943m",
+      "id": "7",
+      "name": "flywheel-band",
+      "bbox": [
+        56,
+        643,
+        1168,
+        43
+      ],
+      "geometry": "rect",
+      "fillColor": "#DDF8F4",
+      "lineWidth": 0
+    },
+    {
+      "order": 8,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/xozy9gzu",
+      "id": "33",
+      "bbox": [
+        56,
+        32,
+        38,
+        38
+      ],
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "/ppt/media/image.png",
+        "contentType": "image/png",
+        "byteLength": 96877
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image.png",
+        "contentType": "image/png",
+        "byteLength": 96877
+      }
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/76d0valw",
+      "id": "9",
+      "name": "brand-homeops",
+      "bbox": [
+        102,
+        32,
+        116,
+        35
+      ],
+      "geometry": "rect",
+      "text": "HomeOps",
+      "textPreview": "HomeOps",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "HomeOps"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "HomeOps",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos Display",
+            "color": "#0E1B33",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "HomeOps",
+              "fontSize": 21.33,
+              "typeface": "Aptos Display",
+              "color": "#0E1B33",
+              "bold": true
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/fetwf6lo",
+      "id": "10",
+      "name": "brand-360",
+      "bbox": [
+        202,
+        32,
+        52,
+        35
+      ],
+      "geometry": "rect",
+      "text": "360",
+      "textPreview": "360",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "360"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "360",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos Display",
+            "color": "#2E6BFF",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "360",
+              "fontSize": 21.33,
+              "typeface": "Aptos Display",
+              "color": "#2E6BFF",
+              "bold": true
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ud0f6143",
+      "id": "11",
+      "name": "eyebrow",
+      "bbox": [
+        995,
+        37,
+        229,
+        23
+      ],
+      "geometry": "rect",
+      "text": "BUSINESS MODEL",
+      "textPreview": "BUSINESS MODEL",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "BUSINESS MODEL"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "BUSINESS MODEL",
+          "resolvedTextStyle": {
+            "fontSize": 13.33,
+            "typeface": "Aptos",
+            "color": "#54617A",
+            "bold": true,
+            "alignment": "right"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "BUSINESS MODEL",
+              "fontSize": 13.33,
+              "typeface": "Aptos",
+              "color": "#54617A",
+              "bold": true
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 12,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/1gbyhg3u",
+      "id": "12",
+      "name": "title",
+      "bbox": [
+        56,
+        99,
+        1168,
+        61
+      ],
+      "geometry": "rect",
+      "text": "HomeOps360 converts rental workflows into recurring revenue",
+      "textPreview": "HomeOps360 converts rental workflows into recurring revenue",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "HomeOps360 converts rental workflows into recurring revenue"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "HomeOps360 converts rental workflows into recurring revenue",
+          "resolvedTextStyle": {
+            "fontSize": 40,
+            "typeface": "Aptos Display",
+            "color": "#0E1B33",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "HomeOps360 converts rental workflows into recurring revenue",
+              "fontSize": 40,
+              "typeface": "Aptos Display",
+              "color": "#0E1B33",
+              "bold": true
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 13,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/gf2x8bm9",
+      "id": "13",
+      "name": "subtitle",
+      "bbox": [
+        56,
+        169,
+        1168,
+        32
+      ],
+      "geometry": "rect",
+      "text": "Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.",
+      "textPreview": "Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos",
+            "color": "#54617A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Owners pay to run the portfolio; every monthly workflow deepens retention and opens expansion revenue.",
+              "fontSize": 21.33,
+              "typeface": "Aptos",
+              "color": "#54617A"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 14,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/7q9wbm5s",
+      "id": "14",
+      "name": "title-rule",
+      "bbox": [
+        56,
+        227,
+        1168,
+        2
+      ],
+      "geometry": "rect",
+      "fillColor": "#D9E1EA",
+      "lineWidth": 0
+    },
+    {
+      "order": 15,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/6p0f2h47",
+      "id": "15",
+      "name": "step-01",
+      "bbox": [
+        80,
+        294,
+        56,
+        31
+      ],
+      "geometry": "rect",
+      "text": "01",
+      "textPreview": "01",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "01"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "01",
+          "resolvedTextStyle": {
+            "fontSize": 16,
+            "typeface": "Aptos",
+            "color": "#10C8B0",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "01",
+              "fontSize": 16,
+              "typeface": "Aptos",
+              "color": "#10C8B0",
+              "bold": true
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 16,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/tsredw3i",
+      "id": "16",
+      "name": "who-pays",
+      "bbox": [
+        80,
+        331,
+        253,
+        32
+      ],
+      "geometry": "rect",
+      "text": "WHO PAYS",
+      "textPreview": "WHO PAYS",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "WHO PAYS"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "WHO PAYS",
+          "resolvedTextStyle": {
+            "fontSize": 16,
+            "typeface": "Aptos",
+            "color": "#54617A",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "WHO PAYS",
+              "fontSize": 16,
+              "typeface": "Aptos",
+              "color": "#54617A",
+              "bold": true
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 17,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/srix4rmd",
+      "id": "17",
+      "name": "payer-heading",
+      "bbox": [
+        80,
+        373,
+        269,
+        83
+      ],
+      "geometry": "rect",
+      "text": "Owners &\nagents",
+      "textPreview": "Owners & | agents",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Owners &"
+          },
+          {
+            "index": 2,
+            "text": "agents"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Owners &",
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Aptos Display",
+            "color": "#0E1B33",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Owners &",
+              "fontSize": 32,
+              "typeface": "Aptos Display",
+              "color": "#0E1B33",
+              "bold": true
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        },
+        {
+          "index": 2,
+          "text": "agents",
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Aptos Display",
+            "color": "#0E1B33",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "agents",
+              "fontSize": 32,
+              "typeface": "Aptos Display",
+              "color": "#0E1B33",
+              "bold": true
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 18,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/jm9w7m5g",
+      "id": "18",
+      "name": "payer-body",
+      "bbox": [
+        80,
+        461,
+        269,
+        139
+      ],
+      "geometry": "rect",
+      "text": "Manage more units with less admin:\n\n• Properties & tenancies\n• Rent, utilities & expenses\n• Payment proof & reporting",
+      "textPreview": "Manage more units with less admin: |  | • Properties & tenancies | • Rent, utilities & expenses | • Payment proof & reporting",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 6,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Manage more units with less"
+          },
+          {
+            "index": 2,
+            "text": "admin:"
+          },
+          {
+            "index": 3,
+            "text": ""
+          },
+          {
+            "index": 4,
+            "text": "• Properties & tenancies"
+          },
+          {
+            "index": 5,
+            "text": "• Rent, utilities & expenses"
+          },
+          {
+            "index": 6,
+            "text": "• Payment proof & reporting"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Manage more units with less admin:",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos",
+            "color": "#54617A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Manage more units with less admin:",
+              "fontSize": 21.33,
+              "typeface": "Aptos",
+              "color": "#54617A"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        },
+        {
+          "index": 3,
+          "text": "• Properties & tenancies",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos",
+            "color": "#54617A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "• Properties & tenancies",
+              "fontSize": 21.33,
+              "typeface": "Aptos",
+              "color": "#54617A"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        },
+        {
+          "index": 4,
+          "text": "• Rent, utilities & expenses",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos",
+            "color": "#54617A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "• Rent, utilities & expenses",
+              "fontSize": 21.33,
+              "typeface": "Aptos",
+              "color": "#54617A"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        },
+        {
+          "index": 5,
+          "text": "• Payment proof & reporting",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos",
+            "color": "#54617A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "• Payment proof & reporting",
+              "fontSize": 21.33,
+              "typeface": "Aptos",
+              "color": "#54617A"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 19,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ilgfyh4v",
+      "id": "19",
+      "name": "step-02",
+      "bbox": [
+        482,
+        294,
+        56,
+        31
+      ],
+      "geometry": "rect",
+      "text": "02",
+      "textPreview": "02",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "02"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "02",
+          "resolvedTextStyle": {
+            "fontSize": 16,
+            "typeface": "Aptos",
+            "color": "#10C8B0",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "02",
+              "fontSize": 16,
+              "typeface": "Aptos",
+              "color": "#10C8B0",
+              "bold": true
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 20,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/mhgfqho3",
+      "id": "20",
+      "name": "operating-layer",
+      "bbox": [
+        482,
+        331,
+        293,
+        32
+      ],
+      "geometry": "rect",
+      "text": "THE OPERATING LAYER",
+      "textPreview": "THE OPERATING LAYER",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "THE OPERATING LAYER"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "THE OPERATING LAYER",
+          "resolvedTextStyle": {
+            "fontSize": 16,
+            "typeface": "Aptos",
+            "color": "#B8C7DD",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "THE OPERATING LAYER",
+              "fontSize": 16,
+              "typeface": "Aptos",
+              "color": "#B8C7DD",
+              "bold": true
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 21,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/nipgjmpo",
+      "id": "21",
+      "name": "platform-heading",
+      "bbox": [
+        482,
+        373,
+        301,
+        83
+      ],
+      "geometry": "rect",
+      "text": "One workspace for\nthe full rental cycle",
+      "textPreview": "One workspace for | the full rental cycle",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "One workspace for"
+          },
+          {
+            "index": 2,
+            "text": "the full rental cycle"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "One workspace for",
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Aptos Display",
+            "color": "#FFFFFF",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "One workspace for",
+              "fontSize": 32,
+              "typeface": "Aptos Display",
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        },
+        {
+          "index": 2,
+          "text": "the full rental cycle",
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Aptos Display",
+            "color": "#FFFFFF",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "the full rental cycle",
+              "fontSize": 32,
+              "typeface": "Aptos Display",
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 22,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/8jyxsr6t",
+      "id": "22",
+      "name": "platform-body",
+      "bbox": [
+        482,
+        453,
+        301,
+        155
+      ],
+      "geometry": "rect",
+      "text": "OWNER APP\nPortfolio • billing • approvals\nTENANT PORTAL\nBills • proof • requests\nEXPLORE\nVerified room discovery",
+      "textPreview": "OWNER APP | Portfolio • billing • approvals | TENANT PORTAL | Bills • proof • requests | EXPLORE | Verified room discovery",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 6,
+        "lines": [
+          {
+            "index": 1,
+            "text": "OWNER APP"
+          },
+          {
+            "index": 2,
+            "text": "Portfolio • billing • approvals"
+          },
+          {
+            "index": 3,
+            "text": "TENANT PORTAL"
+          },
+          {
+            "index": 4,
+            "text": "Bills • proof • requests"
+          },
+          {
+            "index": 5,
+            "text": "EXPLORE"
+          },
+          {
+            "index": 6,
+            "text": "Verified room discovery"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "OWNER APP",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos",
+            "color": "#DDE7F5",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "OWNER APP",
+              "fontSize": 21.33,
+              "typeface": "Aptos",
+              "color": "#DDE7F5"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        },
+        {
+          "index": 2,
+          "text": "Portfolio • billing • approvals",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos",
+            "color": "#DDE7F5",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Portfolio • billing • approvals",
+              "fontSize": 21.33,
+              "typeface": "Aptos",
+              "color": "#DDE7F5"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        },
+        {
+          "index": 3,
+          "text": "TENANT PORTAL",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos",
+            "color": "#DDE7F5",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "TENANT PORTAL",
+              "fontSize": 21.33,
+              "typeface": "Aptos",
+              "color": "#DDE7F5"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        },
+        {
+          "index": 4,
+          "text": "Bills • proof • requests",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos",
+            "color": "#DDE7F5",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Bills • proof • requests",
+              "fontSize": 21.33,
+              "typeface": "Aptos",
+              "color": "#DDE7F5"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        },
+        {
+          "index": 5,
+          "text": "EXPLORE",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos",
+            "color": "#DDE7F5",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "EXPLORE",
+              "fontSize": 21.33,
+              "typeface": "Aptos",
+              "color": "#DDE7F5"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        },
+        {
+          "index": 6,
+          "text": "Verified room discovery",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos",
+            "color": "#DDE7F5",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Verified room discovery",
+              "fontSize": 21.33,
+              "typeface": "Aptos",
+              "color": "#DDE7F5"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 23,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/9k7ylc7e",
+      "id": "23",
+      "name": "step-03",
+      "bbox": [
+        920,
+        294,
+        56,
+        31
+      ],
+      "geometry": "rect",
+      "text": "03",
+      "textPreview": "03",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "03"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "03",
+          "resolvedTextStyle": {
+            "fontSize": 16,
+            "typeface": "Aptos",
+            "color": "#2E6BFF",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "03",
+              "fontSize": 16,
+              "typeface": "Aptos",
+              "color": "#2E6BFF",
+              "bold": true
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 24,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/algfuhoz",
+      "id": "24",
+      "name": "how-monetizes",
+      "bbox": [
+        920,
+        331,
+        253,
+        32
+      ],
+      "geometry": "rect",
+      "text": "HOW IT MONETIZES",
+      "textPreview": "HOW IT MONETIZES",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "HOW IT MONETIZES"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "HOW IT MONETIZES",
+          "resolvedTextStyle": {
+            "fontSize": 16,
+            "typeface": "Aptos",
+            "color": "#54617A",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "HOW IT MONETIZES",
+              "fontSize": 16,
+              "typeface": "Aptos",
+              "color": "#54617A",
+              "bold": true
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 25,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/vmpgnmpk",
+      "id": "25",
+      "name": "revenue-heading",
+      "bbox": [
+        920,
+        373,
+        269,
+        83
+      ],
+      "geometry": "rect",
+      "text": "SaaS first.\nExpand with usage.",
+      "textPreview": "SaaS first. | Expand with usage.",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": "SaaS first."
+          },
+          {
+            "index": 2,
+            "text": "Expand with"
+          },
+          {
+            "index": 3,
+            "text": "usage."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "SaaS first.",
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Aptos Display",
+            "color": "#0E1B33",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "SaaS first.",
+              "fontSize": 32,
+              "typeface": "Aptos Display",
+              "color": "#0E1B33",
+              "bold": true
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        },
+        {
+          "index": 2,
+          "text": "Expand with usage.",
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Aptos Display",
+            "color": "#0E1B33",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Expand with usage.",
+              "fontSize": 32,
+              "typeface": "Aptos Display",
+              "color": "#0E1B33",
+              "bold": true
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 26,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/wnihwr65",
+      "id": "26",
+      "name": "revenue-body",
+      "bbox": [
+        920,
+        453,
+        269,
+        155
+      ],
+      "geometry": "rect",
+      "text": "1  Tiered subscription\n    Units • tenants • features\n2  Promoted listings\n    Paid Explore visibility\n3  Future service fees\n    Payments • partners",
+      "textPreview": "1  Tiered subscription |     Units • tenants • features | 2  Promoted listings |     Paid Explore visibility | 3  Future service fees |  ...",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 6,
+        "lines": [
+          {
+            "index": 1,
+            "text": "1  Tiered subscription"
+          },
+          {
+            "index": 2,
+            "text": "    Units • tenants • features"
+          },
+          {
+            "index": 3,
+            "text": "2  Promoted listings"
+          },
+          {
+            "index": 4,
+            "text": "    Paid Explore visibility"
+          },
+          {
+            "index": 5,
+            "text": "3  Future service fees"
+          },
+          {
+            "index": 6,
+            "text": "    Payments • partners"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "1  Tiered subscription",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos",
+            "color": "#54617A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "1  Tiered subscription",
+              "fontSize": 21.33,
+              "typeface": "Aptos",
+              "color": "#54617A"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        },
+        {
+          "index": 2,
+          "text": "    Units • tenants • features",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos",
+            "color": "#54617A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "    Units • tenants • features",
+              "fontSize": 21.33,
+              "typeface": "Aptos",
+              "color": "#54617A"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        },
+        {
+          "index": 3,
+          "text": "2  Promoted listings",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos",
+            "color": "#54617A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "2  Promoted listings",
+              "fontSize": 21.33,
+              "typeface": "Aptos",
+              "color": "#54617A"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        },
+        {
+          "index": 4,
+          "text": "    Paid Explore visibility",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos",
+            "color": "#54617A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "    Paid Explore visibility",
+              "fontSize": 21.33,
+              "typeface": "Aptos",
+              "color": "#54617A"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        },
+        {
+          "index": 5,
+          "text": "3  Future service fees",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos",
+            "color": "#54617A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "3  Future service fees",
+              "fontSize": 21.33,
+              "typeface": "Aptos",
+              "color": "#54617A"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        },
+        {
+          "index": 6,
+          "text": "    Payments • partners",
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Aptos",
+            "color": "#54617A",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "    Payments • partners",
+              "fontSize": 21.33,
+              "typeface": "Aptos",
+              "color": "#54617A"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 27,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/xorypw7q",
+      "id": "27",
+      "name": "arrow-one",
+      "bbox": [
+        392,
+        405,
+        59,
+        53
+      ],
+      "geometry": "rect",
+      "text": "→",
+      "textPreview": "→",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "→"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "→",
+          "resolvedTextStyle": {
+            "fontSize": 37.33,
+            "typeface": "Aptos Display",
+            "color": "#A8B5C5",
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "→",
+              "fontSize": 37.33,
+              "typeface": "Aptos Display",
+              "color": "#A8B5C5"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 28,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ip0zy1ob",
+      "id": "28",
+      "name": "arrow-two",
+      "bbox": [
+        829,
+        405,
+        59,
+        53
+      ],
+      "geometry": "rect",
+      "text": "→",
+      "textPreview": "→",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "→"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "→",
+          "resolvedTextStyle": {
+            "fontSize": 37.33,
+            "typeface": "Aptos Display",
+            "color": "#A8B5C5",
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "→",
+              "fontSize": 37.33,
+              "typeface": "Aptos Display",
+              "color": "#A8B5C5"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 29,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/jq9gr6pg",
+      "id": "29",
+      "name": "flywheel-label",
+      "bbox": [
+        75,
+        654,
+        221,
+        19
+      ],
+      "geometry": "rect",
+      "text": "LAND-AND-EXPAND ENGINE",
+      "textPreview": "LAND-AND-EXPAND ENGINE",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "LAND-AND-EXPAND ENGINE"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "LAND-AND-EXPAND ENGINE",
+          "resolvedTextStyle": {
+            "fontSize": 13.33,
+            "typeface": "Aptos",
+            "color": "#067F72",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "LAND-AND-EXPAND ENGINE",
+              "fontSize": 13.33,
+              "typeface": "Aptos",
+              "color": "#067F72",
+              "bold": true
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 30,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/tkbih0ry",
+      "id": "30",
+      "name": "flywheel-copy",
+      "bbox": [
+        304,
+        651,
+        891,
+        24
+      ],
+      "geometry": "rect",
+      "text": "More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion",
+      "textPreview": "More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion",
+          "resolvedTextStyle": {
+            "fontSize": 17.33,
+            "typeface": "Aptos",
+            "color": "#0E1B33",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "More managed units  →  more recurring workflows  →  higher retention  →  subscription expansion",
+              "fontSize": 17.33,
+              "typeface": "Aptos",
+              "color": "#0E1B33",
+              "bold": true
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 31,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/sj21ovqd",
+      "id": "31",
+      "name": "assumption-note",
+      "bbox": [
+        56,
+        691,
+        1168,
+        15
+      ],
+      "geometry": "rect",
+      "text": "Proposed monetization model; final packaging and pricing to be validated with pilot customers.",
+      "textPreview": "Proposed monetization model; final packaging and pricing to be validated with pilot customers.",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 24,
+        "typeface": "Calibri",
+        "color": "tx1",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Proposed monetization model; final packaging and pricing to be validated with pilot customers."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Proposed monetization model; final packaging and pricing to be validated with pilot customers.",
+          "resolvedTextStyle": {
+            "fontSize": 12,
+            "typeface": "Aptos",
+            "color": "#748197",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Proposed monetization model; final packaging and pricing to be validated with pilot customers.",
+              "fontSize": 12,
+              "typeface": "Aptos",
+              "color": "#748197"
+            }
+          ],
+          "bulletCharacter": "",
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}

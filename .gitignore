@@ -38,6 +38,7 @@ tmp/
 web/downloads/*.apk
 .agents/
 .wrangler/
+node_modules/
 *.log
 flutter_server*.log
 flutter_web.*.log

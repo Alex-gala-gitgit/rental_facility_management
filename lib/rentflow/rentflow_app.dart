@@ -13,6 +13,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../branding/homeops_brand.dart';
+import '../branding/homeops_loading.dart';
 import '../cloud/invoice_portal_service.dart';
 import '../cloud/supabase_config.dart';
 import '../file_upload/payment_proof_picker.dart';
@@ -63,6 +64,7 @@ const _tenantPortalChinese = <String, String>{
   'Payment confirmed': '付款已确认',
   'Awaiting owner confirmation': '等待业主确认',
   'Download receipt': '下载收据',
+  'Back to Home': '返回主页',
   'The invoice PDF is unavailable.': '发票 PDF 暂时无法使用。',
   'The invoice PDF could not be opened.': '无法打开此发票 PDF。',
   'Payment proof PDF must be smaller than 2 MB.': '付款凭证 PDF 必须小于 2 MB。',
@@ -406,8 +408,8 @@ class RentalInvoice {
   final double currentReading;
   final String evidenceName;
   final bool evidenceRequired;
-  final String? evidencePath;
-  final Uint8List? evidenceBytes;
+  String? evidencePath;
+  Uint8List? evidenceBytes;
   final double generalElectricAmount;
   final double parkingRentalAmount;
   final String electricityTariffName;
@@ -508,6 +510,7 @@ class RentFlowStore extends ChangeNotifier {
   late final InvoicePortalService _portalService = InvoicePortalService(_cloud);
   final String? portalInvoiceId;
   final String? portalToken;
+  final bool authenticatedTenantAccess;
   bool loading = true;
   String? error;
 
@@ -561,7 +564,11 @@ class RentFlowStore extends ChangeNotifier {
   final invoices = <RentalInvoice>[];
   final notifications = <String>[];
 
-  RentFlowStore({this.portalInvoiceId, this.portalToken}) {
+  RentFlowStore({
+    this.portalInvoiceId,
+    this.portalToken,
+    this.authenticatedTenantAccess = false,
+  }) {
     if (portalInvoiceId != null || portalToken != null) {
       loadPortalInvoice();
       return;
@@ -636,14 +643,25 @@ class RentFlowStore extends ChangeNotifier {
 
   Future<void> loadPortalInvoice() async {
     try {
-      final token = portalToken?.trim() ?? '';
-      if (token.isEmpty) {
-        throw const AuthException('This secure invoice link is incomplete.');
+      late final Map<String, dynamic> row;
+      if (authenticatedTenantAccess) {
+        final invoiceId = portalInvoiceId?.trim() ?? '';
+        if (invoiceId.isEmpty) {
+          throw const AuthException('The monthly invoice id is missing.');
+        }
+        row = await _portalService.loadForSignedInTenant(
+          invoiceId: invoiceId,
+        );
+      } else {
+        final token = portalToken?.trim() ?? '';
+        if (token.isEmpty) {
+          throw const AuthException('This secure invoice link is incomplete.');
+        }
+        row = await _portalService.load(
+          invoiceId: portalInvoiceId,
+          token: token,
+        );
       }
-      final row = await _portalService.load(
-        invoiceId: portalInvoiceId,
-        token: token,
-      );
       invoices
         ..clear()
         ..add(_invoiceFromRow(row));
@@ -737,6 +755,23 @@ class RentFlowStore extends ChangeNotifier {
     required DateTime paymentDate,
     String? paymentReference,
   }) async {
+    if (authenticatedTenantAccess) {
+      await _portalService.submitPaymentForSignedInTenant(
+        invoiceId: invoice.id,
+        fileName: name,
+        bytes: bytes,
+        paymentReference: paymentReference,
+      );
+      invoice
+        ..slipName = name
+        ..amountPaid = amountPaid
+        ..paymentDate = paymentDate
+        ..paymentReference = paymentReference?.trim()
+        ..slipSubmittedAt = DateTime.now()
+        ..status = InvoiceStatus.slipSubmitted;
+      notifyListeners();
+      return;
+    }
     final token = invoice.portalToken ?? portalToken;
     if (token != null && token.isNotEmpty) {
       await _portalService.submitPayment(
@@ -1423,6 +1458,19 @@ class _TenantInvoicePageState extends State<TenantInvoicePage> {
   bool authenticatedAccessChecked = false;
   String? error;
 
+  Future<void> returnToMainPage() async {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+    await launchUrl(
+      Uri.parse(tenantPortalBaseUrlForHost(Uri.base.host)),
+      mode: LaunchMode.platformDefault,
+      webOnlyWindowName: kIsWeb ? '_self' : null,
+    );
+  }
+
   void applyAuthenticatedAccess(RentalInvoice invoice) {
     if (authenticatedAccessChecked) return;
     authenticatedAccessChecked = true;
@@ -1539,7 +1587,11 @@ class _TenantInvoicePageState extends State<TenantInvoicePage> {
         ? (store.invoices.isEmpty ? null : store.invoices.first)
         : store.invoice(widget.invoiceId!);
     if (store.loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: Center(
+          child: HomeOpsLoadingCard(label: 'Loading invoice'),
+        ),
+      );
     }
     if (invoice == null) {
       return Scaffold(
@@ -1591,7 +1643,10 @@ class _TenantInvoicePageState extends State<TenantInvoicePage> {
             error = null;
           }),
           child: completed
-              ? _PaymentSubmittedView(invoice: invoice)
+              ? _PaymentSubmittedView(
+                  invoice: invoice,
+                  onBackToHome: returnToMainPage,
+                )
               : verified
                   ? _InvoiceSettlementView(
                       invoice: invoice,
@@ -2964,8 +3019,12 @@ Future<void> _showPaymentQr(
 }
 
 class _PaymentSubmittedView extends StatelessWidget {
-  const _PaymentSubmittedView({required this.invoice});
+  const _PaymentSubmittedView({
+    required this.invoice,
+    required this.onBackToHome,
+  });
   final RentalInvoice invoice;
+  final VoidCallback onBackToHome;
   @override
   Widget build(BuildContext context) => Center(
         child: SingleChildScrollView(
@@ -2983,9 +3042,30 @@ class _PaymentSubmittedView extends StatelessWidget {
                       offset: Offset(0, 14))
                 ]),
             child: Column(children: [
-              const Align(
-                alignment: Alignment.centerRight,
-                child: _TenantPortalLanguageSwitch(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(
+                    key: const Key('payment-submitted-back-button'),
+                    onPressed: onBackToHome,
+                    tooltip: _portalText(context, 'Back to Home'),
+                    style: IconButton.styleFrom(
+                      foregroundColor: const Color(0xFF1F6FD1),
+                      backgroundColor: const Color(0xFFEAF3FF),
+                      fixedSize: const Size.square(44),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13),
+                        side: const BorderSide(color: Color(0xFFCFE2FA)),
+                      ),
+                    ),
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      size: 24,
+                      semanticLabel: 'Back to Home',
+                    ),
+                  ),
+                  const _TenantPortalLanguageSwitch(),
+                ],
               ),
               const CircleAvatar(
                   radius: 35,

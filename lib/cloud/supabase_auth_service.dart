@@ -139,6 +139,23 @@ class SupabaseAuthService {
     );
   }
 
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final email = client.auth.currentUser?.email;
+    if (email == null || email.isEmpty) {
+      throw const AuthException('Please sign in again.');
+    }
+    await client.auth.signInWithPassword(
+      email: email,
+      password: currentPassword,
+    );
+    await client.auth.updateUser(
+      UserAttributes(password: newPassword),
+    );
+  }
+
   Future<void> inviteTenant({
     required String email,
     required String fullName,

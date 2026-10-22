@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../cloud/room_listing_service.dart';
+import '../branding/homeops_loading.dart';
 import '../file_upload/image_file_picker.dart';
 
 const _ink = Color(0xFF111827);
@@ -195,7 +196,9 @@ class _TenantExploreTabState extends State<TenantExploreTab> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const SliverFillRemaining(
                     hasScrollBody: false,
-                    child: Center(child: CircularProgressIndicator()),
+                    child: Center(
+                      child: HomeOpsLoadingCard(label: 'Loading rooms'),
+                    ),
                   );
                 }
                 if (snapshot.hasError) {
@@ -228,35 +231,60 @@ class _TenantExploreTabState extends State<TenantExploreTab> {
                   );
                 }
                 return SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(10, 4, 10, 28),
-                  sliver: SliverGrid(
+                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 28),
+                  sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
-                        final listing = items[index];
-                        return _ExploreRoomCard(
-                          listing: listing,
-                          saved: savedIds.contains(listing.id),
-                          onSaved: () => setState(() {
-                            if (!savedIds.add(listing.id)) {
-                              savedIds.remove(listing.id);
-                            }
-                          }),
-                          onTap: () => Navigator.of(context).push<void>(
-                            MaterialPageRoute<void>(
-                              builder: (_) =>
-                                  RoomListingDetailScreen(listing: listing),
+                        if (index == 0) {
+                          return Padding(
+                            padding: const EdgeInsets.fromLTRB(2, 2, 2, 12),
+                            child: Row(
+                              children: [
+                                Text(
+                                  '${items.length} ${items.length == 1 ? 'room' : 'rooms'} available',
+                                  style: const TextStyle(
+                                    color: _ink,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                const Spacer(),
+                                const Icon(Icons.verified_rounded,
+                                    size: 16, color: _blue),
+                                const SizedBox(width: 4),
+                                const Text(
+                                  'Verified hosts',
+                                  style: TextStyle(
+                                    color: _blue,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                        final listing = items[index - 1];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _ExploreRoomCard(
+                            listing: listing,
+                            saved: savedIds.contains(listing.id),
+                            onSaved: () => setState(() {
+                              if (!savedIds.add(listing.id)) {
+                                savedIds.remove(listing.id);
+                              }
+                            }),
+                            onTap: () => Navigator.of(context).push<void>(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    RoomListingDetailScreen(listing: listing),
+                              ),
                             ),
                           ),
                         );
                       },
-                      childCount: items.length,
-                    ),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 14,
-                      crossAxisSpacing: 10,
-                      childAspectRatio: 0.59,
+                      childCount: items.length + 1,
                     ),
                   ),
                 );
@@ -388,128 +416,181 @@ class _ExploreRoomCard extends StatelessWidget {
   Widget build(BuildContext context) => Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        elevation: 1,
+        shadowColor: const Color(0x1A101828),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 6,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    _ListingImage(url: listing.imageUrls.firstOrNull),
-                    Positioned(
-                      left: 8,
-                      bottom: 8,
-                      child: _TinyBadge(
-                        label: listing.roomType,
-                        color: Colors.white.withOpacity(0.92),
-                      ),
-                    ),
-                    Positioned(
-                      right: 7,
-                      top: 7,
-                      child: Material(
-                        color: Colors.white.withOpacity(0.92),
-                        shape: const CircleBorder(),
-                        child: IconButton(
-                          constraints: const BoxConstraints.tightFor(
-                              width: 34, height: 34),
-                          padding: EdgeInsets.zero,
-                          onPressed: onSaved,
-                          icon: Icon(
-                            saved
-                                ? Icons.favorite_rounded
-                                : Icons.favorite_border_rounded,
-                            size: 19,
-                            color: saved ? const Color(0xFFE84C5B) : _ink,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                flex: 5,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(9, 8, 9, 9),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          child: SizedBox(
+            height: 194,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: 142,
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      Text(
-                        listing.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: _ink,
-                          fontSize: 13,
-                          height: 1.2,
-                          fontWeight: FontWeight.w800,
+                      _ListingImage(url: listing.imageUrls.firstOrNull),
+                      Positioned(
+                        left: 8,
+                        top: 8,
+                        child: _TinyBadge(
+                          label: listing.roomType,
+                          color: Colors.white.withOpacity(0.92),
                         ),
                       ),
-                      const SizedBox(height: 5),
-                      Text(
-                          'RM ${listing.monthlyRent.toStringAsFixed(0)} / month',
-                          style: const TextStyle(
-                            color: _blue,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w900,
-                          )),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(Icons.location_on_outlined,
-                              size: 13, color: _muted),
-                          const SizedBox(width: 2),
-                          Expanded(
-                            child: Text(
-                              listing.location,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style:
-                                  const TextStyle(color: _muted, fontSize: 10),
+                      Positioned(
+                        right: 7,
+                        top: 7,
+                        child: Material(
+                          color: Colors.white.withOpacity(0.92),
+                          shape: const CircleBorder(),
+                          child: IconButton(
+                            constraints: const BoxConstraints.tightFor(
+                                width: 34, height: 34),
+                            padding: EdgeInsets.zero,
+                            onPressed: onSaved,
+                            icon: Icon(
+                              saved
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              size: 19,
+                              color: saved ? const Color(0xFFE84C5B) : _ink,
                             ),
                           ),
-                        ],
-                      ),
-                      const Spacer(),
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 10,
-                            backgroundColor: const Color(0xFFEAF3FF),
-                            child: Text(
-                              listing.publisherName.isEmpty
-                                  ? 'H'
-                                  : listing.publisherName[0].toUpperCase(),
-                              style: const TextStyle(
-                                  color: _blue,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w900),
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          Expanded(
-                            child: Text(
-                              listing.publisherName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style:
-                                  const TextStyle(color: _muted, fontSize: 9),
-                            ),
-                          ),
-                          const Icon(Icons.verified_rounded,
-                              size: 13, color: _blue),
-                        ],
+                        ),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(13, 12, 12, 11),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          listing.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: _ink,
+                            fontSize: 15,
+                            height: 1.2,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                            'RM ${listing.monthlyRent.toStringAsFixed(0)} / month',
+                            style: const TextStyle(
+                              color: _blue,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                            )),
+                        const SizedBox(height: 5),
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on_outlined,
+                                size: 13, color: _muted),
+                            const SizedBox(width: 2),
+                            Expanded(
+                              child: Text(
+                                listing.location,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: _muted, fontSize: 11),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        Row(
+                          children: [
+                            const Icon(Icons.event_available_rounded,
+                                size: 13, color: Color(0xFF16856B)),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                'Available ${_dateLabel(listing.availableFrom)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFF16856B),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (listing.amenities.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            listing.amenities.take(3).join(' · '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: _muted,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                        const Spacer(),
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 10,
+                              backgroundColor: const Color(0xFFEAF3FF),
+                              child: Text(
+                                listing.publisherName.isEmpty
+                                    ? 'H'
+                                    : listing.publisherName[0].toUpperCase(),
+                                style: const TextStyle(
+                                    color: _blue,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w900),
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Text(
+                                listing.publisherName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style:
+                                    const TextStyle(color: _muted, fontSize: 9),
+                              ),
+                            ),
+                            const Icon(Icons.verified_rounded,
+                                size: 13, color: _blue),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 32,
+                          child: FilledButton(
+                            onPressed: onTap,
+                            style: FilledButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              textStyle: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            child: const Text('View room'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -749,6 +830,7 @@ class RoomListingManagerScreen extends StatefulWidget {
     required this.publisherName,
     required this.contactPhone,
     required this.listingLimit,
+    this.initialFacilityId,
     super.key,
   });
 
@@ -756,6 +838,7 @@ class RoomListingManagerScreen extends StatefulWidget {
   final String publisherName;
   final String contactPhone;
   final int listingLimit;
+  final String? initialFacilityId;
 
   @override
   State<RoomListingManagerScreen> createState() =>
@@ -779,10 +862,10 @@ class _RoomListingManagerScreenState extends State<RoomListingManagerScreen> {
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: _canvas,
         appBar: AppBar(
-          title: const Text('Room listings'),
+          title: const Text('Publish Unit'),
           actions: [
             IconButton(
-              tooltip: 'New listing',
+              tooltip: 'Publish unit',
               onPressed: () => edit(),
               icon: const Icon(Icons.add_rounded),
             ),
@@ -792,7 +875,9 @@ class _RoomListingManagerScreenState extends State<RoomListingManagerScreen> {
           future: future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(
+                child: HomeOpsLoadingCard(label: 'Loading listings'),
+              );
             }
             if (snapshot.hasError) {
               return _ExploreMessage(
@@ -807,13 +892,20 @@ class _RoomListingManagerScreenState extends State<RoomListingManagerScreen> {
             if (listings.isEmpty) {
               return _ExploreMessage(
                 icon: Icons.add_home_work_outlined,
-                title: 'Publish your first room',
+                title: 'Publish your first unit',
                 message:
-                    'Add photos, rent, location and availability. Published posts appear in every tenant Explore feed.',
-                actionLabel: 'Create listing',
+                    'Add photos, rent and availability. Your live post appears in Tenant Explore.',
+                actionLabel: 'Publish Unit',
                 onAction: () => edit(),
               );
             }
+            final liveCount =
+                listings.where((listing) => listing.isPublished).length;
+            final draftCount =
+                listings.where((listing) => listing.status == 'draft').length;
+            final pausedCount = listings
+                .where((listing) => listing.status == 'archived')
+                .length;
             return RefreshIndicator(
               onRefresh: () async {
                 reload();
@@ -821,17 +913,27 @@ class _RoomListingManagerScreenState extends State<RoomListingManagerScreen> {
               },
               child: ListView.separated(
                 padding: const EdgeInsets.all(14),
-                itemCount: listings.length,
+                itemCount: listings.length + 1,
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
-                itemBuilder: (_, index) => _ManagerListingCard(
-                  listing: listings[index],
-                  onEdit: () => edit(listings[index]),
-                  onStatus: (status) async {
-                    await service.updateStatus(listings[index].id, status);
-                    reload();
-                  },
-                  onDelete: () => remove(listings[index]),
-                ),
+                itemBuilder: (_, index) {
+                  if (index == 0) {
+                    return _ListingManagerSummary(
+                      live: liveCount,
+                      draft: draftCount,
+                      paused: pausedCount,
+                    );
+                  }
+                  final listing = listings[index - 1];
+                  return _ManagerListingCard(
+                    listing: listing,
+                    onEdit: () => edit(listing),
+                    onStatus: (status) async {
+                      await service.updateStatus(listing.id, status);
+                      reload();
+                    },
+                    onDelete: () => remove(listing),
+                  );
+                },
               ),
             );
           },
@@ -862,6 +964,7 @@ class _RoomListingManagerScreenState extends State<RoomListingManagerScreen> {
           publisherName: widget.publisherName,
           contactPhone: widget.contactPhone,
           listing: listing,
+          initialFacilityId: widget.initialFacilityId,
         ),
       ),
     );
@@ -890,6 +993,100 @@ class _RoomListingManagerScreenState extends State<RoomListingManagerScreen> {
     await service.delete(listing);
     reload();
   }
+}
+
+class _ListingManagerSummary extends StatelessWidget {
+  const _ListingManagerSummary({
+    required this.live,
+    required this.draft,
+    required this.paused,
+  });
+
+  final int live;
+  final int draft;
+  final int paused;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF2476D9), Color(0xFF1654AC)],
+          ),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.sync_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Owner app → Tenant Explore',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                _TinyBadge(
+                  label: 'LIVE SYNC',
+                  color: Color(0x3329D6A4),
+                  foreground: Colors.white,
+                ),
+              ],
+            ),
+            const SizedBox(height: 7),
+            const Text(
+              'Published units appear instantly for signed-in tenants.',
+              style: TextStyle(color: Color(0xFFDCEBFF), fontSize: 12),
+            ),
+            const SizedBox(height: 13),
+            Row(
+              children: [
+                _ListingCount(label: 'Live', value: live),
+                const SizedBox(width: 8),
+                _ListingCount(label: 'Draft', value: draft),
+                const SizedBox(width: 8),
+                _ListingCount(label: 'Paused', value: paused),
+              ],
+            ),
+          ],
+        ),
+      );
+}
+
+class _ListingCount extends StatelessWidget {
+  const _ListingCount({required this.label, required this.value});
+
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(.13),
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: Column(
+            children: [
+              Text('$value',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900)),
+              Text(label,
+                  style:
+                      const TextStyle(color: Color(0xFFDCEBFF), fontSize: 10)),
+            ],
+          ),
+        ),
+      );
 }
 
 class _ManagerListingCard extends StatelessWidget {
@@ -948,8 +1145,8 @@ class _ManagerListingCard extends StatelessWidget {
                             value: listing.isPublished
                                 ? 'status:archived'
                                 : 'status:published',
-                            child: Text(
-                                listing.isPublished ? 'Unpublish' : 'Publish'),
+                            child:
+                                Text(listing.isPublished ? 'Pause' : 'Publish'),
                           ),
                           const PopupMenuItem(
                               value: 'status:rented',
@@ -964,11 +1161,11 @@ class _ManagerListingCard extends StatelessWidget {
                     Row(children: [
                       _TinyBadge(
                         label: listing.status == 'published'
-                            ? 'Published'
+                            ? 'Live'
                             : listing.status == 'rented'
                                 ? 'Rented'
                                 : listing.status == 'archived'
-                                    ? 'Archived'
+                                    ? 'Paused'
                                     : 'Draft',
                         color: listing.isPublished
                             ? const Color(0xFFE7F7ED)
@@ -1008,8 +1205,8 @@ class _ManagerListingCard extends StatelessWidget {
                         child: FilledButton(
                           onPressed: () => onStatus(
                               listing.isPublished ? 'archived' : 'published'),
-                          child: Text(
-                              listing.isPublished ? 'Unpublish' : 'Publish'),
+                          child:
+                              Text(listing.isPublished ? 'Pause' : 'Publish'),
                         ),
                       ),
                     ]),
@@ -1028,6 +1225,7 @@ class RoomListingEditorScreen extends StatefulWidget {
     required this.publisherName,
     required this.contactPhone,
     this.listing,
+    this.initialFacilityId,
     super.key,
   });
 
@@ -1035,6 +1233,7 @@ class RoomListingEditorScreen extends StatefulWidget {
   final String publisherName;
   final String contactPhone;
   final RoomListing? listing;
+  final String? initialFacilityId;
 
   @override
   State<RoomListingEditorScreen> createState() =>
@@ -1067,7 +1266,8 @@ class _RoomListingEditorScreenState extends State<RoomListingEditorScreen> {
   late DateTime availableFrom = widget.listing?.availableFrom ?? DateTime.now();
   late String status = widget.listing?.status ?? 'draft';
   late bool isFeatured = widget.listing?.isFeatured ?? false;
-  late String? facilityId = widget.listing?.sourceFacilityId;
+  late String? facilityId =
+      widget.listing?.sourceFacilityId ?? widget.initialFacilityId;
   late final retainedPaths = [...?widget.listing?.imagePaths];
   final newImages = <PickedImageData>[];
   final amenities = <String>{};
@@ -1090,6 +1290,18 @@ class _RoomListingEditorScreenState extends State<RoomListingEditorScreen> {
   void initState() {
     super.initState();
     amenities.addAll(widget.listing?.amenities ?? const []);
+    if (widget.listing == null && facilityId != null) {
+      final matches =
+          widget.facilities.where((item) => item.id == facilityId).toList();
+      if (matches.isNotEmpty) {
+        final facility = matches.first;
+        address.text = facility.addressLine;
+        postcode.text = facility.postcode;
+        city.text = facility.city;
+        state.text = facility.state;
+        title.text = '${facility.name} · ';
+      }
+    }
   }
 
   @override
@@ -1116,13 +1328,46 @@ class _RoomListingEditorScreenState extends State<RoomListingEditorScreen> {
         backgroundColor: _canvas,
         appBar: AppBar(
           title: Text(
-              widget.listing == null ? 'New room listing' : 'Edit listing'),
+              widget.listing == null ? 'Publish Unit' : 'Edit Unit Listing'),
         ),
         body: Form(
           key: formKey,
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              Container(
+                margin: const EdgeInsets.only(bottom: 14),
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF2476D9), Color(0xFF1654AC)],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.sync_rounded, color: Colors.white),
+                    SizedBox(width: 11),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Linked to Tenant Explore',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900)),
+                          SizedBox(height: 3),
+                          Text(
+                            'Publish once. Signed-in tenants see the live unit.',
+                            style: TextStyle(
+                                color: Color(0xFFDCEBFF), fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               _section(
                 'Room photos',
                 Column(
@@ -1191,6 +1436,7 @@ class _RoomListingEditorScreenState extends State<RoomListingEditorScreen> {
                   if (widget.facilities.isNotEmpty)
                     DropdownButtonFormField<String?>(
                       value: facilityId,
+                      isExpanded: true,
                       decoration: const InputDecoration(
                           labelText: 'Use property details (optional)'),
                       items: [
@@ -1209,8 +1455,8 @@ class _RoomListingEditorScreenState extends State<RoomListingEditorScreen> {
                     controller: title,
                     maxLength: 120,
                     decoration: const InputDecoration(
-                        labelText: 'Listing title',
-                        hintText: 'Bright master room near MRT'),
+                        labelText: 'Unit / listing title',
+                        hintText: 'MH Platinum 2 · M3'),
                     validator: (value) => (value?.trim().length ?? 0) < 5
                         ? 'Enter at least 5 characters.'
                         : null,
@@ -1369,12 +1615,6 @@ class _RoomListingEditorScreenState extends State<RoomListingEditorScreen> {
                             ? 'Enter a valid phone number.'
                             : null,
                   ),
-                  const SizedBox(height: 12),
-                  _dropdown(
-                      'Post status',
-                      status,
-                      const ['draft', 'published', 'archived'],
-                      (value) => setState(() => status = value)),
                   const SizedBox(height: 8),
                   SwitchListTile.adaptive(
                     contentPadding: EdgeInsets.zero,
@@ -1382,27 +1622,37 @@ class _RoomListingEditorScreenState extends State<RoomListingEditorScreen> {
                     onChanged: (value) => setState(() => isFeatured = value),
                     title: const Text('Promote this property'),
                     subtitle: const Text(
-                      'Show this listing before standard posts when tenant Explore reopens.',
+                      'Show this listing before standard posts in Tenant Explore.',
                     ),
                     secondary: const Icon(Icons.campaign_outlined),
                   ),
                 ]),
               ),
               const SizedBox(height: 4),
+              OutlinedButton.icon(
+                onPressed: saving ? null : () => save(statusOverride: 'draft'),
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Save draft'),
+              ),
+              const SizedBox(height: 10),
               FilledButton.icon(
-                onPressed: saving ? null : save,
+                onPressed: saving ? null : previewAndPublish,
                 icon: saving
                     ? const SizedBox.square(
                         dimension: 18,
                         child: CircularProgressIndicator(strokeWidth: 2))
-                    : Icon(status == 'published'
-                        ? Icons.public_rounded
-                        : Icons.save_outlined),
-                label: Text(saving
-                    ? 'Saving…'
-                    : status == 'published'
-                        ? 'Save & publish'
-                        : 'Save listing'),
+                    : const Icon(Icons.visibility_outlined),
+                label: Text(saving ? 'Publishing…' : 'Preview & Publish'),
+              ),
+              const SizedBox(height: 8),
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.lock_outline_rounded, size: 15, color: _muted),
+                  SizedBox(width: 5),
+                  Text('Visible to signed-in tenants',
+                      style: TextStyle(color: _muted, fontSize: 11)),
+                ],
               ),
               const SizedBox(height: 20),
             ],
@@ -1503,9 +1753,42 @@ class _RoomListingEditorScreenState extends State<RoomListingEditorScreen> {
     if (chosen != null) setState(() => availableFrom = chosen);
   }
 
-  Future<void> save() async {
+  Future<void> previewAndPublish() async {
     if (!(formKey.currentState?.validate() ?? false)) return;
-    if (status == 'published' && retainedPaths.isEmpty && newImages.isEmpty) {
+    if (retainedPaths.isEmpty && newImages.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Add at least one photo before publishing.')),
+      );
+      return;
+    }
+    final confirmed = await showModalBottomSheet<bool>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => _PublishUnitPreview(
+            title: title.text.trim(),
+            location: [city.text.trim(), state.text.trim()]
+                .where((part) => part.isNotEmpty)
+                .join(', '),
+            monthlyRent: double.tryParse(rent.text) ?? 0,
+            availableFrom: availableFrom,
+            roomType: roomType,
+            amenities: amenities.toList()..sort(),
+            photoCount: retainedPaths.length + newImages.length,
+          ),
+        ) ??
+        false;
+    if (confirmed) await save(statusOverride: 'published');
+  }
+
+  Future<void> save({String? statusOverride}) async {
+    if (!(formKey.currentState?.validate() ?? false)) return;
+    final nextStatus = statusOverride ?? status;
+    if (nextStatus == 'published' &&
+        retainedPaths.isEmpty &&
+        newImages.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Add at least one photo before publishing.')),
@@ -1537,12 +1820,21 @@ class _RoomListingEditorScreenState extends State<RoomListingEditorScreen> {
           amenities: amenities.toList()..sort(),
           contactName: contactName.text,
           contactPhone: contactPhone.text,
-          status: status,
+          status: nextStatus,
           isFeatured: isFeatured,
           sourceFacilityId: facilityId,
         ),
       );
-      if (mounted) Navigator.pop(context, true);
+      if (mounted) {
+        if (nextStatus == 'published') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Unit is live in Tenant Explore.'),
+            ),
+          );
+        }
+        Navigator.pop(context, true);
+      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1551,6 +1843,176 @@ class _RoomListingEditorScreenState extends State<RoomListingEditorScreen> {
       setState(() => saving = false);
     }
   }
+}
+
+class _PublishUnitPreview extends StatelessWidget {
+  const _PublishUnitPreview({
+    required this.title,
+    required this.location,
+    required this.monthlyRent,
+    required this.availableFrom,
+    required this.roomType,
+    required this.amenities,
+    required this.photoCount,
+  });
+
+  final String title;
+  final String location;
+  final double monthlyRent;
+  final DateTime availableFrom;
+  final String roomType;
+  final List<String> amenities;
+  final int photoCount;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD0D5DD),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Row(
+              children: [
+                Icon(Icons.visibility_outlined, color: _blue),
+                SizedBox(width: 9),
+                Text('Tenant preview',
+                    style: TextStyle(
+                        color: _ink,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900)),
+                Spacer(),
+                _TinyBadge(
+                  label: 'SIGNED-IN ONLY',
+                  color: Color(0xFFEAF3FF),
+                  foreground: _blue,
+                ),
+              ],
+            ),
+            const SizedBox(height: 15),
+            Container(
+              decoration: BoxDecoration(
+                color: _canvas,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Row(
+                children: [
+                  Container(
+                    width: 116,
+                    height: 170,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFFD9EBFC), Color(0xFF377FC8)],
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.bedroom_parent_rounded,
+                            color: Colors.white, size: 42),
+                        const SizedBox(height: 8),
+                        Text('$photoCount photos',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800)),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(13),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.verified_rounded,
+                                  size: 15, color: _blue),
+                              SizedBox(width: 4),
+                              Text('Verified owner',
+                                  style: TextStyle(
+                                      color: _blue,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.w900)),
+                          const SizedBox(height: 5),
+                          Text('RM ${monthlyRent.toStringAsFixed(0)} / month',
+                              style: const TextStyle(
+                                  color: _blue,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w900)),
+                          const SizedBox(height: 5),
+                          Text(location,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style:
+                                  const TextStyle(color: _muted, fontSize: 10)),
+                          const SizedBox(height: 5),
+                          Text(
+                              '$roomType · Available ${_dateLabel(availableFrom)}',
+                              style: const TextStyle(
+                                  color: Color(0xFF16856B),
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800)),
+                          if (amenities.isNotEmpty) ...[
+                            const SizedBox(height: 5),
+                            Text(amenities.take(3).join(' · '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: _muted, fontSize: 9)),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 15),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => Navigator.pop(context, true),
+                icon: const Icon(Icons.public_rounded),
+                label: const Text('Publish to Tenant Explore'),
+              ),
+            ),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Continue editing'),
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _PhotoToken extends StatelessWidget {

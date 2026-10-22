@@ -212,6 +212,29 @@ async function invoiceForToken(
   return data as Record<string, any>
 }
 
+async function invoiceForAuthenticatedTenant(
+  admin: any,
+  request: Request,
+  supabaseUrl: string,
+  publishableKey: string,
+  invoiceId: string,
+): Promise<Record<string, any>> {
+  const tenant = await authenticatedTenant(request, supabaseUrl, publishableKey)
+  const { data: invoice, error } = await admin
+    .from('rentflow_test_invoices')
+    .select('*')
+    .eq('id', invoiceId)
+    .maybeSingle()
+  if (error) throw error
+  const assignedEmail = typeof invoice?.tenant_email === 'string'
+    ? invoice.tenant_email.trim().toLowerCase()
+    : ''
+  if (!invoice || assignedEmail !== tenant.email) {
+    throw new Error('This invoice is not assigned to the signed-in tenant.')
+  }
+  return invoice as Record<string, any>
+}
+
 serveMonitored('invoice-portal', async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(request) })
   if (request.method !== 'POST') return json(request, { error: 'Method not allowed.' }, 405)
@@ -343,32 +366,38 @@ serveMonitored('invoice-portal', async (request) => {
     }
 
     if (action === 'get-authenticated-tenant') {
-      const tenant = await authenticatedTenant(request, supabaseUrl, publishableKey)
       const invoiceId = text(body.invoiceId, 'Invoice id', 120)
-      const { data: invoice, error } = await admin
-        .from('rentflow_test_invoices')
-        .select('*')
-        .eq('id', invoiceId)
-        .maybeSingle()
-      if (error) throw error
-      const assignedEmail = typeof invoice?.tenant_email === 'string'
-        ? invoice.tenant_email.trim().toLowerCase()
-        : ''
-      if (!invoice || assignedEmail !== tenant.email) {
-        throw new Error('This invoice is not assigned to the signed-in tenant.')
-      }
+      const invoice = await invoiceForAuthenticatedTenant(
+        admin,
+        request,
+        supabaseUrl,
+        publishableKey,
+        invoiceId,
+      )
       return json(request, { invoice: await safeInvoicePayload(admin, invoice) })
     }
 
     const invoiceId = optionalText(body.invoiceId, 120)
-    const token = text(body.token, 'Portal token', 200)
-    const invoice = await invoiceForToken(admin, invoiceId, token)
+    const authenticatedSubmission = action === 'submit-payment-authenticated'
+    const invoice = authenticatedSubmission
+      ? await invoiceForAuthenticatedTenant(
+        admin,
+        request,
+        supabaseUrl,
+        publishableKey,
+        text(body.invoiceId, 'Invoice id', 120),
+      )
+      : await invoiceForToken(
+        admin,
+        invoiceId,
+        text(body.token, 'Portal token', 200),
+      )
 
     if (action === 'get') {
       return json(request, { invoice: await safeInvoicePayload(admin, invoice) })
     }
 
-    if (action === 'submit-payment') {
+    if (action === 'submit-payment' || authenticatedSubmission) {
       if (invoice.status === 'paid') throw new Error('This invoice is already paid.')
       if (invoice.status === 'slipSubmitted') {
         throw new Error('A payment proof has already been submitted for review.')

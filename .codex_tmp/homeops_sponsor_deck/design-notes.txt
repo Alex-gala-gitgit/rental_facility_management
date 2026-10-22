@@ -1,0 +1,15 @@
+Custom visual direction: sponsor-ready executive presentation using HomeOps360 navy, teal and blue; clean white space; assertive takeaway titles; varied silhouettes across slides.
+
+Layout sequence:
+1. Dark minimal cover.
+2. Asymmetric problem statement with stacked friction bands.
+3. Horizontal rental lifecycle.
+4. Hub-and-spoke product footprint.
+5. Stakeholder outcome matrix.
+6. Revenue stack and land-and-expand motion.
+7. Split evidence/readiness slide.
+8. Horizontal 12-week pilot timeline.
+9. Sponsorship allocation and sponsor value split.
+10. Dark closing decision slide.
+
+No product screenshot is used because the local web preview failed to render reliably; fake UI or generated screenshots are explicitly avoided.

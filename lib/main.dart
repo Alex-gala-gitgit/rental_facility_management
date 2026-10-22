@@ -14,6 +14,13 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import 'branding/homeops_brand.dart';
+import 'calendar/tenancy_calendar.dart';
+import 'requests/move_out_thank_you.dart';
+import 'settlement/settlement_page.dart';
+import 'settlement/saved_settlement_invoice.dart';
+import 'settlement/settlement_model.dart';
+import 'settlement/money_input.dart';
+import 'branding/homeops_loading.dart';
 import 'admin/admin_app.dart';
 import 'cloud/supabase_config.dart';
 import 'cloud/platform_event_service.dart';
@@ -428,6 +435,41 @@ enum PaymentStatus {
   pendingApproval,
   approved,
   rejected,
+}
+
+const passwordHintWordLimit = 20;
+
+int passwordHintWordCount(String value) {
+  final trimmed = value.trim();
+  return trimmed.isEmpty ? 0 : trimmed.split(RegExp(r'\s+')).length;
+}
+
+bool isPasswordHintWithinLimit(String value) =>
+    passwordHintWordCount(value) <= passwordHintWordLimit;
+
+class PasswordHintWordLimitFormatter extends TextInputFormatter {
+  const PasswordHintWordLimitFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return isPasswordHintWithinLimit(newValue.text) ? newValue : oldValue;
+  }
+}
+
+void keepDialogFieldVisible(GlobalKey fieldKey) {
+  Future<void>.delayed(const Duration(milliseconds: 250), () {
+    final fieldContext = fieldKey.currentContext;
+    if (fieldContext == null || !fieldContext.mounted) return;
+    Scrollable.ensureVisible(
+      fieldContext,
+      alignment: .25,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
+  });
 }
 
 enum FacilityStatus { ready, developing, sold }
@@ -907,6 +949,18 @@ class Tenancy {
 
   bool isScheduledAt(DateTime value) =>
       active && lastActiveDate != null && !isInactiveAt(value);
+
+  /// The final occupied month remains billable; months after move-out do not.
+  bool canGenerateBillForMonth(DateTime month) {
+    if (!active) return false;
+    final billMonth = DateTime(month.year, month.month);
+    final start = DateTime(leaseStart.year, leaseStart.month);
+    final end = DateTime(leaseEnd.year, leaseEnd.month);
+    if (billMonth.isBefore(start) || billMonth.isAfter(end)) return false;
+    final cutoff = lastActiveDate;
+    return cutoff == null ||
+        !billMonth.isAfter(DateTime(cutoff.year, cutoff.month));
+  }
 }
 
 class TenancyContractVersion {
@@ -1022,6 +1076,7 @@ class MonthlyBill {
     this.generalElectricAmount = 0,
     this.parkingRentalAmount = 0,
     this.utilityEvidenceFileName,
+    this.utilityEvidencePath,
     this.utilityEvidenceBytes,
     this.status = PaymentStatus.notSubmitted,
     this.slipFileName,
@@ -1053,6 +1108,7 @@ class MonthlyBill {
   double generalElectricAmount;
   double parkingRentalAmount;
   String? utilityEvidenceFileName;
+  String? utilityEvidencePath;
   Uint8List? utilityEvidenceBytes;
   PaymentStatus status;
   String? slipFileName;
@@ -1115,6 +1171,94 @@ TenantBillingMonthState tenantBillingMonthState(
   return TenantBillingMonthState.paid;
 }
 
+bool applySyncedTenantInvoiceStatus(
+  MonthlyBill bill,
+  Map<String, dynamic> invoice,
+) {
+  final cloudStatus = invoice['status'] as String?;
+  final targetStatus = switch (cloudStatus) {
+    'slipSubmitted' => PaymentStatus.pendingApproval,
+    'paid' => PaymentStatus.approved,
+    'sent' => bill.status == PaymentStatus.rejected
+        ? PaymentStatus.rejected
+        : PaymentStatus.pendingTenantPayment,
+    _ => null,
+  };
+  if (targetStatus == null) return false;
+  final effectiveStatus = mergeTenantPaymentStatus(
+    local: bill.status,
+    incoming: targetStatus,
+    localSubmittedAt: bill.submittedAt,
+    incomingReviewedAt:
+        DateTime.tryParse(invoice['updated_at']?.toString() ?? ''),
+  );
+  // The cloud row may briefly lag behind a payment submission or approval.
+  // Never let an older "sent" state turn an orange/green bill red again.
+  if (effectiveStatus != targetStatus) return false;
+
+  final slipFileName = invoice['slip_name'] as String?;
+  final amountPaidValue = invoice['amount_paid'];
+  final amountPaid = amountPaidValue is num
+      ? amountPaidValue.toDouble()
+      : double.tryParse(amountPaidValue?.toString() ?? '') ?? 0;
+  final paymentDate =
+      DateTime.tryParse(invoice['payment_date']?.toString() ?? '');
+  final submittedAt =
+      DateTime.tryParse(invoice['slip_submitted_at']?.toString() ?? '');
+  final paymentReference = invoice['payment_reference'] as String?;
+  final changed = bill.status != effectiveStatus ||
+      bill.slipFileName != slipFileName ||
+      bill.amountPaid != amountPaid ||
+      bill.paymentDate != paymentDate ||
+      bill.submittedAt != submittedAt ||
+      bill.paymentReference != paymentReference;
+
+  bill
+    ..status = effectiveStatus
+    ..slipFileName = slipFileName
+    ..amountPaid = amountPaid
+    ..paymentDate = paymentDate
+    ..submittedAt = submittedAt
+    ..paymentReference = paymentReference;
+  return changed;
+}
+
+PaymentStatus mergeTenantPaymentStatus({
+  required PaymentStatus local,
+  required PaymentStatus incoming,
+  DateTime? localSubmittedAt,
+  DateTime? incomingReviewedAt,
+}) {
+  if (local == PaymentStatus.approved || incoming == PaymentStatus.approved) {
+    return PaymentStatus.approved;
+  }
+
+  if (incoming == PaymentStatus.rejected) {
+    final rejectionIsNewer = incomingReviewedAt != null &&
+        (localSubmittedAt == null ||
+            incomingReviewedAt.isAfter(localSubmittedAt));
+    if (local == PaymentStatus.pendingApproval && !rejectionIsNewer) {
+      return local;
+    }
+    return incoming;
+  }
+
+  if (local == PaymentStatus.pendingApproval &&
+      (incoming == PaymentStatus.notSubmitted ||
+          incoming == PaymentStatus.pendingTenantPayment)) {
+    return local;
+  }
+  if (incoming == PaymentStatus.pendingApproval) {
+    return incoming;
+  }
+  if ((local == PaymentStatus.pendingTenantPayment ||
+          local == PaymentStatus.rejected) &&
+      incoming == PaymentStatus.notSubmitted) {
+    return local;
+  }
+  return incoming;
+}
+
 class FinancialBreakdownItem {
   const FinancialBreakdownItem({
     required this.label,
@@ -1148,6 +1292,38 @@ class FacilityReport {
   }
 }
 
+void mergeTenantRequestRecord(
+    TenantRequest request, Map<String, dynamic> incoming) {
+  final saved = {
+    'id': request.id,
+    'message': request.message,
+    'requestedMoveOutDate': request.requestedMoveOutDate?.toIso8601String(),
+    'bankName': request.bankName,
+    'bankAccountNumber': request.bankAccountNumber,
+    'tenantEditedAt': request.tenantEditedAt?.toIso8601String(),
+    'reviewedAt': request.reviewedAt?.toIso8601String(),
+    'rejectionReason': request.rejectionReason,
+    'status': request.status,
+  };
+  final merged = (preserveTenantRequests({
+    'tenantRequests': [saved]
+  }, {
+    'tenantRequests': [incoming]
+  })['tenantRequests'] as List)
+      .first as Map;
+  request
+    ..message = merged['message'] as String? ?? request.message
+    ..requestedMoveOutDate =
+        DateTime.tryParse(merged['requestedMoveOutDate'] as String? ?? '')
+    ..bankName = merged['bankName'] as String?
+    ..bankAccountNumber = merged['bankAccountNumber'] as String?
+    ..tenantEditedAt =
+        DateTime.tryParse(merged['tenantEditedAt'] as String? ?? '')
+    ..reviewedAt = DateTime.tryParse(merged['reviewedAt'] as String? ?? '')
+    ..rejectionReason = merged['rejectionReason'] as String?
+    ..status = merged['status'] as String;
+}
+
 class TenantRequest {
   TenantRequest({
     required this.id,
@@ -1162,13 +1338,18 @@ class TenantRequest {
     this.attachmentSizeBytes,
     this.status = 'Open',
     this.reviewedAt,
+    this.requestedMoveOutDate,
+    this.tenantEditedAt,
+    this.rejectionReason,
+    this.bankName,
+    this.bankAccountNumber,
   });
 
   final String id;
   final String tenantId;
   final String facilityId;
   final String title;
-  final String message;
+  String message;
   final DateTime createdAt;
   final String requestType;
   final String? attachmentFileName;
@@ -1176,6 +1357,12 @@ class TenantRequest {
   final int? attachmentSizeBytes;
   String status;
   DateTime? reviewedAt;
+
+  DateTime? requestedMoveOutDate;
+  DateTime? tenantEditedAt;
+  String? rejectionReason;
+  String? bankName;
+  String? bankAccountNumber;
 
   bool get hasAttachment =>
       (attachmentFileName ?? '').trim().isNotEmpty ||
@@ -1276,6 +1463,7 @@ MonthlyBill paymentBillSnapshot(
     generalElectricAmount: bill.generalElectricAmount,
     parkingRentalAmount: bill.parkingRentalAmount,
     utilityEvidenceFileName: bill.utilityEvidenceFileName,
+    utilityEvidencePath: bill.utilityEvidencePath,
     utilityEvidenceBytes: bill.utilityEvidenceBytes,
     status: event.status,
     slipFileName: event.slipFileName,
@@ -1350,6 +1538,8 @@ class RentalStore extends ChangeNotifier {
     DateTime? reportingStartMonth,
     bool cloudAuthoritative = false,
     Map<String, dynamic>? legacyProductionSnapshot,
+    Future<Map<String, dynamic>> Function(String invoiceId)?
+        tenantInvoiceLoader,
   })  : _now = now ?? DateTime.now(),
         _persistence = persistence,
         _loginPreferences = loginPreferences,
@@ -1358,6 +1548,7 @@ class RentalStore extends ChangeNotifier {
         _seedDemoData = seedDemoData,
         _cloudAuthoritative = cloudAuthoritative,
         _legacyProductionSnapshot = legacyProductionSnapshot,
+        _tenantInvoiceLoader = tenantInvoiceLoader,
         _reportingStartMonth = reportingStartMonth == null
             ? null
             : DateTime(reportingStartMonth.year, reportingStartMonth.month) {
@@ -1376,11 +1567,15 @@ class RentalStore extends ChangeNotifier {
   final bool _seedDemoData;
   final bool _cloudAuthoritative;
   final Map<String, dynamic>? _legacyProductionSnapshot;
+  final Future<Map<String, dynamic>> Function(String invoiceId)?
+      _tenantInvoiceLoader;
   final DateTime? _reportingStartMonth;
   Timer? _saveTimer;
   Timer? _cloudSaveTimer;
   Timer? _cloudRestoreRetryTimer;
   Timer? _publicPaymentSyncTimer;
+  int _loadingDepth = 0;
+  String _loadingLabel = 'Loading';
   StreamSubscription<AuthState>? _authSubscription;
   RealtimeChannel? _publicPaymentSyncChannel;
   RealtimeChannel? _ownerNotificationChannel;
@@ -1409,6 +1604,7 @@ class RentalStore extends ChangeNotifier {
   final List<TenantProfileInvitation> tenantProfileInvitations = [];
   bool rememberOwnerEmail = false;
   String rememberedOwnerEmail = '';
+  final Map<String, String> _passwordHints = {};
   AppLanguage appLanguage = AppLanguage.english;
   OwnerAccessConfig ownerAccessConfig = const OwnerAccessConfig();
   String electricityTariffName = defaultElectricityTariffName;
@@ -1438,6 +1634,8 @@ class RentalStore extends ChangeNotifier {
   DateTime get currentMonth => DateTime(_now.year, _now.month);
   bool get persistenceReady => _persistenceReady || _persistence == null;
   bool get cloudAuthEnabled => cloudAuth != null;
+  bool get isLoading => _loadingDepth > 0;
+  String get loadingLabel => _loadingLabel;
   bool get isCloudSessionRecoveryPending =>
       currentUser == null &&
       cloudAuth?.currentSession != null &&
@@ -1445,12 +1643,60 @@ class RentalStore extends ChangeNotifier {
   String get storageDescription =>
       _persistence?.storageDescription ?? 'in-memory test store';
 
+  Future<T> runWithLoading<T>(
+    String label,
+    Future<T> Function() action,
+  ) async {
+    _loadingDepth += 1;
+    _loadingLabel = label.trim().isEmpty ? 'Loading' : label.trim();
+    super.notifyListeners();
+    await WidgetsBinding.instance.endOfFrame;
+    try {
+      return await action();
+    } finally {
+      _loadingDepth = math.max(0, _loadingDepth - 1);
+      if (_loadingDepth == 0) _loadingLabel = 'Loading';
+      super.notifyListeners();
+    }
+  }
+
   void updateRememberedOwnerEmail({
     required bool remember,
     required String email,
   }) {
     rememberOwnerEmail = remember;
     rememberedOwnerEmail = remember ? email.trim() : '';
+    unawaited(_saveLoginPreferences());
+    notifyListeners();
+  }
+
+  String _passwordHintKey(String email, String roleKey) =>
+      '${roleKey.trim().toLowerCase()}:${email.trim().toLowerCase()}';
+
+  String passwordHintFor({
+    required String email,
+    required String roleKey,
+  }) =>
+      _passwordHints[_passwordHintKey(email, roleKey)] ?? '';
+
+  void updatePasswordHint({
+    required String previousEmail,
+    required String email,
+    required String roleKey,
+    required String hint,
+  }) {
+    final previousKey = _passwordHintKey(previousEmail, roleKey);
+    final nextKey = _passwordHintKey(email, roleKey);
+    final value = hint.trim();
+    if (!isPasswordHintWithinLimit(value)) {
+      throw StateError('Password hint must be 20 words or fewer.');
+    }
+    if (previousKey != nextKey) _passwordHints.remove(previousKey);
+    if (value.isEmpty) {
+      _passwordHints.remove(nextKey);
+    } else {
+      _passwordHints[nextKey] = value;
+    }
     unawaited(_saveLoginPreferences());
     notifyListeners();
   }
@@ -1474,6 +1720,14 @@ class RentalStore extends ChangeNotifier {
       values['language'],
       AppLanguage.english,
     );
+    final passwordHints = values['passwordHints'];
+    if (passwordHints is Map) {
+      _passwordHints
+        ..clear()
+        ..addAll(passwordHints.map(
+          (key, value) => MapEntry(key.toString(), value.toString()),
+        ));
+    }
     final cachedProfile = values['cloudProfile'];
     if (cachedProfile is Map) {
       final row = Map<String, dynamic>.from(cachedProfile);
@@ -1501,6 +1755,7 @@ class RentalStore extends ChangeNotifier {
       'rememberIdentifier': rememberOwnerEmail,
       'identifier': rememberedOwnerEmail,
       'language': appLanguage.name,
+      'passwordHints': _passwordHints,
       if (_cachedCloudProfile case final profile?)
         'cloudProfile': {
           'id': profile.id,
@@ -1780,7 +2035,9 @@ class RentalStore extends ChangeNotifier {
     if (user == null) return [];
     return bills
         .where((bill) =>
-            bill.tenantId == user.id && _billIsWithinTenancyBoundary(bill))
+            bill.tenantId == user.id &&
+            bill.status != PaymentStatus.notSubmitted &&
+            _billIsWithinTenancyBoundary(bill))
         .toList()
       ..sort((a, b) => b.month.compareTo(a.month));
   }
@@ -3256,6 +3513,12 @@ class RentalStore extends ChangeNotifier {
                 'message': request.message,
                 'createdAt': request.createdAt.toIso8601String(),
                 'requestType': request.requestType,
+                'requestedMoveOutDate':
+                    request.requestedMoveOutDate?.toIso8601String(),
+                'tenantEditedAt': request.tenantEditedAt?.toIso8601String(),
+                'rejectionReason': request.rejectionReason,
+                'bankName': request.bankName,
+                'bankAccountNumber': request.bankAccountNumber,
                 'attachmentFileName': request.attachmentFileName,
                 'attachmentBase64': request.attachmentBase64,
                 'status': request.status,
@@ -3484,15 +3747,42 @@ class RentalStore extends ChangeNotifier {
         PaymentStatus.approved => 4,
       };
 
+  bool _hasPaymentSubmissionEvidence(MonthlyBill bill) {
+    final hasBillEvidence = bill.amountPaid > 0 ||
+        (bill.slipFileName?.trim().isNotEmpty ?? false) ||
+        bill.slipBytes != null ||
+        bill.submittedAt != null ||
+        bill.paymentDate != null ||
+        (bill.paymentReference?.trim().isNotEmpty ?? false);
+    if (hasBillEvidence) return true;
+    return paymentReviewHistory.any((event) =>
+        event.billId == bill.id &&
+        ((event.slipFileName?.trim().isNotEmpty ?? false) ||
+            event.slipBytes != null ||
+            (event.amountPaid ?? 0) > 0 ||
+            event.paymentDate != null ||
+            (event.paymentReference?.trim().isNotEmpty ?? false) ||
+            event.submittedAt != null));
+  }
+
+  bool _hasOwnerReleasedBill(MonthlyBill bill) {
+    return bill.portalExpiresAt != null ||
+        (bill.portalToken?.trim().isNotEmpty ?? false) ||
+        (bill.invoicePdfFileName?.trim().isNotEmpty ?? false) ||
+        bill.invoicePdfBytes != null ||
+        _hasPaymentSubmissionEvidence(bill);
+  }
+
   int get completedPaymentsThisMonth => ownerCurrentMonthBills
-      .where((bill) => bill.status == PaymentStatus.approved)
+      .where((bill) =>
+          bill.status == PaymentStatus.approved &&
+          _hasPaymentSubmissionEvidence(bill))
       .length;
 
   int get paymentWorkflowsThisMonth => ownerCurrentMonthBills.length;
 
-  int get completedBillingsThisMonth => ownerCurrentMonthBills
-      .where((bill) => bill.status != PaymentStatus.notSubmitted)
-      .length;
+  int get completedBillingsThisMonth =>
+      ownerCurrentMonthBills.where(_hasOwnerReleasedBill).length;
 
   List<MonthlyBill> billsForTenant(String tenantId) {
     return bills
@@ -3840,6 +4130,40 @@ class RentalStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> changeCurrentAccountPassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = currentUser;
+    if (user == null) throw StateError('Please sign in again.');
+    if (newPassword.length < 8) {
+      throw StateError('New password must be at least 8 characters.');
+    }
+    if (newPassword == currentPassword) {
+      throw StateError('New password must be different from current password.');
+    }
+    final auth = cloudAuth;
+    if (auth?.currentSession != null) {
+      await runWithLoading(
+        'Updating password',
+        () => auth!.changePassword(
+          currentPassword: currentPassword,
+          newPassword: newPassword,
+        ),
+      );
+    } else {
+      changeLocalAccountPassword(
+        email: user.email,
+        role: user.role,
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+    }
+    _notify(
+        '${user.role == UserRole.tenant ? 'Tenant' : 'Owner'} account password was changed.');
+    notifyListeners();
+  }
+
   bool hasLocalAccount(String email, UserRole role) {
     final normalizedEmail = email.trim().toLowerCase();
     return localAuthAccounts.any(
@@ -4060,54 +4384,63 @@ class RentalStore extends ChangeNotifier {
   Future<void> signInWithEmail({
     required String email,
     required String password,
-  }) async {
-    final auth = cloudAuth;
-    if (auth == null) throw StateError('Cloud authentication is unavailable.');
-    final profile = await auth.signIn(email: email, password: password);
-    _rememberCloudProfile(profile);
-    _prepareForCloudIdentity(profile);
-    _applyCloudProfileWithoutCloudSave(profile);
-    await _restoreCloudWorkspacePreservingSession(profile);
-  }
+  }) =>
+      runWithLoading('Signing in', () async {
+        final auth = cloudAuth;
+        if (auth == null) {
+          throw StateError('Cloud authentication is unavailable.');
+        }
+        final profile = await auth.signIn(email: email, password: password);
+        _rememberCloudProfile(profile);
+        _prepareForCloudIdentity(profile);
+        _applyCloudProfileWithoutCloudSave(profile);
+        await _restoreCloudWorkspacePreservingSession(profile);
+      });
 
   Future<bool> registerCloudAccount({
     required String fullName,
     required String email,
     required String password,
     required String role,
-  }) async {
-    final auth = cloudAuth;
-    if (auth == null) throw StateError('Cloud authentication is unavailable.');
-    final signedIn = await auth.registerAccount(
-      fullName: fullName,
-      email: email,
-      password: password,
-      role: role,
-    );
-    if (signedIn) {
-      final profile = await auth.currentProfile();
-      if (profile != null) {
-        _prepareForCloudIdentity(profile);
-        _applyCloudProfile(profile);
-        await restoreCloudWorkspace(profile);
-      }
-    }
-    return signedIn;
-  }
+  }) =>
+      runWithLoading('Creating account', () async {
+        final auth = cloudAuth;
+        if (auth == null) {
+          throw StateError('Cloud authentication is unavailable.');
+        }
+        final signedIn = await auth.registerAccount(
+          fullName: fullName,
+          email: email,
+          password: password,
+          role: role,
+        );
+        if (signedIn) {
+          final profile = await auth.currentProfile();
+          if (profile != null) {
+            _prepareForCloudIdentity(profile);
+            _applyCloudProfile(profile);
+            await restoreCloudWorkspace(profile);
+          }
+        }
+        return signedIn;
+      });
 
-  Future<void> sendPasswordReset(String email) async {
-    final auth = cloudAuth;
-    if (auth == null) throw StateError('Cloud authentication is unavailable.');
-    await auth.sendPasswordReset(email);
-  }
+  Future<void> sendPasswordReset(String email) =>
+      runWithLoading('Sending recovery email', () async {
+        final auth = cloudAuth;
+        if (auth == null) {
+          throw StateError('Cloud authentication is unavailable.');
+        }
+        await auth.sendPasswordReset(email);
+      });
 
-  Future<void> cloudLogout() async {
-    try {
-      await cloudAuth?.signOut();
-    } finally {
-      logout();
-    }
-  }
+  Future<void> cloudLogout() => runWithLoading('Signing out', () async {
+        try {
+          await cloudAuth?.signOut();
+        } finally {
+          logout();
+        }
+      });
 
   void _applyCloudProfile(CloudProfile profile) {
     cloudProfile = profile;
@@ -4321,7 +4654,10 @@ class RentalStore extends ChangeNotifier {
     }
     // Persist this exact tenancy before the server validates the invitation.
     // Do not rely on the delayed general workspace autosave.
-    await workspace.writeOwnerSnapshot(profile.id, _snapshotMap());
+    await workspace.writeOwnerSnapshot(
+      profile.id,
+      _snapshotMap(includeBinaryData: false),
+    );
     if (isValidEmailInput(tenant.email)) {
       await workspace.writeTenantSnapshot(
         ownerId: profile.id,
@@ -4638,12 +4974,34 @@ class RentalStore extends ChangeNotifier {
     bill.utilityEvidenceFileName = utilityEvidenceFileName.trim().isEmpty
         ? null
         : utilityEvidenceFileName.trim();
+    bill.utilityEvidencePath = null;
     bill.utilityEvidenceBytes = utilityEvidenceBytes;
     final tenant = users.firstWhere((user) => user.id == bill.tenantId);
     _notify(
       '${tenant.name} bill is ready for owner review: ${money(bill.totalAmount)}.',
     );
     notifyListeners();
+  }
+
+  Future<void> persistBillUtilityEvidence(MonthlyBill bill) async {
+    final owner = Supabase.instance.client.auth.currentUser;
+    final bytes = bill.utilityEvidenceBytes;
+    final fileName = bill.utilityEvidenceFileName;
+    if (owner == null || bytes == null || bytes.isEmpty || fileName == null) {
+      return;
+    }
+    final safeName = fileName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    final path = '${owner.id}/meter/${bill.id}/$safeName';
+    await Supabase.instance.client.storage
+        .from(RentFlowStore.bucket)
+        .uploadBinary(
+          path,
+          bytes,
+          fileOptions: const FileOptions(upsert: true),
+        );
+    bill.utilityEvidencePath = path;
+    notifyListeners();
+    await flushPersistence();
   }
 
   void updateTenantProfile(
@@ -4819,6 +5177,38 @@ class RentalStore extends ChangeNotifier {
     if (announce) notifyListeners();
   }
 
+  bool _ownerRequestsRefreshing = false;
+  void receiveOwnerRequestUpdate(String ownerId, Map<String, dynamic> payload) {
+    if (cloudProfile?.id != ownerId || cloudProfile?.role != 'owner') return;
+    _mergeTenantSnapshot({'tenantRequests': payload['tenantRequests']});
+    unawaited(flushPersistence());
+    super.notifyListeners();
+  }
+
+  Future<void> refreshOwnerRequests({bool rethrowOnError = false}) async {
+    final workspace = cloudWorkspace;
+    final profile = cloudProfile;
+    if (_ownerRequestsRefreshing ||
+        _cloudRestoring ||
+        workspace == null ||
+        profile?.role != 'owner') return;
+    _ownerRequestsRefreshing = true;
+    try {
+      final snapshots = await workspace.readOwnerTenantSnapshots(profile!.id);
+      if (cloudProfile?.id != profile.id) return;
+      for (final snapshot in snapshots) {
+        _mergeTenantSnapshot(
+            {'tenantRequests': snapshot.payload['tenantRequests']});
+      }
+      await flushPersistence();
+      super.notifyListeners();
+    } catch (error) {
+      if (rethrowOnError) rethrow;
+    } finally {
+      _ownerRequestsRefreshing = false;
+    }
+  }
+
   Future<void> syncOwnerCloudNotifications() async {
     final workspace = cloudWorkspace;
     final profile = cloudProfile;
@@ -4912,7 +5302,9 @@ class RentalStore extends ChangeNotifier {
         final targetStatus = cloudStatus == 'paid'
             ? PaymentStatus.approved
             : PaymentStatus.pendingApproval;
-        if (bill.status == targetStatus && bill.slipFileName == slipName) {
+        if (bill.status == targetStatus &&
+            bill.slipFileName == slipName &&
+            bill.slipBytes != null) {
           if (targetStatus != PaymentStatus.approved ||
               paymentReviewHistory.any((event) =>
                   event.billId == bill.id &&
@@ -4945,7 +5337,9 @@ class RentalStore extends ChangeNotifier {
             ),
           );
         }
-        if (bill.status == targetStatus && bill.slipFileName == slipName) {
+        if (bill.status == targetStatus &&
+            bill.slipFileName == slipName &&
+            bill.slipBytes != null) {
           changed = true;
           continue;
         }
@@ -5111,10 +5505,12 @@ class RentalStore extends ChangeNotifier {
   Future<void> approveBill(MonthlyBill bill) async {
     if (isReadOnlyObserver) return;
     if (cloudAuthEnabled) {
-      await InvoicePortalService(Supabase.instance.client).reviewPayment(
-        invoiceId: 'INV-${bill.id.toUpperCase()}',
-        approved: true,
-      );
+      await runWithLoading('Approving payment', () async {
+        await InvoicePortalService(Supabase.instance.client).reviewPayment(
+          invoiceId: 'INV-${bill.id.toUpperCase()}',
+          approved: true,
+        );
+      });
     }
     bill.status = PaymentStatus.approved;
     bill.rejectReason = null;
@@ -5142,11 +5538,13 @@ class RentalStore extends ChangeNotifier {
   Future<void> rejectBill(MonthlyBill bill, String reason) async {
     if (isReadOnlyObserver) return;
     if (cloudAuthEnabled) {
-      await InvoicePortalService(Supabase.instance.client).reviewPayment(
-        invoiceId: 'INV-${bill.id.toUpperCase()}',
-        approved: false,
-        rejectionReason: reason,
-      );
+      await runWithLoading('Rejecting payment', () async {
+        await InvoicePortalService(Supabase.instance.client).reviewPayment(
+          invoiceId: 'INV-${bill.id.toUpperCase()}',
+          approved: false,
+          rejectionReason: reason,
+        );
+      });
     }
     bill.status = PaymentStatus.rejected;
     bill.rejectReason = reason;
@@ -5181,42 +5579,161 @@ class RentalStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addTenantRequest({
+  bool hasActiveMoveOutRequestFor(String tenantId) =>
+      tenantRequests.any((request) =>
+          request.tenantId == tenantId &&
+          request.requestType == 'Move-out' &&
+          request.status == 'Open');
+
+  TenantRequest? addTenantRequest({
     required String requestType,
     required String title,
     required String message,
     String? attachmentFileName,
     String? attachmentBase64,
     int? attachmentSizeBytes,
+    DateTime? requestedMoveOutDate,
+    String? bankName,
+    String? bankAccountNumber,
   }) {
-    if (isCurrentTenantReadOnly) return;
+    if (isCurrentTenantReadOnly) return null;
     final user = currentUser;
     final tenancy = tenantTenancies.isEmpty ? null : tenantTenancies.first;
-    if (user == null || tenancy == null) return;
-    tenantRequests.add(
-      TenantRequest(
-        id: 'request_${tenantRequests.length + 1}',
-        tenantId: user.id,
-        facilityId: tenancy.facilityId,
-        title: title,
-        message: message,
-        createdAt: DateTime.now(),
-        requestType: requestType,
-        attachmentFileName: attachmentFileName,
-        attachmentBase64: attachmentBase64,
-        attachmentSizeBytes: attachmentSizeBytes,
-      ),
+    if (user == null || tenancy == null) return null;
+    if (requestType == 'Move-out' && hasActiveMoveOutRequestFor(user.id))
+      return null;
+    final request = TenantRequest(
+      id: 'request_${DateTime.now().microsecondsSinceEpoch}',
+      tenantId: user.id,
+      facilityId: tenancy.facilityId,
+      title: title,
+      message: message,
+      createdAt: DateTime.now(),
+      requestType: requestType,
+      attachmentFileName: attachmentFileName,
+      attachmentBase64: attachmentBase64,
+      attachmentSizeBytes: attachmentSizeBytes,
+      requestedMoveOutDate: requestedMoveOutDate,
+      bankName: bankName,
+      bankAccountNumber: bankAccountNumber,
     );
+    tenantRequests.add(request);
     _notify('${user.name} submitted a request: $title.');
     notifyListeners();
+    return request;
   }
 
-  void reviewTenantRequest(TenantRequest request, String status) {
+  Future<void> confirmTenantRequestSaved(TenantRequest request) async {
+    await flushPersistence();
+    if (cloudProfile == null) {
+      if (cloudAuthEnabled)
+        throw StateError(
+            'Please sign in again before submitting your request.');
+      return;
+    }
+    if (cloudWorkspace == null ||
+        _tenantSnapshotOwnerId == null ||
+        _cloudRestoring) {
+      throw StateError('Cloud workspace is not ready. Please try again.');
+    }
+    await flushCloudPersistence(rethrowOnError: true);
+    final remote =
+        await cloudWorkspace!.readTenantSnapshot(cloudProfile!.email);
+    final saved = _maps(remote?.payload['tenantRequests']);
+    if (!saved.any((row) =>
+        row['id'] == request.id &&
+        (request.tenantEditedAt == null ||
+            (row['tenantEditedAt'] ==
+                    request.tenantEditedAt!.toIso8601String() &&
+                row['status'] == request.status &&
+                row['requestedMoveOutDate'] ==
+                    request.requestedMoveOutDate?.toIso8601String() &&
+                row['bankName'] == request.bankName &&
+                row['bankAccountNumber'] == request.bankAccountNumber)))) {
+      throw StateError(
+          'Cloud storage could not confirm your request. Please try again.');
+    }
+  }
+
+  Future<void> changeMoveOutRequest(TenantRequest request,
+      {DateTime? date,
+      String? bankName,
+      String? bankAccountNumber,
+      bool withdraw = false}) async {
+    if (isCurrentTenantReadOnly ||
+        request.tenantId != currentUser?.id ||
+        request.requestType != 'Move-out' ||
+        request.status != 'Open') {
+      throw StateError('This request can no longer be changed.');
+    }
+    if (!withdraw && date == null)
+      throw StateError('Choose your move-out date.');
+    if (!withdraw &&
+        bankName != null &&
+        (bankName.trim().isEmpty || bankName.trim().length > 30))
+      throw StateError('Bank is required.');
+    if (!withdraw &&
+        bankAccountNumber != null &&
+        !RegExp(r'^\d{1,30}$').hasMatch(bankAccountNumber))
+      throw StateError('Bank account number is required.');
+    if (withdraw) {
+      request.status = 'Withdrawn';
+    } else {
+      request.requestedMoveOutDate = date;
+      request.bankName = bankName?.trim() ?? request.bankName;
+      request.bankAccountNumber =
+          bankAccountNumber ?? request.bankAccountNumber;
+      final lines = request.message.split('\n');
+      request.message =
+          '${lines.first.split(':').first}: ${dateLabel(date!)}\n${lines.length > 1 ? lines[1].split(':').first : 'Bank'}: ${request.bankName ?? ''}\n${lines.length > 2 ? lines[2].split(':').first : 'Bank account number'}: ${request.bankAccountNumber ?? ''}';
+    }
+    request.tenantEditedAt = DateTime.now().toUtc();
+    notifyListeners();
+    await confirmTenantRequestSaved(request);
+  }
+
+  void reviewTenantRequest(TenantRequest request, String status,
+      {String? reason}) {
     if (isReadOnlyObserver) return;
+    if (request.status == 'Withdrawn') return;
+    if (status == 'Rejected' && (reason ?? '').trim().isEmpty)
+      throw StateError('A rejection reason is required.');
     request.status = status;
+    request.rejectionReason = status == 'Rejected' ? reason!.trim() : null;
     request.reviewedAt = DateTime.now();
     final tenant = userFor(request.tenantId);
     _notify('${tenant.name} request "${request.title}" was $status.');
+    notifyListeners();
+  }
+
+  void completeMoveOutRefund(Tenancy tenancy, MoveOutSettlement settlement) {
+    if (!isOwner || !canManage || isReadOnlyObserver || !settlement.isRefunded ||
+        settlement.balance < 0 || !tenancies.contains(tenancy)) {
+      throw StateError('Refund completion is not allowed.');
+    }
+    final requests = tenantRequests.where((request) =>
+        request.tenantId == tenancy.tenantId && request.facilityId == tenancy.facilityId &&
+        request.requestType == 'Move-out' &&
+        (request.status == 'Open' || request.status == 'Accepted')).toList();
+    if (requests.isEmpty && tenancy.inactiveRemark ==
+        'Triggered by system because deposit refund completed.') return;
+    if (requests.any((request) => request.requestedMoveOutDate != null &&
+        _dateOnly(request.requestedMoveOutDate!) != _dateOnly(settlement.moveOutDate))) {
+      throw StateError('Move-out date changed. Refresh before completing.');
+    }
+    final now = DateTime.now();
+    for (final request in requests) {
+      request.status = 'Completed';
+      request.reviewedAt = now;
+      request.rejectionReason = null;
+    }
+    tenancy
+      ..lastActiveDate = _dateOnly(settlement.moveOutDate)
+      ..inactiveReason = 'Tenancy completed'
+      ..inactiveRemark = 'Triggered by system because deposit refund completed.'
+      ..lifecycleNoticeAcknowledged = null;
+    _applyDueTenancyLifecycleTransitions();
+    _notify('${userFor(tenancy.tenantId).name} deposit refund completed. Tenancy ending recorded.');
     notifyListeners();
   }
 
@@ -5640,6 +6157,9 @@ class RentalStore extends ChangeNotifier {
         _ensureMonthlyInvoicePreparationNotification();
       }
       _applyCloudProfile(profile);
+      if (profile.role == 'tenant') {
+        await _syncCurrentTenantInvoiceStatuses(tolerateErrors: true);
+      }
       if (profile.role == 'owner') {
         try {
           final invitations = await TenantProfileInvitationService(
@@ -5893,7 +6413,10 @@ class RentalStore extends ChangeNotifier {
     _cloudSaveTimer?.cancel();
     try {
       if (profile.role == 'owner') {
-        await workspace.writeOwnerSnapshot(profile.id, _snapshotMap());
+        await workspace.writeOwnerSnapshot(
+          profile.id,
+          _snapshotMap(includeBinaryData: false),
+        );
         for (final tenant in users.where(
           (user) => user.role == UserRole.tenant,
         )) {
@@ -5917,8 +6440,96 @@ class RentalStore extends ChangeNotifier {
     }
   }
 
+  Future<void> flushTenantCloudPersistence(
+    AppUser tenant, {
+    bool rethrowOnError = false,
+  }) async {
+    final workspace = cloudWorkspace;
+    final profile = cloudProfile;
+    if (workspace == null ||
+        profile == null ||
+        profile.role != 'owner' ||
+        !isValidEmailInput(tenant.email)) {
+      return;
+    }
+    try {
+      await workspace.writeTenantSnapshot(
+        ownerId: profile.id,
+        tenantEmail: tenant.email,
+        payload: _tenantSnapshotMap(tenant),
+      );
+      persistenceError = null;
+    } catch (error) {
+      persistenceError = 'Cloud sync: $error';
+      super.notifyListeners();
+      if (rethrowOnError) rethrow;
+    }
+  }
+
+  Future<void> refreshCurrentTenantWorkspace() async {
+    final workspace = cloudWorkspace;
+    final profile = cloudProfile;
+    if (workspace == null ||
+        profile == null ||
+        profile.role != 'tenant' ||
+        _cloudRestoring) {
+      return;
+    }
+    try {
+      final remote = await workspace.readTenantSnapshot(profile.email);
+      if (remote == null || remote.payload.isEmpty) return;
+      _tenantSnapshotOwnerId = remote.ownerId;
+      _mergeTenantSnapshot(remote.payload, acceptOwnerBillState: true);
+      await _syncCurrentTenantInvoiceStatuses(tolerateErrors: true);
+      persistenceError = null;
+      super.notifyListeners();
+    } catch (error) {
+      persistenceError = 'Cloud sync: $error';
+      super.notifyListeners();
+    }
+  }
+
+  Future<int> syncCurrentTenantInvoiceStatuses() =>
+      _syncCurrentTenantInvoiceStatuses(tolerateErrors: false);
+
+  Future<int> _syncCurrentTenantInvoiceStatuses({
+    required bool tolerateErrors,
+  }) async {
+    final profile = cloudProfile;
+    if (profile == null || profile.role != 'tenant') {
+      throw const AuthException('Tenant sign-in is required.');
+    }
+    if (!cloudAuthEnabled && _tenantInvoiceLoader == null) {
+      if (tolerateErrors) return 0;
+      throw const AuthException('Tenant sign-in is required.');
+    }
+    final loader = _tenantInvoiceLoader ??
+        (String invoiceId) => InvoicePortalService(Supabase.instance.client)
+            .loadForSignedInTenant(invoiceId: invoiceId);
+    var changed = 0;
+    Object? firstError;
+    try {
+      for (final bill in tenantBills) {
+        try {
+          final invoice = await loader('INV-${bill.id.toUpperCase()}');
+          if (applySyncedTenantInvoiceStatus(bill, invoice)) changed++;
+        } catch (error) {
+          firstError ??= error;
+          if (!tolerateErrors) rethrow;
+        }
+      }
+      if (firstError == null) persistenceError = null;
+      if (changed > 0) notifyListeners();
+      return changed;
+    } catch (error) {
+      persistenceError = 'Payment status sync: $error';
+      super.notifyListeners();
+      rethrow;
+    }
+  }
+
   Map<String, dynamic> _tenantSnapshotMap(AppUser tenant) {
-    final snapshot = _snapshotMap();
+    final snapshot = _snapshotMap(includeBinaryData: false);
     final tenantTenancyIds = tenancies
         .where((item) => item.tenantId == tenant.id)
         .map((item) => item.id)
@@ -5961,51 +6572,84 @@ class RentalStore extends ChangeNotifier {
     return snapshot;
   }
 
-  void _mergeTenantSnapshot(Map<String, dynamic> snapshot) {
+  void _mergeTenantSnapshot(
+    Map<String, dynamic> snapshot, {
+    bool acceptOwnerBillState = false,
+  }) {
     for (final item in _maps(snapshot['bills'])) {
       final matches = bills.where((bill) => bill.id == item['id']);
       if (matches.isEmpty) continue;
       final bill = matches.first;
-      bill.electricityUsageKwh = _number(item['electricityUsageKwh']);
-      bill.electricityAmount = _number(item['electricityAmount']);
-      bill.electricityTariffName = item['electricityTariffName'] as String? ??
-          bill.electricityTariffName;
-      final savedElectricityRate = _number(item['electricityRatePerKwh']);
-      if (savedElectricityRate > 0) {
-        bill.electricityRatePerKwh = savedElectricityRate;
+      if (acceptOwnerBillState) {
+        bill.electricityUsageKwh = _number(item['electricityUsageKwh']);
+        bill.electricityAmount = _number(item['electricityAmount']);
+        bill.electricityTariffName = item['electricityTariffName'] as String? ??
+            bill.electricityTariffName;
+        final savedElectricityRate = _number(item['electricityRatePerKwh']);
+        if (savedElectricityRate > 0) {
+          bill.electricityRatePerKwh = savedElectricityRate;
+        }
+        bill.electricityTariffSummary =
+            item['electricityTariffSummary'] as String? ??
+                bill.electricityTariffSummary;
+        bill.generalElectricAmount = _number(item['generalElectricAmount']);
+        bill.waterAmount = _number(item['waterAmount']);
+        bill.internetAmount = _number(item['internetAmount']);
+        bill.parkingRentalAmount = _number(item['parkingRentalAmount']);
+        bill.utilityEvidenceFileName =
+            item['utilityEvidenceFileName'] as String?;
+        bill.utilityEvidencePath =
+            item['utilityEvidencePath'] as String? ?? bill.utilityEvidencePath;
+        final evidenceBytesBase64 =
+            item['utilityEvidenceBytesBase64'] as String?;
+        bill.utilityEvidenceBytes = evidenceBytesBase64 == null
+            ? bill.utilityEvidenceBytes
+            : Uint8List.fromList(base64Decode(evidenceBytesBase64));
       }
-      bill.electricityTariffSummary =
-          item['electricityTariffSummary'] as String? ??
-              bill.electricityTariffSummary;
-      bill.generalElectricAmount = _number(item['generalElectricAmount']);
-      bill.waterAmount = _number(item['waterAmount']);
-      bill.internetAmount = _number(item['internetAmount']);
-      bill.parkingRentalAmount = _number(item['parkingRentalAmount']);
-      bill.utilityEvidenceFileName = item['utilityEvidenceFileName'] as String?;
-      final evidenceBytesBase64 = item['utilityEvidenceBytesBase64'] as String?;
-      bill.utilityEvidenceBytes = evidenceBytesBase64 == null
-          ? bill.utilityEvidenceBytes
-          : Uint8List.fromList(base64Decode(evidenceBytesBase64));
-      bill.status = _enum(
+      final incomingStatus = _enum(
         PaymentStatus.values,
         item['status'],
         bill.status,
       );
-      bill.slipFileName = item['slipFileName'] as String?;
-      bill.amountPaid = _number(item['amountPaid']);
-      bill.paymentDate = _parseDate(item['paymentDate']);
-      bill.paymentReference = item['paymentReference'] as String?;
-      bill.submittedAt = _parseDate(item['submittedAt']);
-      bill.rejectReason = item['rejectReason'] as String?;
-      bill.reviewedAt = _parseDate(item['reviewedAt']);
-      bill.portalExpiresAt = _parseDate(item['portalExpiresAt']);
-      bill.portalToken = item['portalToken'] as String? ?? bill.portalToken;
-      bill.invoicePdfFileName =
-          item['invoicePdfFileName'] as String? ?? bill.invoicePdfFileName;
-      final invoicePdfBytesBase64 = item['invoicePdfBytesBase64'] as String?;
-      bill.invoicePdfBytes = invoicePdfBytesBase64 == null
-          ? bill.invoicePdfBytes
-          : Uint8List.fromList(base64Decode(invoicePdfBytesBase64));
+      // During an owner restore, tenant snapshots are only authoritative for
+      // a new payment submission. An older tenant copy must never roll a
+      // released, rejected, or approved owner bill back to a draft.
+      final localStatus = bill.status;
+      if (acceptOwnerBillState) {
+        bill.status = mergeTenantPaymentStatus(
+          local: localStatus,
+          incoming: incomingStatus,
+          localSubmittedAt: bill.submittedAt,
+          incomingReviewedAt: _parseDate(item['reviewedAt']),
+        );
+      } else if (incomingStatus == PaymentStatus.pendingApproval &&
+          (bill.status == PaymentStatus.pendingTenantPayment ||
+              bill.status == PaymentStatus.rejected)) {
+        bill.status = incomingStatus;
+      }
+      final ignoredOlderPaymentState =
+          acceptOwnerBillState && bill.status != incomingStatus;
+      if (!ignoredOlderPaymentState) {
+        bill.slipFileName = item['slipFileName'] as String?;
+        bill.amountPaid = _number(item['amountPaid']);
+        bill.paymentDate = _parseDate(item['paymentDate']);
+        bill.paymentReference = item['paymentReference'] as String?;
+        bill.submittedAt = _parseDate(item['submittedAt']);
+      }
+      if (acceptOwnerBillState) {
+        if (!ignoredOlderPaymentState) {
+          bill.rejectReason = item['rejectReason'] as String?;
+          bill.reviewedAt = _parseDate(item['reviewedAt']);
+        }
+        bill.portalExpiresAt = _parseDate(item['portalExpiresAt']);
+        bill.portalToken = item['portalToken'] as String? ?? bill.portalToken;
+        bill.invoicePdfFileName =
+            item['invoicePdfFileName'] as String? ?? bill.invoicePdfFileName;
+        final invoicePdfBytesBase64 = item['invoicePdfBytesBase64'] as String?;
+        bill.invoicePdfBytes = invoicePdfBytesBase64 == null
+            ? bill.invoicePdfBytes
+            : Uint8List.fromList(base64Decode(invoicePdfBytesBase64));
+      }
       final slipBytesBase64 = item['slipBytesBase64'] as String?;
       bill.slipBytes = slipBytesBase64 == null
           ? bill.slipBytes
@@ -6016,9 +6660,7 @@ class RentalStore extends ChangeNotifier {
         (request) => request.id == item['id'],
       );
       if (matches.isNotEmpty) {
-        matches.first.status =
-            item['status'] as String? ?? matches.first.status;
-        matches.first.reviewedAt = _parseDate(item['reviewedAt']);
+        mergeTenantRequestRecord(matches.first, item);
       } else {
         tenantRequests.add(
           TenantRequest(
@@ -6029,6 +6671,11 @@ class RentalStore extends ChangeNotifier {
             message: item['message'] as String,
             createdAt: _parseDate(item['createdAt'])!,
             requestType: item['requestType'] as String? ?? 'General Enquiry',
+            requestedMoveOutDate: _parseDate(item['requestedMoveOutDate']),
+            tenantEditedAt: _parseDate(item['tenantEditedAt']),
+            rejectionReason: item['rejectionReason'] as String?,
+            bankName: item['bankName'] as String?,
+            bankAccountNumber: item['bankAccountNumber'] as String?,
             attachmentFileName: item['attachmentFileName'] as String?,
             attachmentBase64: item['attachmentBase64'] as String?,
             attachmentSizeBytes: (item['attachmentSizeBytes'] as num?)?.toInt(),
@@ -6175,7 +6822,7 @@ class RentalStore extends ChangeNotifier {
     };
   }
 
-  Map<String, dynamic> _snapshotMap() => {
+  Map<String, dynamic> _snapshotMap({bool includeBinaryData = true}) => {
         'appLanguage': appLanguage.name,
         'rememberOwnerEmail': rememberOwnerEmail,
         'rememberedOwnerEmail': rememberedOwnerEmail,
@@ -6317,9 +6964,10 @@ class RentalStore extends ChangeNotifier {
                   'carParkDetails': tenancy.carParkDetails,
                   'agreementFileName': tenancy.agreementFileName,
                   'agreementUploadedAt': _date(tenancy.agreementUploadedAt),
-                  'agreementBytesBase64': tenancy.agreementBytes == null
-                      ? null
-                      : base64Encode(tenancy.agreementBytes!),
+                  'agreementBytesBase64':
+                      !includeBinaryData || tenancy.agreementBytes == null
+                          ? null
+                          : base64Encode(tenancy.agreementBytes!),
                   'active': tenancy.active,
                   'lastActiveDate': _date(tenancy.lastActiveDate),
                   'inactiveReason': tenancy.inactiveReason,
@@ -6365,15 +7013,17 @@ class RentalStore extends ChangeNotifier {
                   'internetAmount': bill.internetAmount,
                   'parkingRentalAmount': bill.parkingRentalAmount,
                   'utilityEvidenceFileName': bill.utilityEvidenceFileName,
+                  'utilityEvidencePath': bill.utilityEvidencePath,
                   'utilityEvidenceBytesBase64':
-                      bill.utilityEvidenceBytes == null
+                      !includeBinaryData || bill.utilityEvidenceBytes == null
                           ? null
                           : base64Encode(bill.utilityEvidenceBytes!),
                   'status': bill.status.name,
                   'slipFileName': bill.slipFileName,
-                  'slipBytesBase64': bill.slipBytes == null
-                      ? null
-                      : base64Encode(bill.slipBytes!),
+                  'slipBytesBase64':
+                      !includeBinaryData || bill.slipBytes == null
+                          ? null
+                          : base64Encode(bill.slipBytes!),
                   'amountPaid': bill.amountPaid,
                   'paymentDate': _date(bill.paymentDate),
                   'paymentReference': bill.paymentReference,
@@ -6383,9 +7033,10 @@ class RentalStore extends ChangeNotifier {
                   'portalExpiresAt': _date(bill.portalExpiresAt),
                   'portalToken': bill.portalToken,
                   'invoicePdfFileName': bill.invoicePdfFileName,
-                  'invoicePdfBytesBase64': bill.invoicePdfBytes == null
-                      ? null
-                      : base64Encode(bill.invoicePdfBytes!),
+                  'invoicePdfBytesBase64':
+                      !includeBinaryData || bill.invoicePdfBytes == null
+                          ? null
+                          : base64Encode(bill.invoicePdfBytes!),
                 })
             .toList(),
         'tenantRequests': tenantRequests
@@ -6397,8 +7048,15 @@ class RentalStore extends ChangeNotifier {
                   'message': request.message,
                   'createdAt': _date(request.createdAt),
                   'requestType': request.requestType,
+                  'requestedMoveOutDate':
+                      request.requestedMoveOutDate?.toIso8601String(),
+                  'tenantEditedAt': request.tenantEditedAt?.toIso8601String(),
+                  'rejectionReason': request.rejectionReason,
+                  'bankName': request.bankName,
+                  'bankAccountNumber': request.bankAccountNumber,
                   'attachmentFileName': request.attachmentFileName,
-                  'attachmentBase64': request.attachmentBase64,
+                  'attachmentBase64':
+                      includeBinaryData ? request.attachmentBase64 : null,
                   'attachmentSizeBytes': request.attachmentSizeBytes,
                   'status': request.status,
                   'reviewedAt': _date(request.reviewedAt),
@@ -6429,9 +7087,10 @@ class RentalStore extends ChangeNotifier {
                   'reason': item.reason,
                   'slipFileName': item.slipFileName,
                   'slipPath': item.slipPath,
-                  'slipBytesBase64': item.slipBytes == null
-                      ? null
-                      : base64Encode(item.slipBytes!),
+                  'slipBytesBase64':
+                      !includeBinaryData || item.slipBytes == null
+                          ? null
+                          : base64Encode(item.slipBytes!),
                   'amountPaid': item.amountPaid,
                   'paymentDate': _date(item.paymentDate),
                   'paymentReference': item.paymentReference,
@@ -6805,6 +7464,7 @@ class RentalStore extends ChangeNotifier {
             internetAmount: _number(item['internetAmount']),
             parkingRentalAmount: _number(item['parkingRentalAmount']),
             utilityEvidenceFileName: item['utilityEvidenceFileName'] as String?,
+            utilityEvidencePath: item['utilityEvidencePath'] as String?,
             utilityEvidenceBytes: item['utilityEvidenceBytesBase64'] == null
                 ? null
                 : Uint8List.fromList(
@@ -6843,6 +7503,11 @@ class RentalStore extends ChangeNotifier {
             message: item['message'] as String,
             createdAt: _parseDate(item['createdAt'])!,
             requestType: item['requestType'] as String? ?? 'General Enquiry',
+            requestedMoveOutDate: _parseDate(item['requestedMoveOutDate']),
+            tenantEditedAt: _parseDate(item['tenantEditedAt']),
+            rejectionReason: item['rejectionReason'] as String?,
+            bankName: item['bankName'] as String?,
+            bankAccountNumber: item['bankAccountNumber'] as String?,
             attachmentFileName: item['attachmentFileName'] as String?,
             attachmentBase64: item['attachmentBase64'] as String?,
             attachmentSizeBytes: (item['attachmentSizeBytes'] as num?)?.toInt(),
@@ -7547,12 +8212,8 @@ class RentalStore extends ChangeNotifier {
           facilityMatches.first.status != FacilityStatus.ready) {
         return false;
       }
-      final monthStart = currentMonth;
-      final leaseStart = DateTime(item.leaseStart.year, item.leaseStart.month);
-      final leaseEnd = DateTime(item.leaseEnd.year, item.leaseEnd.month);
       return !isTenancyInactive(item) &&
-          !leaseStart.isAfter(monthStart) &&
-          !leaseEnd.isBefore(monthStart);
+          item.canGenerateBillForMonth(currentMonth);
     })) {
       final alreadyCreated = bills.any((bill) {
         return bill.facilityId == tenancy.facilityId &&
@@ -7910,7 +8571,7 @@ class _TenantProfileInvitationPageState
   Widget build(BuildContext context) {
     if (loading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(child: HomeOpsLoadingCard()),
       );
     }
     if (error != null && invitation == null) {
@@ -8294,9 +8955,13 @@ class _RentalFacilityAppState extends State<RentalFacilityApp> {
                 // visually collapsing spaces on some mobile WebKit builds.
                 child: DefaultTextStyle.merge(
                   style: const TextStyle(wordSpacing: 1.25),
-                  child: EnvironmentBanner(
-                    child: AppUpdateGate(
-                      child: child ?? const SizedBox.shrink(),
+                  child: HomeOpsLoadingOverlay(
+                    loading: store.isLoading,
+                    label: store.loadingLabel,
+                    child: EnvironmentBanner(
+                      child: AppUpdateGate(
+                        child: child ?? const SizedBox.shrink(),
+                      ),
                     ),
                   ),
                 ),
@@ -8618,9 +9283,7 @@ class _CloudSessionRecoveryScreen extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const HomeOpsMark(size: 72),
-                  const SizedBox(height: 26),
-                  const CircularProgressIndicator(),
+                  const HomeOpsLoadingCard(label: 'Restoring workspace'),
                   const SizedBox(height: 22),
                   Text(
                     tr(context, 'Restoring your secure session'),
@@ -8840,6 +9503,7 @@ class _CompactRoleLoginState extends State<_CompactRoleLogin> {
   bool rememberMe = false;
   bool restoredRememberedEmail = false;
   bool chinese = false;
+  bool showPasswordHint = false;
   bool passwordRecovery = Uri.base.queryParameters['password-recovery'] == '1';
   bool feedbackIsError = true;
   String? errorMessage;
@@ -8850,8 +9514,15 @@ class _CompactRoleLoginState extends State<_CompactRoleLogin> {
   String get roleName => switch (role) {
         _CompactLoginRole.owner => copy('Owner', '业主'),
         _CompactLoginRole.tenant => copy('Tenant', '租客'),
-        _CompactLoginRole.technician => 'Technician',
-        _CompactLoginRole.agent => 'Agent',
+        _CompactLoginRole.technician => copy('Technician', '技术人员'),
+        _CompactLoginRole.agent => copy('Agent', '代理'),
+      };
+
+  String get roleKey => switch (role) {
+        _CompactLoginRole.owner => 'owner',
+        _CompactLoginRole.tenant => 'tenant',
+        _CompactLoginRole.technician => 'technician',
+        _CompactLoginRole.agent => 'agent',
       };
 
   @override
@@ -8881,6 +9552,10 @@ class _CompactRoleLoginState extends State<_CompactRoleLogin> {
 
   Future<void> login() async {
     if (role != _CompactLoginRole.owner && role != _CompactLoginRole.tenant) {
+      setState(() {
+        feedbackIsError = true;
+        errorMessage = '$roleName access is not available yet.';
+      });
       return;
     }
     final store = RentalStoreScope.of(context);
@@ -8910,10 +9585,12 @@ class _CompactRoleLoginState extends State<_CompactRoleLogin> {
             'This recovery link is invalid or has expired. Request a new link.',
           );
         }
-        await Supabase.instance.client.auth.updateUser(
-          UserAttributes(password: password.text),
-        );
-        await Supabase.instance.client.auth.signOut();
+        await store.runWithLoading('Updating password', () async {
+          await Supabase.instance.client.auth.updateUser(
+            UserAttributes(password: password.text),
+          );
+          await Supabase.instance.client.auth.signOut();
+        });
         password.clear();
         confirmPassword.clear();
         if (mounted) {
@@ -8997,6 +9674,7 @@ class _CompactRoleLoginState extends State<_CompactRoleLogin> {
   }
 
   Future<void> sendPasswordRecovery() async {
+    final store = RentalStoreScope.of(context);
     final value = email.text.trim();
     if (!isValidEmailInput(value)) {
       setState(() {
@@ -9015,10 +9693,12 @@ class _CompactRoleLoginState extends State<_CompactRoleLogin> {
         queryParameters: const {'password-recovery': '1'},
         fragment: '',
       );
-      await Supabase.instance.client.auth.resetPasswordForEmail(
-        value,
-        redirectTo: redirect.toString(),
-      );
+      await store.runWithLoading('Sending recovery email', () async {
+        await Supabase.instance.client.auth.resetPasswordForEmail(
+          value,
+          redirectTo: redirect.toString(),
+        );
+      });
       if (mounted) {
         setState(() {
           feedbackIsError = false;
@@ -9049,420 +9729,577 @@ class _CompactRoleLoginState extends State<_CompactRoleLogin> {
               math.max(18, (MediaQuery.sizeOf(context).width - 480) / 2 + 18),
               16,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    const HomeOpsLockup(
-                      markSize: 34,
-                      fontSize: 20,
-                      compact: true,
+            child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          passwordRecovery
+                              ? copy('ACCOUNT SECURITY', '账户安全')
+                              : '${roleName.toUpperCase()} ${copy('PORTAL', '入口')}',
+                          style: const TextStyle(
+                            color: oceanDeep,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                      ),
+                      SegmentedButton<bool>(
+                        segments: const [
+                          ButtonSegment(value: false, label: Text('EN')),
+                          ButtonSegment(value: true, label: Text('中')),
+                        ],
+                        selected: {chinese},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (selection) {
+                          final next = selection.first;
+                          setState(() => chinese = next);
+                          RentalStoreScope.of(context).updateLanguage(
+                            next ? AppLanguage.chinese : AppLanguage.english,
+                          );
+                        },
+                        style: const ButtonStyle(
+                          visualDensity: VisualDensity.compact,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    passwordRecovery
+                        ? copy('Choose a new password', '设置新密码')
+                        : createAccount
+                            ? copy('Create owner account', '创建业主帐户')
+                            : copy('Sign in', '登录'),
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.7,
                     ),
-                    const Spacer(),
-                    SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(value: false, label: Text('EN')),
-                        ButtonSegment(value: true, label: Text('中')),
-                      ],
-                      selected: {chinese},
-                      showSelectedIcon: false,
-                      onSelectionChanged: (selection) {
-                        final next = selection.first;
-                        setState(() => chinese = next);
-                        RentalStoreScope.of(context).updateLanguage(
-                          next ? AppLanguage.chinese : AppLanguage.english,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    passwordRecovery
+                        ? copy(
+                            'Enter and confirm the new password for your account.',
+                            '请输入并确认新密码。')
+                        : createAccount
+                            ? copy(
+                                'Fill in your details to create an owner workspace.',
+                                '填写资料以创建业主工作区。')
+                            : copy('Continue to your HomeOps360 workspace.',
+                                '继续进入您的 HomeOps360 工作区。'),
+                    style: const TextStyle(color: oceanMuted, fontSize: 13),
+                  ),
+                  const SizedBox(height: 24),
+                  if (!passwordRecovery)
+                    Text(
+                      copy('I AM A', '我是'),
+                      style: const TextStyle(
+                        color: oceanMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  if (!passwordRecovery) const SizedBox(height: 10),
+                  if (!passwordRecovery)
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        const gap = 8.0;
+                        final available = constraints.maxWidth - gap * 3;
+                        const selectedWeight = 1.55;
+                        const compactWeight = 0.72;
+                        final unit =
+                            available / (selectedWeight + compactWeight * 3);
+                        final roles = <(_CompactLoginRole, IconData, String)>[
+                          (
+                            _CompactLoginRole.owner,
+                            Icons.apartment_outlined,
+                            copy('Owner', '业主')
+                          ),
+                          (
+                            _CompactLoginRole.tenant,
+                            Icons.key_outlined,
+                            copy('Tenant', '租客')
+                          ),
+                          (
+                            _CompactLoginRole.technician,
+                            Icons.handyman_outlined,
+                            copy('Technician', '技术人员')
+                          ),
+                          (
+                            _CompactLoginRole.agent,
+                            Icons.work_outline_rounded,
+                            copy('Agent', '代理')
+                          ),
+                        ];
+                        return SizedBox(
+                          height: 64,
+                          child: Row(
+                            children: [
+                              for (final entry in roles) ...[
+                                _roleChoice(
+                                  entry.$1,
+                                  entry.$2,
+                                  entry.$3,
+                                  width: unit *
+                                      (role == entry.$1
+                                          ? selectedWeight
+                                          : compactWeight),
+                                ),
+                                if (entry != roles.last)
+                                  const SizedBox(width: gap),
+                              ],
+                            ],
+                          ),
                         );
                       },
-                      style: const ButtonStyle(
-                        visualDensity: VisualDensity.compact,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  const SizedBox(height: 20),
+                  if (createAccount) ...[
+                    Text(copy('Full name', '姓名'),
+                        style: const TextStyle(fontSize: 12)),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: fullName,
+                      textCapitalization: TextCapitalization.words,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.deny(RegExp(r'[0-9]')),
+                      ],
+                      decoration: const InputDecoration(
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                      ),
+                    ),
+                    const SizedBox(height: 13),
+                  ],
+                  if (!passwordRecovery)
+                    Text(copy('Email', '电邮'),
+                        style: const TextStyle(fontSize: 12)),
+                  if (!passwordRecovery) const SizedBox(height: 6),
+                  if (!passwordRecovery)
+                    TextField(
+                      key: const Key('compact_login_email_field'),
+                      controller: email,
+                      keyboardType: TextInputType.emailAddress,
+                      onChanged: (_) =>
+                          setState(() => showPasswordHint = false),
+                      decoration: const InputDecoration(
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                      ),
+                    ),
+                  const SizedBox(height: 13),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final passwordHint = RentalStoreScope.of(context)
+                          .passwordHintFor(email: email.text, roleKey: roleKey);
+                      final supportsPasswordHint =
+                          role == _CompactLoginRole.owner ||
+                              role == _CompactLoginRole.tenant;
+                      final twoColumn = (createAccount || passwordRecovery) &&
+                          constraints.maxWidth >= 430;
+                      final passwordField = Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                passwordRecovery
+                                    ? copy('New password', '新密码')
+                                    : copy('Password', '密码'),
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              const Spacer(),
+                              if (!passwordRecovery &&
+                                  !createAccount &&
+                                  supportsPasswordHint)
+                                Text(
+                                  passwordHint.isNotEmpty
+                                      ? copy('Hint available', '可查看提示')
+                                      : copy('Password hint', '密码提示'),
+                                  style: const TextStyle(
+                                    color: oceanDeep,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          TextField(
+                            controller: password,
+                            obscureText: obscure,
+                            decoration: InputDecoration(
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 13),
+                              suffixIconConstraints:
+                                  const BoxConstraints(minWidth: 48),
+                              suffixIcon: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (!passwordRecovery &&
+                                      !createAccount &&
+                                      supportsPasswordHint)
+                                    IconButton(
+                                      tooltip:
+                                          copy('Show password hint', '显示密码提示'),
+                                      onPressed: () => setState(() =>
+                                          showPasswordHint = !showPasswordHint),
+                                      icon: Icon(
+                                        showPasswordHint
+                                            ? Icons.lightbulb_rounded
+                                            : Icons.lightbulb_outline_rounded,
+                                        color: oceanDeep,
+                                      ),
+                                    ),
+                                  IconButton(
+                                    onPressed: () =>
+                                        setState(() => obscure = !obscure),
+                                    icon: Icon(obscure
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          if (!passwordRecovery &&
+                              !createAccount &&
+                              supportsPasswordHint &&
+                              showPasswordHint) ...[
+                            const SizedBox(height: 7),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE9F7FA),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: const Color(0xFFB8E3E9),
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(
+                                    Icons.lightbulb_outline_rounded,
+                                    size: 18,
+                                    color: oceanDeep,
+                                  ),
+                                  const SizedBox(width: 9),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          passwordHint.isNotEmpty
+                                              ? copy('Password hint', '密码提示')
+                                              : email.text.trim().isEmpty
+                                                  ? copy('Enter your email',
+                                                      '请输入电邮')
+                                                  : copy('No hint saved',
+                                                      '尚未保存提示'),
+                                          style: const TextStyle(
+                                            color: oceanText,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          passwordHint.isNotEmpty
+                                              ? passwordHint
+                                              : email.text.trim().isEmpty
+                                                  ? copy(
+                                                      'Enter the email for this role to check the hint saved on this device.',
+                                                      '请输入此角色的电邮，以查看此设备上保存的提示。')
+                                                  : role ==
+                                                          _CompactLoginRole
+                                                              .owner
+                                                      ? copy(
+                                                          'Sign in, then open Profile > Account details > Security to save a hint on this device.',
+                                                          '登录后，请前往“我的 > 账户资料 > 安全”，在此设备上保存提示。')
+                                                      : copy(
+                                                          'Sign in, then open Account > Edit profile > Security to save a hint on this device.',
+                                                          '登录后，请前往“账户 > 编辑资料 > 安全”，在此设备上保存提示。'),
+                                          style: const TextStyle(
+                                            color: oceanText,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                        if (passwordHint.isNotEmpty) ...[
+                                          const SizedBox(height: 5),
+                                          Text(
+                                            copy(
+                                              'Never use your actual password in a hint.',
+                                              '提示中切勿填写真实密码。',
+                                            ),
+                                            style: const TextStyle(
+                                              color: Color(0xFFB45309),
+                                              fontSize: 10,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      );
+                      final confirmField = Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const Text('Confirm password',
+                              style: TextStyle(fontSize: 12)),
+                          const SizedBox(height: 6),
+                          TextField(
+                            controller: confirmPassword,
+                            obscureText: obscure,
+                            decoration: const InputDecoration(
+                              contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 13),
+                            ),
+                          ),
+                        ],
+                      );
+                      if (!createAccount && !passwordRecovery) {
+                        return passwordField;
+                      }
+                      if (twoColumn) {
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: passwordField),
+                            const SizedBox(width: 12),
+                            Expanded(child: confirmField),
+                          ],
+                        );
+                      }
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          passwordField,
+                          const SizedBox(height: 13),
+                          confirmField,
+                        ],
+                      );
+                    },
+                  ),
+                  if (!createAccount && !passwordRecovery) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: rememberMe,
+                          onChanged: loading
+                              ? null
+                              : (value) => setState(
+                                    () => rememberMe = value ?? false,
+                                  ),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        Text(
+                          copy('Remember me', '记住我'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: loading ? null : sendPasswordRecovery,
+                          child: Text(
+                            copy('Forgot password?', '忘记密码？'),
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (errorMessage != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: feedbackIsError
+                            ? const Color(0xFFFFF1F2)
+                            : const Color(0xFFECFDF3),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: feedbackIsError
+                              ? const Color(0xFFFECACA)
+                              : const Color(0xFFA6F4C5),
+                        ),
+                      ),
+                      child: Text(
+                        errorMessage!,
+                        style: TextStyle(
+                          color: feedbackIsError
+                              ? const Color(0xFFB42318)
+                              : const Color(0xFF067647),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  passwordRecovery
-                      ? copy('Choose a new password', '设置新密码')
-                      : createAccount
-                          ? copy('Create owner account', '创建业主帐户')
-                          : copy('Welcome back', '欢迎回来'),
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.7,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  passwordRecovery
-                      ? copy(
-                          'Enter and confirm the new password for your account.',
-                          '请输入并确认新密码。')
-                      : createAccount
-                          ? copy(
-                              'Fill in your details to create an owner workspace.',
-                              '填写资料以创建业主工作区。')
-                          : copy('Sign in to continue', '请登录以继续'),
-                  style: const TextStyle(color: oceanMuted, fontSize: 13),
-                ),
-                const SizedBox(height: 24),
-                if (!passwordRecovery)
-                  Text(
-                    copy('I AM A', '我是'),
-                    style: const TextStyle(
-                      color: oceanMuted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                if (!passwordRecovery) const SizedBox(height: 8),
-                if (!passwordRecovery) const SizedBox(height: 4),
-                if (!passwordRecovery)
-                  GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 2,
-                    childAspectRatio: 3.45,
-                    mainAxisSpacing: 10,
-                    crossAxisSpacing: 10,
-                    children: [
-                      _roleChoice(_CompactLoginRole.owner, Icons.home_outlined,
-                          copy('Owner', '业主')),
-                      _roleChoice(_CompactLoginRole.tenant,
-                          Icons.person_outline_rounded, copy('Tenant', '租客')),
-                      _roleChoice(_CompactLoginRole.technician,
-                          Icons.bolt_rounded, 'Technician'),
-                      _roleChoice(_CompactLoginRole.agent,
-                          Icons.work_outline_rounded, 'Agent'),
-                    ],
-                  ),
-                const SizedBox(height: 20),
-                if (createAccount) ...[
-                  Text(copy('Full name', '姓名'),
-                      style: const TextStyle(fontSize: 12)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: fullName,
-                    textCapitalization: TextCapitalization.words,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.deny(RegExp(r'[0-9]')),
-                    ],
-                    decoration: const InputDecoration(
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                    ),
-                  ),
-                  const SizedBox(height: 13),
-                ],
-                if (!passwordRecovery)
-                  Text(copy('Email', '电邮'),
-                      style: const TextStyle(fontSize: 12)),
-                if (!passwordRecovery) const SizedBox(height: 6),
-                if (!passwordRecovery)
-                  TextField(
-                    controller: email,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                    ),
-                  ),
-                const SizedBox(height: 13),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final twoColumn = (createAccount || passwordRecovery) &&
-                        constraints.maxWidth >= 430;
-                    final passwordField = Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          passwordRecovery
-                              ? copy('New password', '新密码')
-                              : copy('Password', '密码'),
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        const SizedBox(height: 6),
-                        TextField(
-                          controller: password,
-                          obscureText: obscure,
-                          decoration: InputDecoration(
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 13),
-                            suffixIcon: IconButton(
-                              onPressed: () =>
-                                  setState(() => obscure = !obscure),
-                              icon: Icon(obscure
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                    final confirmField = Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Text('Confirm password',
-                            style: TextStyle(fontSize: 12)),
-                        const SizedBox(height: 6),
-                        TextField(
-                          controller: confirmPassword,
-                          obscureText: obscure,
-                          decoration: const InputDecoration(
-                            contentPadding: EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 13),
-                          ),
-                        ),
-                      ],
-                    );
-                    if (!createAccount && !passwordRecovery) {
-                      return passwordField;
-                    }
-                    if (twoColumn) {
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  if (createAccount || passwordRecovery)
+                    const SizedBox(height: 12),
+                  if (!passwordRecovery && role == _CompactLoginRole.owner)
+                    Center(
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          Expanded(child: passwordField),
-                          const SizedBox(width: 12),
-                          Expanded(child: confirmField),
-                        ],
-                      );
-                    }
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        passwordField,
-                        const SizedBox(height: 13),
-                        confirmField,
-                      ],
-                    );
-                  },
-                ),
-                if (!createAccount && !passwordRecovery) ...[
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Checkbox(
-                        value: rememberMe,
-                        onChanged: loading
-                            ? null
-                            : (value) => setState(
-                                  () => rememberMe = value ?? false,
-                                ),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                      Text(
-                        copy('Remember me', '记住我'),
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: loading ? null : sendPasswordRecovery,
-                        child: Text(
-                          copy('Forgot password?', '忘记密码？'),
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-                if (errorMessage != null) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: feedbackIsError
-                          ? const Color(0xFFFFF1F2)
-                          : const Color(0xFFECFDF3),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: feedbackIsError
-                            ? const Color(0xFFFECACA)
-                            : const Color(0xFFA6F4C5),
-                      ),
-                    ),
-                    child: Text(
-                      errorMessage!,
-                      style: TextStyle(
-                        color: feedbackIsError
-                            ? const Color(0xFFB42318)
-                            : const Color(0xFF067647),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-                if (createAccount || passwordRecovery)
-                  const SizedBox(height: 12),
-                if (!passwordRecovery && role == _CompactLoginRole.owner)
-                  Center(
-                    child: Wrap(
-                      alignment: WrapAlignment.center,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text(
-                          createAccount
-                              ? copy('Already have an account? ', '已有账户？ ')
-                              : copy('Don’t have an account? ', '还没有账户？ '),
-                          style: const TextStyle(
-                            color: oceanMuted,
-                            fontSize: 12,
-                          ),
-                        ),
-                        InkWell(
-                          onTap: () {
-                            setState(() {
-                              createAccount = !createAccount;
-                              errorMessage = null;
-                              if (createAccount &&
-                                  password.text == 'password') {
-                                password.clear();
-                              }
-                            });
-                          },
-                          child: Text(
+                          Text(
                             createAccount
-                                ? copy('Sign in', '登录')
-                                : copy('Create new account', '创建新账户'),
+                                ? copy('Already have an account? ', '已有账户？ ')
+                                : copy('Don’t have an account? ', '还没有账户？ '),
                             style: const TextStyle(
-                              color: oceanDeep,
+                              color: oceanMuted,
                               fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              decoration: TextDecoration.underline,
                             ),
                           ),
+                          InkWell(
+                            onTap: () {
+                              setState(() {
+                                createAccount = !createAccount;
+                                errorMessage = null;
+                                if (createAccount &&
+                                    password.text == 'password') {
+                                  password.clear();
+                                }
+                              });
+                            },
+                            child: Text(
+                              createAccount
+                                  ? copy('Sign in', '登录')
+                                  : copy('Create new account', '创建新账户'),
+                              style: const TextStyle(
+                                color: oceanDeep,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 24),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                          colors: [oceanSky, oceanBlue, oceanDeep]),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: oceanBlue.withOpacity(0.24),
+                          blurRadius: 18,
+                          offset: const Offset(0, 8),
                         ),
                       ],
                     ),
-                  ),
-                const Spacer(),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                        colors: [oceanSky, oceanBlue, oceanDeep]),
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: oceanBlue.withOpacity(0.24),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
-                    ],
-                  ),
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      onPressed: loading ? null : login,
+                      child: Text(loading
+                          ? copy('Signing in...', '正在登录…')
+                          : passwordRecovery
+                              ? copy('Update password', '更新密码')
+                              : createAccount
+                                  ? copy('Create Owner Account', '创建业主账户')
+                                  : copy(
+                                      'Log in as $roleName', '以$roleName身份登录')),
                     ),
-                    onPressed: loading ? null : login,
-                    child: Text(loading
-                        ? copy('Signing in...', '正在登录…')
-                        : passwordRecovery
-                            ? copy('Update password', '更新密码')
-                            : createAccount
-                                ? copy('Create Owner Account', '创建业主账户')
-                                : copy(
-                                    'Log in as $roleName', '以$roleName身份登录')),
                   ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  copy(
-                    'Owner and tenant access are available. Technician and agent access remain under maintenance.',
-                    '业主和租户可登录。技术人员及代理登录仍在维护中。',
+                  const SizedBox(height: 10),
+                  Text(
+                    copy(
+                      'Owner and tenant access are available. Technician and agent access remain under maintenance.',
+                      '业主和租户可登录。技术人员及代理登录仍在维护中。',
+                    ),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: oceanMuted, fontSize: 11),
                   ),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: oceanMuted, fontSize: 11),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       );
 
-  Widget _roleChoice(_CompactLoginRole value, IconData icon, String label) {
+  Widget _roleChoice(
+    _CompactLoginRole value,
+    IconData icon,
+    String label, {
+    required double width,
+  }) {
     final active = role == value;
-    final enabled =
-        value == _CompactLoginRole.owner || value == _CompactLoginRole.tenant;
-    return Material(
-      color: active
-          ? const Color(0xFFEFF6FF)
-          : enabled
-              ? Colors.white
-              : const Color(0xFFF3F4F6),
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: enabled
-            ? () => setState(() {
-                  role = value;
-                  createAccount = false;
-                  errorMessage = null;
-                })
-            : null,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      width: width,
+      height: active ? 64 : 48,
+      child: Material(
+        color: active ? const Color(0xFFE7F7F9) : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: active
-                  ? oceanBlue
-                  : enabled
-                      ? const Color(0xFFE2E8F0)
-                      : const Color(0xFFE5E7EB),
-              width: active ? 1.4 : 1,
+        child: InkWell(
+          onTap: () => setState(() {
+            role = value;
+            createAccount = false;
+            showPasswordHint = false;
+            errorMessage = null;
+          }),
+          borderRadius: BorderRadius.circular(12),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            padding: EdgeInsets.symmetric(
+              horizontal: active ? 8 : 3,
+              vertical: active ? 7 : 4,
             ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                size: 17,
-                color: active
-                    ? oceanBlue
-                    : enabled
-                        ? oceanMuted
-                        : const Color(0xFFB8C0CC),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color:
+                    active ? const Color(0xFF0E8D9B) : const Color(0xFFD5DFEA),
+                width: active ? 1.6 : 1,
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: active
-                            ? oceanDeep
-                            : enabled
-                                ? oceanText
-                                : const Color(0xFF9CA3AF),
-                        fontWeight: active ? FontWeight.w800 : FontWeight.w500,
-                      ),
-                    ),
-                    if (!enabled)
-                      const Text(
-                        'Under maintenance',
-                        maxLines: 1,
-                        style: TextStyle(
-                          color: Color(0xFFE05A35),
-                          fontSize: 8,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                  ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: active ? 19 : 15,
+                  color: active ? const Color(0xFF0E7E8C) : oceanMuted,
                 ),
-              ),
-            ],
+                SizedBox(height: active ? 4 : 2),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: active ? 12 : 10,
+                    color: active ? oceanDeep : oceanText,
+                    fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -12648,12 +13485,44 @@ class _CompactFacilityPerformance extends StatelessWidget {
     final store = RentalStoreScope.of(context);
     final selectedTenant =
         selectedTenantId == null ? null : store.userFor(selectedTenantId!);
+    final activeTenants = tenants.where((item) => !store.isTenancyInactive(item)).toList();
+    final movedOutTenants = tenants.where(store.isTenancyInactive).toList();
+    Widget tenantGroup(String title, List<Tenancy> group, {bool movedOut = false, bool includeAll = false}) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('${tr(context, title)} (${group.length})', style: const TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        LayoutBuilder(builder: (context, constraints) => GridView(
+          shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: constraints.maxWidth >= 420 ? 3 : 2,
+            mainAxisSpacing: 8, crossAxisSpacing: 8, mainAxisExtent: 76),
+          children: [
+            if (includeAll) _TenantFilterCard(
+              key: const Key('all_tenants_filter'), selected: selectedTenantId == null,
+              icon: const CircleAvatar(radius: 14, backgroundColor: Color(0xFFE8EEFC),
+                foregroundColor: oceanBlue, child: Icon(Icons.groups_rounded, size: 18)),
+              title: tr(context, 'All Tenants'), subtitle: '${tenants.length}',
+              onTap: () => onTenantSelected(null)),
+            ...group.map((tenancy) {
+              final tenant = store.userFor(tenancy.tenantId);
+              return _TenantFilterCard(
+                key: ValueKey('tenant_filter_${tenant.id}'), selected: selectedTenantId == tenant.id,
+                icon: movedOut
+                    ? const CircleAvatar(radius: 14, backgroundColor: Color(0xFFE5E7EB),
+                        foregroundColor: Color(0xFF6B7280), child: Icon(Icons.person, size: 18))
+                    : TenantGenderAvatar(tenant: tenant, radius: 14),
+                title: tenant.name, subtitle: '${tenancy.unitName} • ${money(tenancy.monthlyRent)}',
+                onTap: () => onTenantSelected(tenant.id));
+            }),
+          ],
+        )),
+        const SizedBox(height: 12),
+      ],
+    );
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
-        Text(facility.address,
-            style: const TextStyle(color: Color(0xFF667085))),
-        const SizedBox(height: 4),
         Text(
           'Performance year: $year',
           style: const TextStyle(
@@ -12701,47 +13570,16 @@ class _CompactFacilityPerformance extends StatelessWidget {
                 .titleLarge
                 ?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: 8),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final columns = constraints.maxWidth >= 420 ? 3 : 2;
-            return GridView.count(
-              key: const Key('tenant_filter_grid'),
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: columns,
-              mainAxisSpacing: 8,
-              crossAxisSpacing: 8,
-              childAspectRatio: columns == 3 ? 1.35 : 1.55,
-              children: [
-                _TenantFilterCard(
-                  key: const Key('all_tenants_filter'),
-                  selected: selectedTenantId == null,
-                  icon: const CircleAvatar(
-                    backgroundColor: Color(0xFFE8EEFC),
-                    foregroundColor: oceanBlue,
-                    child: Icon(Icons.groups_rounded, size: 20),
-                  ),
-                  title: tr(context, 'All Tenants'),
-                  subtitle:
-                      '${tenants.length} tenant${tenants.length == 1 ? '' : 's'}',
-                  onTap: () => onTenantSelected(null),
-                ),
-                ...tenants.map((tenancy) {
-                  final tenant = store.userFor(tenancy.tenantId);
-                  return _TenantFilterCard(
-                    key: ValueKey('tenant_filter_${tenant.id}'),
-                    selected: selectedTenantId == tenant.id,
-                    icon: TenantGenderAvatar(tenant: tenant, radius: 18),
-                    title: tenant.name,
-                    subtitle:
-                        '${tenancy.unitName} • ${money(tenancy.monthlyRent)}',
-                    onTap: () => onTenantSelected(tenant.id),
-                  );
-                }),
-              ],
-            );
-          },
-        ),
+        tenantGroup('Active tenants', activeTenants, includeAll: true),
+        if (movedOutTenants.isNotEmpty)
+          tenantGroup('Moved-out tenants', movedOutTenants, movedOut: true),
+        if (selectedTenant != null)
+          Align(alignment: Alignment.centerLeft, child: TextButton.icon(
+            icon: const Icon(Icons.person_outline, size: 18),
+            label: Text(tr(context, 'View profile')),
+            onPressed: () => showTenantProfileDialog(context, tenant: selectedTenant,
+              tenancy: tenants.firstWhere((item) => item.tenantId == selectedTenant.id)),
+          )),
         const SizedBox(height: 14),
         Text(
           selectedTenant == null
@@ -12798,12 +13636,11 @@ class _TenantFilterCard extends StatelessWidget {
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.all(10),
-            child: Column(
+            child: Row(
+              children: [icon, const SizedBox(width: 8), Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                icon,
-                const SizedBox(height: 7),
                 Text(
                   title,
                   maxLines: 1,
@@ -12821,7 +13658,7 @@ class _TenantFilterCard extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
+            ))],),
           ),
         ),
       );
@@ -13701,6 +14538,37 @@ class _FacilityWorkspace extends StatelessWidget {
         .where((tenancy) => tenancy.facilityId == facility.id && tenancy.active)
         .toList();
 
+    void openListingManager() {
+      if (!store.ownerAccessConfig.marketplaceEnabled ||
+          !store.ownerAccessConfig.explorePromotionEnabled) {
+        unawaited(showOwnerSubscriptionPrompt(context));
+        return;
+      }
+      final user = store.currentUser!;
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => RoomListingManagerScreen(
+            facilities: store.ownerFacilities
+                .map(
+                  (item) => RoomListingFacilityOption(
+                    id: item.id,
+                    name: item.name,
+                    addressLine: item.addressLine,
+                    postcode: item.postcode,
+                    city: item.city,
+                    state: item.state,
+                  ),
+                )
+                .toList(),
+            publisherName: user.name,
+            contactPhone: user.phoneNumber,
+            listingLimit: store.ownerAccessConfig.exploreListingLimit,
+            initialFacilityId: facility.id,
+          ),
+        ),
+      );
+    }
+
     return ListView(
       padding: EdgeInsets.all(compact ? 12 : 20),
       children: [
@@ -13728,7 +14596,15 @@ class _FacilityWorkspace extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
+            IconButton.filled(
+              tooltip: 'Publish Unit',
+              onPressed: facility.status == FacilityStatus.sold
+                  ? null
+                  : openListingManager,
+              icon: const Icon(Icons.add_home_work_outlined, size: 20),
+            ),
+            const SizedBox(width: 4),
             OutlinedButton.icon(
               onPressed: () => showFacilityConfigurationDialog(
                 context,
@@ -14388,7 +15264,10 @@ class _AdvancedReviewTabState extends State<AdvancedReviewTab>
                       IconButton(
                         tooltip: 'Refresh payment submissions',
                         onPressed: () async {
-                          await store.syncPublicInvoicePayments();
+                          await store.runWithLoading(
+                            'Refreshing payments',
+                            store.syncPublicInvoicePayments,
+                          );
                         },
                         icon: const Icon(Icons.refresh_rounded),
                       ),
@@ -14827,8 +15706,13 @@ class _PendingReviewList extends StatelessWidget {
                         label: Text(tr(context, 'Approve')),
                       ),
                       OutlinedButton.icon(
-                        onPressed: () =>
-                            store.reviewTenantRequest(request, 'Rejected'),
+                        onPressed: () async {
+                          final reason =
+                              await promptRequestRejectionReason(context);
+                          if (reason != null)
+                            store.reviewTenantRequest(request, 'Rejected',
+                                reason: reason);
+                        },
                         icon: const Icon(Icons.close_rounded),
                         label: Text(tr(context, 'Reject')),
                       ),
@@ -15008,10 +15892,10 @@ class _UtilitiesTabState extends State<UtilitiesTab>
     final store = RentalStoreScope.of(context);
     final facilities = store.ownerFacilities;
     if (facilities.isEmpty) {
-      return const EmptyState(
+      return EmptyState(
         icon: Icons.apartment_rounded,
-        title: 'No facilities',
-        message: 'Create a facility before entering utilities.',
+        title: tr(context, 'No facilities'),
+        message: tr(context, 'Create a facility before entering utilities.'),
       );
     }
     final facility = facilities.firstWhere(
@@ -15148,7 +16032,7 @@ class _UtilityFacilitySidebar extends StatelessWidget {
             if (collapsed)
               IconButton(
                 key: const Key('toggle_utility_sidebar_button'),
-                tooltip: 'Expand facilities',
+                tooltip: tr(context, 'Expand facilities'),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints.tightFor(
                   width: 36,
@@ -15162,7 +16046,7 @@ class _UtilityFacilitySidebar extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      'UTILITY FACILITIES',
+                      tr(context, 'UTILITY FACILITIES'),
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                             color: const Color(0xFF667085),
                             fontWeight: FontWeight.w700,
@@ -15172,7 +16056,7 @@ class _UtilityFacilitySidebar extends StatelessWidget {
                   ),
                   IconButton(
                     key: const Key('toggle_utility_sidebar_button'),
-                    tooltip: 'Collapse facilities',
+                    tooltip: tr(context, 'Collapse facilities'),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints.tightFor(
                       width: 36,
@@ -15264,7 +16148,11 @@ class _UtilityFacilityDetail extends StatelessWidget {
               ),
               const SizedBox(height: 3),
               Text(
-                'Electricity is calculated using ${facility.name}\'s tariff tiers: ${store.electricityTariffSummaryForFacility(facility)}.',
+                localizedUtilityTariffDescription(
+                  context,
+                  facility.name,
+                  store.electricityTariffSummaryForFacility(facility),
+                ),
                 style: const TextStyle(color: Color(0xFF667085)),
               ),
             ],
@@ -15305,10 +16193,13 @@ class _PendingUtilityList extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
     if (bills.isEmpty) {
-      return const EmptyState(
+      return EmptyState(
         icon: Icons.task_alt_rounded,
-        title: 'No pending utility actions',
-        message: 'All required utility entries have been submitted.',
+        title: tr(context, 'No pending utility actions'),
+        message: tr(
+          context,
+          'All required utility entries have been submitted.',
+        ),
       );
     }
     return ListView(
@@ -15328,7 +16219,10 @@ class _PendingUtilityList extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 ReviewTypeBadge(
-                  label: needsReading ? 'UTILITY ENTRY' : 'PENDING BILLING',
+                  label: tr(
+                    context,
+                    needsReading ? 'UTILITY ENTRY' : 'PENDING BILLING',
+                  ),
                   icon: needsReading
                       ? Icons.electric_meter_rounded
                       : Icons.receipt_long_rounded,
@@ -15336,17 +16230,17 @@ class _PendingUtilityList extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  '${tenant.name} • ${monthLabel(bill.month)}',
+                  '${tenant.name} • ${localizedMonthYear(context, bill.month)}',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                 ),
                 Text(
                   needsReading
-                      ? '${tenancy.unitName} • ${tenancy.electricityBillingMode == ElectricityBillingMode.combined ? 'Combined electricity' : 'Air-con electricity only'} • Reading and attachment required'
+                      ? '${tenancy.unitName} • ${tr(context, tenancy.electricityBillingMode == ElectricityBillingMode.combined ? 'Combined electricity' : 'Air-con electricity only')} • ${tr(context, 'Reading and attachment required')}'
                       : requiresReading
-                          ? '${tenancy.unitName} • Meter reading saved • Review and send invoice'
-                          : '${tenancy.unitName} • No meter reading required • Review and send invoice',
+                          ? '${tenancy.unitName} • ${tr(context, 'Meter reading saved')} • ${tr(context, 'Review and send invoice')}'
+                          : '${tenancy.unitName} • ${tr(context, 'No meter reading required')} • ${tr(context, 'Review and send invoice')}',
                 ),
                 const SizedBox(height: 12),
                 FilledButton.icon(
@@ -15361,7 +16255,7 @@ class _PendingUtilityList extends StatelessWidget {
                   label: Text(
                     needsReading
                         ? tr(context, 'Enter & Upload')
-                        : 'Review & Send',
+                        : tr(context, 'Review & Send'),
                   ),
                 ),
               ],
@@ -15688,8 +16582,11 @@ class OwnerRequestsFeedTab extends StatefulWidget {
 }
 
 class _OwnerRequestsFeedTabState extends State<OwnerRequestsFeedTab>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final TabController controller;
+  RealtimeChannel? requestChannel;
+  SupabaseWorkspaceService? requestWorkspace;
+  String? requestOwnerId;
   String? selectedFacilityId;
   int facilitySlideDirection = 1;
 
@@ -15697,10 +16594,49 @@ class _OwnerRequestsFeedTabState extends State<OwnerRequestsFeedTab>
   void initState() {
     super.initState();
     controller = TabController(length: 2, vsync: this);
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final store = RentalStoreScope.of(context);
+    final ownerId =
+        store.cloudProfile?.role == 'owner' ? store.cloudProfile?.id : null;
+    if (requestOwnerId == ownerId && requestWorkspace == store.cloudWorkspace)
+      return;
+    if (requestChannel != null && requestWorkspace != null)
+      unawaited(requestWorkspace!.removeChannel(requestChannel!));
+    requestChannel = null;
+    requestOwnerId = ownerId;
+    requestWorkspace = store.cloudWorkspace;
+    if (ownerId == null || requestWorkspace == null) return;
+    requestChannel = requestWorkspace!.subscribeOwnerRequests(
+        ownerId: ownerId,
+        onChange: (payload) {
+          if (mounted) store.receiveOwnerRequestUpdate(ownerId, payload);
+        },
+        onConnected: () {
+          if (mounted) unawaited(store.refreshOwnerRequests());
+        });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted)
+        unawaited(RentalStoreScope.of(context).refreshOwnerRequests());
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      unawaited(RentalStoreScope.of(context).refreshOwnerRequests());
+    }
   }
 
   @override
   void dispose() {
+    if (requestChannel != null && requestWorkspace != null)
+      unawaited(requestWorkspace!.removeChannel(requestChannel!));
+    WidgetsBinding.instance.removeObserver(this);
     controller.dispose();
     super.dispose();
   }
@@ -15742,6 +16678,22 @@ class _OwnerRequestsFeedTabState extends State<OwnerRequestsFeedTab>
 
     final detail = Column(
       children: [
+        Align(
+            alignment: Alignment.centerRight,
+            child: IconButton(
+                tooltip: tr(context, 'Refresh'),
+                icon: const Icon(Icons.refresh_rounded),
+                onPressed: () async {
+                  try {
+                    await store.refreshOwnerRequests(rethrowOnError: true);
+                  } catch (_) {
+                    if (context.mounted)
+                      showValidationMessage(
+                          context,
+                          tr(context,
+                              'Unable to refresh requests. Please try again.'));
+                  }
+                })),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           child: TabBar(
@@ -15866,6 +16818,12 @@ class _OwnerRequestList extends StatelessWidget {
                 ),
                 const SizedBox(height: 9),
                 Text(request.message),
+                if (request.rejectionReason != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                      '${tr(context, 'Rejection reason')}: ${request.rejectionReason}',
+                      style: TextStyle(color: Colors.red.shade700)),
+                ],
                 if (request.hasAttachment) ...[
                   const SizedBox(height: 12),
                   InkWell(
@@ -15941,6 +16899,36 @@ class _OwnerRequestList extends StatelessWidget {
                       if (request.status == 'Open')
                         FilledButton.icon(
                           onPressed: () async {
+                            if (request.requestType == 'Move-out') {
+                              final matches = store.tenancies.where((item) =>
+                                  item.tenantId == request.tenantId &&
+                                  item.facilityId == request.facilityId).toList()
+                                ..sort((a, b) => b.leaseStart.compareTo(a.leaseStart));
+                              if (matches.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(tr(context, 'Unable to find tenancy.'))),
+                                );
+                                return;
+                              }
+                              final tenancy = matches.first;
+                              final facility = store.facilityFor(request.facilityId);
+                              await Navigator.of(context).push(MaterialPageRoute<void>(
+                                builder: (_) => MoveOutSettlementPage(
+                                  tenantName: tenant.name,
+                                  propertyName: facility.name,
+                                  unitName: tenancy.unitName,
+                                  draftKey: '${store.currentUser!.id}_${tenancy.id}',
+                                  onCompleteRefund: (settlement) async => store.completeMoveOutRefund(tenancy, settlement),
+                                  tenantId: tenant.id, tenancyId: tenancy.id, facilityId: facility.id,
+                                  initialDate: request.requestedMoveOutDate ??
+                                      tenancy.lastActiveDate ?? DateTime.now(),
+                                  calculateElectricityCharge: (usage) =>
+                                      store.calculateElectricityChargeForFacility(facility, usage),
+                                  translate: (key) => tr(context, key),
+                                ),
+                              ));
+                              return;
+                            }
                             final confirmed = await showActionConfirmation(
                               context,
                               title: 'Accept this request?',
@@ -15953,25 +16941,23 @@ class _OwnerRequestList extends StatelessWidget {
                               onActionCompleted?.call();
                             }
                           },
-                          icon: const Icon(Icons.check_rounded),
-                          label: Text(tr(context, 'Accept')),
+                          icon: Icon(request.requestType == 'Move-out'
+                              ? Icons.logout_rounded : Icons.check_rounded),
+                          label: Text(tr(context, request.requestType == 'Move-out'
+                              ? 'Initiate move-out' : 'Accept')),
                         ),
                       OutlinedButton.icon(
                         onPressed: () async {
-                          final confirmed = await showActionConfirmation(
-                            context,
-                            title: 'Close this request?',
-                            message:
-                                '${request.title} will move to request history.',
-                            confirmLabel: 'Close Request',
-                          );
-                          if (confirmed) {
-                            store.reviewTenantRequest(request, 'Closed');
+                          final reason =
+                              await promptRequestRejectionReason(context);
+                          if (reason != null) {
+                            store.reviewTenantRequest(request, 'Rejected',
+                                reason: reason);
                             onActionCompleted?.call();
                           }
                         },
-                        icon: const Icon(Icons.task_alt_rounded),
-                        label: Text(tr(context, 'Close')),
+                        icon: const Icon(Icons.close_rounded),
+                        label: Text(tr(context, 'Reject')),
                       ),
                     ],
                   ),
@@ -17953,8 +18939,10 @@ class TenantHomeScreen extends StatefulWidget {
 }
 
 class _TenantHomeScreenState extends State<TenantHomeScreen> {
-  int selectedIndex = 0;
+  int selectedIndex = 2;
   bool autoTourScheduled = false;
+  bool tenantRefreshStarted = false;
+  Timer? tenantWorkspaceRefreshTimer;
   String? lifecyclePromptKey;
   int? tourIndex;
   bool recordTourResult = false;
@@ -18016,6 +19004,20 @@ class _TenantHomeScreenState extends State<TenantHomeScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final store = RentalStoreScope.of(context);
+    if (!tenantRefreshStarted) {
+      tenantRefreshStarted = true;
+      unawaited(store.refreshCurrentTenantWorkspace());
+      tenantWorkspaceRefreshTimer = Timer.periodic(
+        const Duration(seconds: 30),
+        (_) {
+          if (mounted) {
+            unawaited(
+              RentalStoreScope.of(context).refreshCurrentTenantWorkspace(),
+            );
+          }
+        },
+      );
+    }
     final lifecycleTenancy = store.currentTenantLifecycleTenancy;
     var scheduledLifecyclePrompt = false;
     if (lifecycleTenancy != null) {
@@ -18066,6 +19068,12 @@ class _TenantHomeScreenState extends State<TenantHomeScreen> {
   }
 
   @override
+  void dispose() {
+    tenantWorkspaceRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
     final user = store.currentUser!;
@@ -18074,9 +19082,9 @@ class _TenantHomeScreenState extends State<TenantHomeScreen> {
     final homeFacility =
         homeTenancy == null ? null : store.facilityFor(homeTenancy.facilityId);
     final pages = [
-      const TenantFigmaHomeTab(),
       TenantExploreTab(languageCode: store.appLanguage.name),
       const TenantPayTab(),
+      const TenantFigmaHomeTab(),
       const TenantRequestsTab(),
       const TenantAccountTab(),
     ];
@@ -18121,7 +19129,7 @@ class _TenantHomeScreenState extends State<TenantHomeScreen> {
                   TenantLifecycleBanner(
                     tenancy: store.currentTenantLifecycleTenancy!,
                   ),
-                if (selectedIndex == 0 &&
+                if (selectedIndex == 2 &&
                     homeFacility != null &&
                     store.announcementsForFacility(homeFacility).isNotEmpty)
                   TenantAnnouncementTicker(facility: homeFacility),
@@ -18145,12 +19153,6 @@ class _TenantHomeScreenState extends State<TenantHomeScreen> {
                 },
                 items: [
                   AppBottomNavItem(
-                    tourKey: tenantHomeNavTourTarget,
-                    icon: Icons.home_outlined,
-                    activeIcon: Icons.home_rounded,
-                    label: tr(context, 'Home'),
-                  ),
-                  AppBottomNavItem(
                     icon: Icons.explore_outlined,
                     activeIcon: Icons.explore_rounded,
                     label: tr(context, 'Explore'),
@@ -18160,6 +19162,13 @@ class _TenantHomeScreenState extends State<TenantHomeScreen> {
                     icon: Icons.payments_outlined,
                     activeIcon: Icons.payments_rounded,
                     label: tr(context, 'Pay'),
+                  ),
+                  AppBottomNavItem(
+                    tourKey: tenantHomeNavTourTarget,
+                    icon: Icons.home_outlined,
+                    activeIcon: Icons.home_rounded,
+                    label: tr(context, 'Home'),
+                    prominent: true,
                   ),
                   AppBottomNavItem(
                     tourKey: tenantRequestsNavTourTarget,
@@ -18304,7 +19313,7 @@ class _TenantAnnouncementTickerState extends State<TenantAnnouncementTicker>
     final items = store.announcementsForFacility(widget.facility);
     if (items.isEmpty) return const SizedBox.shrink();
     final announcement = items[index % items.length];
-    final line = '${widget.facility.name} · ${announcement.title} — '
+    final line = '${announcement.title} — '
         '${announcement.message}';
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
 
@@ -18462,33 +19471,7 @@ class TenantFigmaHomeTab extends StatelessWidget {
         const SizedBox(height: 16),
         const TenantFinancialChart(),
         const SizedBox(height: 18),
-        Text(
-          tr(context, 'Active requests'),
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 8),
-        if (store.currentTenantRequests.isEmpty)
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.check_circle_outline_rounded),
-              title: Text(tr(context, 'No active requests')),
-            ),
-          )
-        else
-          ...store.currentTenantRequests.take(2).map(
-                (request) => Card(
-                  child: ListTile(
-                    leading:
-                        const Icon(Icons.handyman_rounded, color: oceanBlue),
-                    title: Text(request.title),
-                    subtitle: Text(request.status),
-                    trailing: StatusChipText(label: request.status),
-                  ),
-                ),
-              ),
+        TenancyCalendar(key: ValueKey(store.currentUser?.id)),
       ],
     );
   }
@@ -18512,6 +19495,18 @@ Future<void> openTenantPaymentPortal(
     );
     return;
   }
+  final currentUser = rentalStore.currentUser;
+  if (currentUser?.role == UserRole.tenant && context.mounted) {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => _AuthenticatedTenantPaymentPortal(
+          invoiceId: 'INV-${bill.id.toUpperCase()}',
+          tenantEmail: currentUser!.email,
+        ),
+      ),
+    );
+    return;
+  }
   final token = bill.portalToken?.trim() ?? '';
   if (token.isEmpty) {
     showTenantToast(
@@ -18528,18 +19523,6 @@ Future<void> openTenantPaymentPortal(
     );
     return;
   }
-  final currentUser = rentalStore.currentUser;
-  if (currentUser?.role == UserRole.tenant && context.mounted) {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => _AuthenticatedTenantPaymentPortal(
-          portalToken: token,
-          tenantEmail: currentUser!.email,
-        ),
-      ),
-    );
-    return;
-  }
   final link = tenantInvoiceLink('INV-${bill.id.toUpperCase()}', token);
   final opened = await launchUrl(link, mode: LaunchMode.platformDefault);
   if (!opened && context.mounted) {
@@ -18549,11 +19532,11 @@ Future<void> openTenantPaymentPortal(
 
 class _AuthenticatedTenantPaymentPortal extends StatefulWidget {
   const _AuthenticatedTenantPaymentPortal({
-    required this.portalToken,
+    required this.invoiceId,
     required this.tenantEmail,
   });
 
-  final String portalToken;
+  final String invoiceId;
   final String tenantEmail;
 
   @override
@@ -18568,7 +19551,10 @@ class _AuthenticatedTenantPaymentPortalState
   @override
   void initState() {
     super.initState();
-    portalStore = RentFlowStore(portalToken: widget.portalToken);
+    portalStore = RentFlowStore(
+      portalInvoiceId: widget.invoiceId,
+      authenticatedTenantAccess: true,
+    );
   }
 
   @override
@@ -18600,6 +19586,33 @@ class TenantFinancialChart extends StatefulWidget {
 class _TenantFinancialChartState extends State<TenantFinancialChart> {
   int year = DateTime.now().year;
   int? selectedMonthIndex;
+  bool syncingPaymentStatus = false;
+
+  Future<void> _syncPaymentStatus(RentalStore store) async {
+    if (syncingPaymentStatus) return;
+    setState(() => syncingPaymentStatus = true);
+    try {
+      final changed = await store.syncCurrentTenantInvoiceStatuses();
+      if (!mounted) return;
+      showTenantToast(
+        context,
+        tr(
+          context,
+          changed > 0
+              ? 'Payment status updated.'
+              : 'Payment status is already up to date.',
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      showTenantToast(
+        context,
+        tr(context, 'Unable to sync payment status. Please try again.'),
+      );
+    } finally {
+      if (mounted) setState(() => syncingPaymentStatus = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18685,6 +19698,25 @@ class _TenantFinancialChartState extends State<TenantFinancialChart> {
                         .titleMedium
                         ?.copyWith(fontWeight: FontWeight.w800),
                   ),
+                ),
+                SizedBox.square(
+                  dimension: 40,
+                  child: syncingPaymentStatus
+                      ? HomeOpsInlineLoader(
+                          semanticLabel: tr(context, 'Syncing payment status'),
+                        )
+                      : IconButton(
+                          tooltip: tr(context, 'Sync payment status'),
+                          style: IconButton.styleFrom(
+                            foregroundColor: oceanDeep,
+                            backgroundColor: oceanSoft,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          onPressed: () => _syncPaymentStatus(store),
+                          icon: const Icon(Icons.sync_rounded, size: 20),
+                        ),
                 ),
                 IconButton(
                   tooltip: tr(context, 'Previous year'),
@@ -19232,18 +20264,235 @@ class _TenantRequestList extends StatelessWidget {
         final facility = store.facilityFor(request.facilityId);
         return Card(
           child: ListTile(
+            onTap: request.requestType == 'Move-out' &&
+                    request.status == 'Open' &&
+                    !store.isCurrentTenantReadOnly
+                ? () => showEditMoveOutRequestDialog(context, request)
+                : null,
             leading: const Icon(Icons.chat_bubble_outline_rounded),
             title: Text(request.title),
             subtitle: Text(
-              '${tr(context, request.requestType)} • ${facility.name}\n${request.message}\n${dateLabel(request.createdAt)}',
+              '${tr(context, request.requestType)} • ${facility.name}\n${request.message}\n${dateLabel(request.createdAt)}${request.rejectionReason == null ? '' : '\n${tr(context, 'Rejection reason')}: ${request.rejectionReason}'}',
             ),
             isThreeLine: true,
-            trailing: StatusChipText(label: tr(context, request.status)),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              StatusChipText(label: tr(context, request.status)),
+              if (request.requestType == 'Move-out' &&
+                  request.status == 'Open' &&
+                  !store.isCurrentTenantReadOnly)
+                const Icon(Icons.chevron_right_rounded),
+            ]),
           ),
         );
       }).toList(),
     );
   }
+}
+
+Future<void> showEditMoveOutRequestDialog(
+    BuildContext context, TenantRequest request) async {
+  final store = RentalStoreScope.of(context);
+  final bank = TextEditingController(text: request.bankName ?? '');
+  final account = TextEditingController(text: request.bankAccountNumber ?? '');
+  final form = GlobalKey<FormState>();
+  DateTime? date = request.requestedMoveOutDate;
+  bool saving = false;
+  bool changed = false;
+  await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+          builder: (context, update) => AlertDialog(
+                title: Text(tr(context, 'Move-out')),
+                content: SingleChildScrollView(
+                    child: Form(
+                        key: form,
+                        child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              OutlinedButton.icon(
+                                  icon:
+                                      const Icon(Icons.calendar_today_outlined),
+                                  label: Text(date == null
+                                      ? tr(context, 'Move-out date')
+                                      : dateLabel(date!)),
+                                  onPressed: saving || changed
+                                      ? null
+                                      : () async {
+                                          final now = DateTime.now();
+                                          final today = DateTime(
+                                              now.year, now.month, now.day);
+                                          final picked = await showDatePicker(
+                                              context: context,
+                                              initialDate: date != null &&
+                                                      !date!.isBefore(today)
+                                                  ? date!
+                                                  : today,
+                                              firstDate: today,
+                                              lastDate: DateTime(
+                                                  today.year + 10, 12, 31));
+                                          if (picked != null && context.mounted)
+                                            update(() => date = picked);
+                                        }),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                  key: const Key('edit_move_out_bank'),
+                                  controller: bank,
+                                  enabled: !saving && !changed,
+                                  maxLength: 30,
+                                  decoration: InputDecoration(
+                                      labelText: tr(context, 'Bank')),
+                                  validator: (value) =>
+                                      (value ?? '').trim().isEmpty
+                                          ? tr(context, 'Bank is required.')
+                                          : null),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                  key: const Key('edit_move_out_account'),
+                                  controller: account,
+                                  enabled: !saving && !changed,
+                                  maxLength: 30,
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly
+                                  ],
+                                  decoration: InputDecoration(
+                                      labelText:
+                                          tr(context, 'Bank account number')),
+                                  validator: (value) => (value ?? '').isEmpty
+                                      ? tr(context,
+                                          'Bank account number is required.')
+                                      : null),
+                            ]))),
+                actions: [
+                  TextButton(
+                      onPressed:
+                          saving ? null : () => Navigator.pop(dialogContext),
+                      child: Text(tr(context, 'Close'))),
+                  FilledButton(
+                      style: FilledButton.styleFrom(
+                          backgroundColor: Colors.red.shade700,
+                          foregroundColor: Colors.white),
+                      onPressed: saving || changed
+                          ? null
+                          : () async {
+                              final confirmed = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                          title: Text(
+                                              tr(context, 'Withdraw request?')),
+                                          content: Text(tr(context,
+                                              'The request will move to History and its calendar marker will be removed.')),
+                                          actions: [
+                                            TextButton(
+                                                onPressed: () => Navigator.pop(
+                                                    context, false),
+                                                child: Text(
+                                                    tr(context, 'Cancel'))),
+                                            FilledButton(
+                                                onPressed: () => Navigator.pop(
+                                                    context, true),
+                                                child: Text(
+                                                    tr(context, 'Withdraw')))
+                                          ]));
+                              if (confirmed != true || !dialogContext.mounted)
+                                return;
+                              update(() {
+                                saving = true;
+                                changed = true;
+                              });
+                              try {
+                                await store.changeMoveOutRequest(request,
+                                    withdraw: true);
+                                if (dialogContext.mounted)
+                                  Navigator.pop(dialogContext);
+                              } catch (_) {
+                                if (dialogContext.mounted) {
+                                  update(() => saving = false);
+                                  showValidationMessage(
+                                      dialogContext,
+                                      tr(context,
+                                          'Request not confirmed in cloud. Please retry; your draft is kept.'));
+                                }
+                              }
+                            },
+                      child: Text(tr(context, 'Withdraw'))),
+                  FilledButton(
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              if (!changed && !form.currentState!.validate())
+                                return;
+                              update(() => saving = true);
+                              try {
+                                if (changed) {
+                                  await store
+                                      .confirmTenantRequestSaved(request);
+                                } else {
+                                  changed = true;
+                                  await store.changeMoveOutRequest(request,
+                                      date: date,
+                                      bankName: bank.text.trim(),
+                                      bankAccountNumber: account.text);
+                                }
+                                if (dialogContext.mounted)
+                                  Navigator.pop(dialogContext);
+                              } catch (_) {
+                                if (dialogContext.mounted) {
+                                  update(() => saving = false);
+                                  showValidationMessage(
+                                      dialogContext,
+                                      tr(context,
+                                          'Request not confirmed in cloud. Please retry; your draft is kept.'));
+                                }
+                              }
+                            },
+                      child: Text(
+                          tr(context, changed ? 'Retry' : 'Save Changes'))),
+                ],
+              )));
+  Future<void>.delayed(const Duration(seconds: 1), () {
+    bank.dispose();
+    account.dispose();
+  });
+}
+
+Future<String?> promptRequestRejectionReason(BuildContext context) async {
+  final controller = TextEditingController();
+  final form = GlobalKey<FormState>();
+  final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+            title: Text(tr(context, 'Reject request')),
+            content: Form(
+                key: form,
+                child: TextFormField(
+                    controller: controller,
+                    autofocus: true,
+                    minLines: 3,
+                    maxLines: 5,
+                    maxLength: 300,
+                    decoration: InputDecoration(
+                        labelText: tr(context, 'Rejection reason')),
+                    validator: (value) => (value ?? '').trim().isEmpty
+                        ? tr(context, 'Please enter a reason.')
+                        : null)),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(tr(context, 'Cancel'))),
+              FilledButton(
+                  onPressed: () {
+                    if (form.currentState!.validate())
+                      Navigator.pop(context, controller.text.trim());
+                  },
+                  child: Text(tr(context, 'Reject')))
+            ],
+          ));
+  // Let the dialog's exit animation finish before disposing its controller.
+  Future<void>.delayed(const Duration(seconds: 1), controller.dispose);
+  return result;
 }
 
 class TenantAccountTab extends StatelessWidget {
@@ -19670,7 +20919,7 @@ class _AppIssueReportScreenState extends State<AppIssueReportScreen> {
           ),
           const SizedBox(height: 8),
           if (_loading)
-            const Center(child: CircularProgressIndicator())
+            const Center(child: HomeOpsLoadingCard(label: 'Loading reports'))
           else if (_reports.isEmpty)
             Card(
               child: ListTile(
@@ -20025,6 +21274,7 @@ class _TenantAgreementInlinePreview extends StatelessWidget {
 
 void showTenantSelfEditDialog(BuildContext context, AppUser tenant) {
   final store = RentalStoreScope.of(context);
+  final originalEmail = tenant.email;
   final name = TextEditingController(text: tenant.name);
   final email = TextEditingController(text: tenant.email);
   final phone = TextEditingController(text: tenant.phoneNumber);
@@ -20039,6 +21289,18 @@ void showTenantSelfEditDialog(BuildContext context, AppUser tenant) {
   final dateOfBirth = TextEditingController(
     text: tenant.dateOfBirth == null ? '' : dateLabel(tenant.dateOfBirth!),
   );
+  final passwordHint = TextEditingController(
+    text: store.passwordHintFor(
+      email: tenant.email,
+      roleKey: 'tenant',
+    ),
+  );
+  final passwordHintFieldKey = GlobalKey();
+  final currentPassword = TextEditingController();
+  final newPassword = TextEditingController();
+  final confirmPassword = TextEditingController();
+  var changePassword = false;
+  var obscurePasswords = true;
   String? selectedState = tenant.originState;
   String? selectedCity = tenant.originCity;
   String? selectedPostcode = tenant.originPostcode;
@@ -20118,6 +21380,89 @@ void showTenantSelfEditDialog(BuildContext context, AppUser tenant) {
                     },
                   ),
                 ),
+                const Divider(height: 28),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    tr(context, 'Security'),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  key: passwordHintFieldKey,
+                  controller: passwordHint,
+                  inputFormatters: const [PasswordHintWordLimitFormatter()],
+                  scrollPadding: const EdgeInsets.only(bottom: 140),
+                  onTap: () => keepDialogFieldVisible(passwordHintFieldKey),
+                  decoration: InputDecoration(
+                    labelText: tr(context, 'Password hint'),
+                    hintText: tr(
+                      context,
+                      'Example: First home + favorite year',
+                    ),
+                    helperText: tr(
+                      context,
+                      'Maximum 20 words. Never enter your actual password.',
+                    ),
+                    prefixIcon: const Icon(Icons.lightbulb_outline_rounded),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(tr(context, 'Change password')),
+                  subtitle: Text(
+                    tr(context, 'Update your sign-in password securely.'),
+                  ),
+                  value: changePassword,
+                  onChanged: (value) => setDialogState(() {
+                    changePassword = value;
+                    if (!value) {
+                      currentPassword.clear();
+                      newPassword.clear();
+                      confirmPassword.clear();
+                    }
+                  }),
+                ),
+                if (changePassword) ...[
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: currentPassword,
+                    obscureText: obscurePasswords,
+                    decoration: InputDecoration(
+                      labelText: tr(context, 'Current password'),
+                      suffixIcon: IconButton(
+                        onPressed: () => setDialogState(
+                          () => obscurePasswords = !obscurePasswords,
+                        ),
+                        icon: Icon(
+                          obscurePasswords
+                              ? Icons.visibility_rounded
+                              : Icons.visibility_off_rounded,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: newPassword,
+                    obscureText: obscurePasswords,
+                    decoration: InputDecoration(
+                      labelText: tr(context, 'New password'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: confirmPassword,
+                    obscureText: obscurePasswords,
+                    decoration: InputDecoration(
+                      labelText: tr(context, 'Confirm new password'),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -20128,7 +21473,7 @@ void showTenantSelfEditDialog(BuildContext context, AppUser tenant) {
             child: Text(tr(context, 'Cancel')),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               if (!isValidHumanName(name.text)) {
                 showValidationMessage(
                   dialogContext,
@@ -20182,6 +21527,70 @@ void showTenantSelfEditDialog(BuildContext context, AppUser tenant) {
                 showValidationMessage(dialogContext, 'Select a sex.');
                 return;
               }
+              if (!isPasswordHintWithinLimit(passwordHint.text)) {
+                showValidationMessage(
+                  dialogContext,
+                  tr(context, 'Password hint must be 20 words or fewer.'),
+                );
+                return;
+              }
+              if (changePassword) {
+                if (currentPassword.text.isEmpty) {
+                  showValidationMessage(
+                    dialogContext,
+                    tr(context, 'Enter your current password.'),
+                  );
+                  return;
+                }
+                if (newPassword.text.length < 8) {
+                  showValidationMessage(
+                    dialogContext,
+                    tr(context, 'New password must be at least 8 characters.'),
+                  );
+                  return;
+                }
+                if (newPassword.text != confirmPassword.text) {
+                  showValidationMessage(
+                    dialogContext,
+                    tr(
+                      context,
+                      'New password and confirmation do not match.',
+                    ),
+                  );
+                  return;
+                }
+                if (passwordHint.text.trim().isNotEmpty &&
+                    passwordHint.text
+                        .toLowerCase()
+                        .contains(newPassword.text.toLowerCase())) {
+                  showValidationMessage(
+                    dialogContext,
+                    tr(
+                      context,
+                      'The password hint must not contain your actual password.',
+                    ),
+                  );
+                  return;
+                }
+                try {
+                  await store.changeCurrentAccountPassword(
+                    currentPassword: currentPassword.text,
+                    newPassword: newPassword.text,
+                  );
+                } on AuthException catch (error) {
+                  if (!dialogContext.mounted) return;
+                  showValidationMessage(dialogContext, error.message);
+                  return;
+                } catch (error) {
+                  if (!dialogContext.mounted) return;
+                  showValidationMessage(
+                    dialogContext,
+                    error.toString().replaceFirst('Bad state: ', ''),
+                  );
+                  return;
+                }
+              }
+              if (!dialogContext.mounted) return;
               store.updateTenantProfile(
                 tenant,
                 name: name.text,
@@ -20194,6 +21603,12 @@ void showTenantSelfEditDialog(BuildContext context, AppUser tenant) {
                 dateOfBirth: parsedDateOfBirth,
                 sex: selectedSex!,
                 accountStatus: tenant.accountStatus,
+              );
+              store.updatePasswordHint(
+                previousEmail: originalEmail,
+                email: email.text,
+                roleKey: 'tenant',
+                hint: passwordHint.text,
               );
               Navigator.pop(dialogContext);
             },
@@ -20290,10 +21705,11 @@ class TenantBillCard extends StatelessWidget {
                     icon: const Icon(Icons.picture_as_pdf_rounded),
                     label: Text(tr(context, 'View invoice PDF')),
                   ),
-                  TextButton.icon(
-                    onPressed: () => showTenantBillDetailsDialog(context, bill),
-                    icon: const Icon(Icons.info_outline_rounded),
-                    label: Text(tr(context, 'Payment details')),
+                  OutlinedButton.icon(
+                    onPressed: () =>
+                        showPaymentSlipAttachmentDialog(context, bill),
+                    icon: const Icon(Icons.image_outlined),
+                    label: Text(tr(context, 'View payslip')),
                   ),
                 ],
               ),
@@ -20375,11 +21791,11 @@ class TenantReceiptHistoryCard extends StatelessWidget {
                       icon: const Icon(Icons.picture_as_pdf_rounded),
                       label: Text(tr(context, 'View invoice PDF')),
                     ),
-                    TextButton.icon(
+                    OutlinedButton.icon(
                       onPressed: () =>
-                          showTenantBillDetailsDialog(context, bill),
-                      icon: const Icon(Icons.info_outline_rounded),
-                      label: Text(tr(context, 'Payment details')),
+                          showPaymentSlipAttachmentDialog(context, bill),
+                      icon: const Icon(Icons.image_outlined),
+                      label: Text(tr(context, 'View payslip')),
                     ),
                   ],
                 ),
@@ -20520,7 +21936,9 @@ Future<void> openTenantIssuedInvoicePdf(
         future: _pdfBytes,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: HomeOpsLoadingCard(label: 'Preparing invoice'),
+            );
           }
           final bytes = snapshot.data;
           if (snapshot.hasError || bytes == null || bytes.isEmpty) {
@@ -21909,7 +23327,10 @@ Future<void> reviewExactPaymentAttachment(
   MonthlyBill bill,
 ) async {
   final store = RentalStoreScope.of(context);
-  final loaded = await store.refreshPaymentAttachment(bill);
+  final loaded = await store.runWithLoading(
+    'Loading payment slip',
+    () => store.refreshPaymentAttachment(bill),
+  );
   if (!context.mounted) return;
   final refreshed = store.bills.firstWhere(
     (item) => item.id == bill.id,
@@ -22868,8 +24289,10 @@ void showSendInvitationDialog(BuildContext context, AppUser tenant) {
                             deliveryMessage = null;
                           });
                           try {
-                            final link =
-                                await store.sendSecureTenantInvitation(tenant);
+                            final link = await store.runWithLoading(
+                              'Preparing invitation',
+                              () => store.sendSecureTenantInvitation(tenant),
+                            );
                             await sendTenantProfileWhatsApp(
                               tenant: tenant,
                               link: link,
@@ -22987,10 +24410,68 @@ Future<void> confirmAndShowInvoicePdf(
     confirmLabel: 'View PDF',
   );
   if (!confirmed || !context.mounted) return;
-  await showInvoicePdfPreview(
+  await showInvoicePdfPreviewWithCloudRecovery(
     context,
     _rentalInvoiceFromBill(context, bill),
   );
+}
+
+Future<void> showInvoicePdfPreviewWithCloudRecovery(
+  BuildContext context,
+  RentalInvoice invoice,
+) async {
+  if (!invoice.evidenceRequired ||
+      invoice.usage <= 0 ||
+      invoice.evidenceBytes != null) {
+    await showInvoicePdfPreview(context, invoice);
+    return;
+  }
+  final browserTab = preparePdfBrowserTab();
+  final store = RentalStoreScope.of(context);
+  try {
+    final client = Supabase.instance.client;
+    final storage = client.storage.from(RentFlowStore.bucket);
+    if (invoice.evidencePath != null) {
+      final bytes =
+          await store.runWithLoading('Preparing invoice PDF', () async {
+        invoice.evidenceBytes = await storage.download(invoice.evidencePath!);
+        return invoicePdf(invoice);
+      });
+      await showPdfInBrowserTab(browserTab, bytes, '${invoice.id}.pdf');
+      return;
+    }
+    final bytes = await store.runWithLoading('Preparing invoice PDF', () async {
+      final existing = await client
+          .from('rentflow_test_invoices')
+          .select('pdf_path')
+          .eq('id', invoice.id)
+          .maybeSingle();
+      final pdfPath = existing?['pdf_path'] as String?;
+      if (pdfPath == null || pdfPath.isEmpty) {
+        throw StateError(
+          'The original meter photo is unavailable. Open Edit and upload it again.',
+        );
+      }
+      return storage.download(pdfPath);
+    });
+    await showPdfInBrowserTab(browserTab, bytes, '${invoice.id}.pdf');
+  } catch (error) {
+    closePdfBrowserTab(browserTab);
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (errorContext) => AlertDialog(
+        title: const Text('PDF could not be opened'),
+        content: Text(error.toString().replaceFirst('Bad state: ', '')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(errorContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 Future<void> confirmLogout(BuildContext context) async {
@@ -24049,17 +25530,25 @@ Future<String?> showPaymentRejectionDialog(
   return result;
 }
 
-void showPaymentReviewDialog(
+Future<void> showPaymentReviewDialog(
   BuildContext context,
   MonthlyBill bill, {
   bool readOnly = false,
   DateTime? reviewedAt,
   String? reviewReason,
-}) {
+}) async {
   final store = RentalStoreScope.of(context);
+  final isLiveBill = store.bills.any((item) => identical(item, bill));
+  if (bill.slipBytes == null && isLiveBill) {
+    await store.runWithLoading(
+      'Loading payment slip',
+      () => store.refreshPaymentAttachment(bill),
+    );
+    if (!context.mounted) return;
+  }
   final tenant = store.userFor(bill.tenantId);
   final facility = store.facilityFor(bill.facilityId);
-  showDialog<void>(
+  await showDialog<void>(
     context: context,
     builder: (dialogContext) {
       final compact = MediaQuery.sizeOf(dialogContext).width < 600;
@@ -24467,10 +25956,39 @@ class _PaymentSlipPlaceholder extends StatelessWidget {
       );
 }
 
-void showPaymentSlipAttachmentDialog(BuildContext context, MonthlyBill bill) {
+void showPaymentSlipAttachmentDialog(BuildContext context, MonthlyBill bill,
+    {Future<bool> Function()? loadAttachment}) {
+  final load = loadAttachment ??
+      () => RentalStoreScope.of(context).refreshPaymentAttachment(bill);
+  var pending = bill.slipBytes?.isNotEmpty == true
+      ? Future<bool>.value(true)
+      : load().timeout(const Duration(seconds: 30));
   showDialog<void>(
     context: context,
-    builder: (context) => AlertDialog(
+    builder: (context) => StatefulBuilder(
+      builder: (context, setState) => FutureBuilder<bool>(
+        future: pending,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done ||
+              snapshot.data != true) {
+            final loading = snapshot.connectionState != ConnectionState.done;
+            return AlertDialog(
+              title: Text(tr(context, 'Payment slip attachment')),
+              content: loading
+                  ? const SizedBox(height: 80,
+                      child: Center(child: CircularProgressIndicator()))
+                  : const Text('Unable to load the payment slip. Please retry.'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context),
+                    child: const Text('Close')),
+                if (!loading)
+                  TextButton(onPressed: () => setState(() {
+                    pending = load().timeout(const Duration(seconds: 30));
+                  }), child: const Text('Retry')),
+              ],
+            );
+          }
+          return AlertDialog(
       title: Text(tr(context, 'Payment slip attachment')),
       content: SizedBox(
         width: 540,
@@ -24524,7 +26042,7 @@ void showPaymentSlipAttachmentDialog(BuildContext context, MonthlyBill bill) {
                                 Text(
                                   bill.slipFileName == null
                                       ? 'No payment slip was uploaded for this record.'
-                                      : 'This slip is recorded as a file. Image preview is available for JPG, PNG and WebP uploads.',
+                                      : 'This slip is recorded as a file. Image preview is available for JPG, JPEG, PNG and WebP uploads.',
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(color: oceanMuted),
                                 ),
@@ -24560,6 +26078,9 @@ void showPaymentSlipAttachmentDialog(BuildContext context, MonthlyBill bill) {
           child: const Text('Close'),
         ),
       ],
+          );
+        },
+      ),
     ),
   );
 }
@@ -24957,7 +26478,7 @@ void showUtilityDialog(BuildContext context, MonthlyBill bill) {
                         !readingDetected ||
                         extractingReading
                     ? null
-                    : () {
+                    : () async {
                         store.updateBillUtilities(
                           bill,
                           electricityUsageKwh:
@@ -24970,6 +26491,20 @@ void showUtilityDialog(BuildContext context, MonthlyBill bill) {
                           utilityEvidenceFileName: evidenceFileName!,
                           utilityEvidenceBytes: evidenceBytes,
                         );
+                        try {
+                          await store.runWithLoading(
+                            'Saving meter reading',
+                            () => store.persistBillUtilityEvidence(bill),
+                          );
+                        } catch (error) {
+                          if (!dialogContext.mounted) return;
+                          showValidationMessage(
+                            dialogContext,
+                            'The meter photo could not be saved securely. Please try again before generating the bill.',
+                          );
+                          return;
+                        }
+                        if (!dialogContext.mounted) return;
                         Navigator.pop(dialogContext);
                         Future<void>.delayed(Duration.zero, () {
                           if (context.mounted) {
@@ -25019,6 +26554,7 @@ RentalInvoice _rentalInvoiceFromBill(BuildContext context, MonthlyBill bill) {
     previousReading: 0,
     currentReading: bill.electricityUsageKwh,
     evidenceName: bill.utilityEvidenceFileName ?? 'No meter evidence',
+    evidencePath: bill.utilityEvidencePath,
     evidenceRequired: tenancy.electricityRequiresOwnerReading,
     evidenceBytes: bill.utilityEvidenceBytes,
     generalElectricAmount: bill.generalElectricAmount,
@@ -25051,7 +26587,31 @@ RentalInvoice _rentalInvoiceFromBill(BuildContext context, MonthlyBill bill) {
   );
 }
 
-Future<({PublishedInvoiceAccess access, Uint8List pdfBytes})>
+bool rentalInvoiceMatchesCloudRecord(
+  RentalInvoice invoice,
+  Map<String, dynamic> row,
+) {
+  bool sameAmount(String key, double expected) {
+    final saved = (row[key] as num?)?.toDouble();
+    return saved != null && (saved - expected).abs() < 0.005;
+  }
+
+  return row['tenant_id'] == invoice.tenant.id &&
+      row['tenant_email'] == invoice.tenant.email &&
+      row['property_name'] == invoice.tenant.property &&
+      row['unit_name'] == invoice.tenant.unit &&
+      row['period'] == invoice.period &&
+      row['usage_period'] == invoice.usagePeriod &&
+      sameAmount('rent', invoice.tenant.rent) &&
+      sameAmount('water', invoice.tenant.water) &&
+      sameAmount('internet', invoice.tenant.internet) &&
+      sameAmount('current_reading', invoice.currentReading) &&
+      sameAmount('electricity_amount', invoice.electricity) &&
+      sameAmount('general_electric', invoice.generalElectricAmount) &&
+      sameAmount('parking_rental', invoice.parkingRentalAmount);
+}
+
+Future<({PublishedInvoiceAccess access, Uint8List? pdfBytes})>
     _publishInvoiceForTenant(
   RentalInvoice invoice,
 ) async {
@@ -25063,7 +26623,11 @@ Future<({PublishedInvoiceAccess access, Uint8List pdfBytes})>
   invoice.dueDate = invoiceDueDateFromSentAt(DateTime.now());
   final existing = await client
       .from('rentflow_test_invoices')
-      .select('status')
+      .select(
+        'status,pdf_path,tenant_id,tenant_email,property_name,unit_name,'
+        'period,usage_period,rent,water,internet,current_reading,'
+        'electricity_amount,general_electric,parking_rental',
+      )
       .eq('id', invoice.id)
       .maybeSingle();
   final existingStatus = existing?['status'] as String?;
@@ -25072,9 +26636,27 @@ Future<({PublishedInvoiceAccess access, Uint8List pdfBytes})>
       'The tenant has already submitted payment for this invoice. Open Payments > Pending Action to review it.',
     );
   }
+  final existingPdfPath = existing?['pdf_path'] as String?;
+  if (existingPdfPath != null &&
+      existingPdfPath.isNotEmpty &&
+      rentalInvoiceMatchesCloudRecord(
+        invoice,
+        Map<String, dynamic>.from(existing!),
+      )) {
+    final access = await InvoicePortalService(client).publish(
+      invoiceCloudRecord(invoice, pdfPath: existingPdfPath),
+    );
+    return (access: access, pdfBytes: null);
+  }
+  final storage = client.storage.from(RentFlowStore.bucket);
+  if (invoice.evidenceRequired &&
+      invoice.usage > 0 &&
+      invoice.evidenceBytes == null &&
+      invoice.evidencePath != null) {
+    invoice.evidenceBytes = await storage.download(invoice.evidencePath!);
+  }
   final pdfPath = '${owner.id}/invoices/${invoice.id}.pdf';
   final pdfBytes = await invoicePdf(invoice);
-  final storage = client.storage.from(RentFlowStore.bucket);
   await storage.uploadBinary(
     pdfPath,
     pdfBytes,
@@ -25488,8 +27070,10 @@ Future<void> showGeneratedInvoicePreview(
                       ),
                       const SizedBox(height: 10),
                       OutlinedButton.icon(
-                        onPressed: () =>
-                            showInvoicePdfPreview(dialogContext, invoice),
+                        onPressed: () => showInvoicePdfPreviewWithCloudRecovery(
+                          dialogContext,
+                          invoice,
+                        ),
                         icon: const Icon(Icons.picture_as_pdf_outlined),
                         label:
                             Text(tr(context, 'Review generated invoice PDF')),
@@ -25658,6 +27242,9 @@ Future<void> _deliverTenantInvoice({
   );
   if (!confirmed || !dialogContext.mounted) return;
 
+  var deliveryStage = replacingAccess
+      ? 'renewing the secure invoice link'
+      : 'publishing the invoice PDF';
   try {
     final tenant = store.userFor(bill.tenantId);
     var tenantHasAccount = tenantHasLoginAccess(
@@ -25667,29 +27254,73 @@ Future<void> _deliverTenantInvoice({
     if (viaWhatsApp && !tenantHasAccount) {
       // Re-check the server state before rotating a pending invitation. A
       // tenant may have completed signup since the owner's last local refresh.
-      await store.refreshTenantProfileInvitations();
-      tenantHasAccount = tenantHasLoginAccess(
-        tenant,
-        store.profileInvitationForTenant(tenant.id),
-      );
+      // An unavailable invitation service must not block invoice delivery.
+      try {
+        await store.refreshTenantProfileInvitations();
+        tenantHasAccount = tenantHasLoginAccess(
+          tenant,
+          store.profileInvitationForTenant(tenant.id),
+        );
+      } catch (_) {
+        // The secure invoice link works without a tenant login, so continue.
+      }
     }
-    final published = await _publishInvoiceForTenant(invoice);
-    final access = published.access;
+    late final PublishedInvoiceAccess access;
+    Uint8List? generatedPdfBytes;
+    if (replacingAccess) {
+      // The invoice is already online. Resending only needs a fresh portal
+      // token; rebuilding and replacing the PDF can fail unnecessarily on
+      // mobile browsers and private storage policies.
+      access = await store.runWithLoading(
+        'Renewing invoice access',
+        () => _publishReplacementPaymentLink(invoice),
+      );
+    } else {
+      final published = await store.runWithLoading(
+        'Publishing invoice',
+        () => _publishInvoiceForTenant(invoice),
+      );
+      access = published.access;
+      generatedPdfBytes = published.pdfBytes;
+    }
     store.recordInvoicePortalAccess(
       bill,
       expiresAt: access.portalExpiresAt,
       portalToken: access.portalToken,
-      invoicePdfFileName: '${invoice.id}.pdf',
-      invoicePdfBytes: published.pdfBytes,
+      invoicePdfFileName:
+          generatedPdfBytes == null ? null : '${invoice.id}.pdf',
+      invoicePdfBytes: generatedPdfBytes,
     );
+    deliveryStage = 'saving the published invoice';
     await store.flushPersistence();
-    await store.flushCloudPersistence(rethrowOnError: true);
+    // Publish the small, affected tenant snapshot before leaving the app.
+    // The broader owner backup remains asynchronous and cannot block an
+    // invoice that is already live.
+    try {
+      await store.flushTenantCloudPersistence(
+        tenant,
+        rethrowOnError: true,
+      );
+    } catch (_) {
+      // The secure invoice remains usable even if workspace refresh is
+      // temporarily unavailable. The scheduled full sync will retry it.
+    }
 
     if (viaWhatsApp) {
       final link = tenantInvoiceLink(invoice.id, access.portalToken);
-      final invitationLink = tenantHasAccount
-          ? null
-          : await store.sendSecureTenantInvitation(tenant);
+      Uri? invitationLink;
+      if (!tenantHasAccount) {
+        try {
+          invitationLink = await store.runWithLoading(
+            'Preparing tenant invitation',
+            () => store.sendSecureTenantInvitation(tenant),
+          );
+        } catch (_) {
+          // Invoice delivery remains available through its standalone secure
+          // payment link even when profile invitation setup is unavailable.
+        }
+      }
+      deliveryStage = 'opening WhatsApp';
       await shareWhatsApp(
         invoice,
         link,
@@ -25709,13 +27340,10 @@ Future<void> _deliverTenantInvoice({
     }
   } catch (error) {
     if (!dialogContext.mounted) return;
-    final message = error is AuthException
-        ? error.message
-        : error is TenantProfileInvitationException
-            ? error.message
-            : viaWhatsApp
-                ? 'The invoice could not be published or WhatsApp could not be opened. Please try again.'
-                : 'The invoice could not be published to the tenant app. Please try again.';
+    final message = _invoiceDeliveryFailureMessage(
+      error,
+      stage: deliveryStage,
+    );
     await showDialog<void>(
       context: dialogContext,
       builder: (errorContext) => AlertDialog(
@@ -25730,6 +27358,34 @@ Future<void> _deliverTenantInvoice({
       ),
     );
   }
+}
+
+String _invoiceDeliveryFailureMessage(
+  Object error, {
+  required String stage,
+}) {
+  String detail;
+  if (error is AuthException) {
+    detail = error.message;
+  } else if (error is TenantProfileInvitationException) {
+    detail = error.message;
+  } else if (error is StorageException) {
+    detail = error.message;
+  } else if (error is PostgrestException) {
+    detail = error.message;
+  } else if (error is FunctionException) {
+    final data = error.details;
+    detail = data is Map
+        ? data['error']?.toString() ?? error.reasonPhrase ?? 'Service error.'
+        : data?.toString() ?? error.reasonPhrase ?? 'Service error.';
+  } else if (error is PlatformException) {
+    detail = error.message ?? 'The device could not open the requested app.';
+  } else {
+    detail = error.toString();
+  }
+  final cleaned = detail.trim().replaceFirst(RegExp(r'^Exception:\s*'), '');
+  return 'The app failed while $stage. '
+      '${cleaned.isEmpty ? 'Please try again.' : cleaned}';
 }
 
 class _InvoicePreviewCharge extends StatelessWidget {
@@ -27019,12 +28675,14 @@ void showTenantProfileReviewDialog(
                         error = null;
                       });
                       try {
-                        final rejected =
-                            await store.reviewTenantProfileInvitation(
-                          tenant: tenant,
-                          invitation: invitation,
-                          approve: false,
-                          reason: reason.text,
+                        final rejected = await store.runWithLoading(
+                          'Returning tenant profile',
+                          () => store.reviewTenantProfileInvitation(
+                            tenant: tenant,
+                            invitation: invitation,
+                            approve: false,
+                            reason: reason.text,
+                          ),
                         );
                         final token = rejected.token;
                         if (token == null) {
@@ -27068,10 +28726,13 @@ void showTenantProfileReviewDialog(
                         error = null;
                       });
                       try {
-                        await store.reviewTenantProfileInvitation(
-                          tenant: tenant,
-                          invitation: invitation,
-                          approve: true,
+                        await store.runWithLoading(
+                          'Approving tenant profile',
+                          () => store.reviewTenantProfileInvitation(
+                            tenant: tenant,
+                            invitation: invitation,
+                            approve: true,
+                          ),
                         );
                         if (dialogContext.mounted) {
                           Navigator.pop(dialogContext);
@@ -27102,6 +28763,14 @@ void showTenantProfileDialog(
 }) {
   final store = RentalStoreScope.of(context);
   final facility = store.facilityFor(tenancy.facilityId);
+  final moveOutRequests = store.tenantRequests.where((request) =>
+      request.tenantId == tenant.id && request.facilityId == facility.id &&
+      request.requestedMoveOutDate != null &&
+      (request.status == 'Open' || request.status == 'Accepted')).toList()
+    ..sort((a, b) => (b.tenantEditedAt ?? b.createdAt).compareTo(a.tenantEditedAt ?? a.createdAt));
+  final settlementDate = moveOutRequests.isEmpty
+      ? tenancy.lastActiveDate ?? DateTime.now()
+      : moveOutRequests.first.requestedMoveOutDate!;
   final paymentHistory = store
       .billsForTenant(tenant.id)
       .where((bill) =>
@@ -27542,6 +29211,12 @@ void showTenantProfileDialog(
                   ],
                 ),
               ),
+              if (store.isOwner)
+                SavedSettlementInvoice(
+                  tenantId: tenant.id, tenancyId: tenancy.id, facilityId: facility.id,
+                  draftKey: '${store.currentUser!.id}_${tenancy.id}',
+                  translate: (key) => tr(context, key),
+                ),
               const Divider(height: 28),
               Text(
                 tr(context, 'Contract & Package'),
@@ -27683,6 +29358,21 @@ void showTenantProfileDialog(
           child: _TenantProfileDialogActions(
             active: tenancy.active,
             onEdit: () => showEditTenantProfileDialog(context, tenant, tenancy),
+            onMoveOut: store.isOwner && store.canManage
+                ? () => Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) => MoveOutSettlementPage(
+                      tenantName: tenant.name,
+                      propertyName: facility.name,
+                      unitName: tenancy.unitName,
+                      draftKey: '${store.currentUser!.id}_${tenancy.id}',
+                      onCompleteRefund: (settlement) async => store.completeMoveOutRefund(tenancy, settlement),
+                      tenantId: tenant.id, tenancyId: tenancy.id, facilityId: facility.id,
+                      initialDate: settlementDate,
+                      calculateElectricityCharge: (usage) => store.calculateElectricityChargeForFacility(facility, usage),
+                      translate: (key) => tr(context, key),
+                    ),
+                  ))
+                : null,
             onClose: () => Navigator.pop(context),
           ),
         ),
@@ -27696,11 +29386,13 @@ class _TenantProfileDialogActions extends StatelessWidget {
     required this.active,
     required this.onEdit,
     required this.onClose,
+    this.onMoveOut,
   });
 
   final bool active;
   final VoidCallback onEdit;
   final VoidCallback onClose;
+  final VoidCallback? onMoveOut;
 
   @override
   Widget build(BuildContext context) {
@@ -27709,7 +29401,9 @@ class _TenantProfileDialogActions extends StatelessWidget {
       icon: const Icon(Icons.edit_rounded),
       label: Text(tr(context, 'Edit / Extend Tenancy')),
       style: FilledButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        padding: EdgeInsets.symmetric(
+            horizontal: onMoveOut != null ? 10 : 18,
+            vertical: onMoveOut != null ? 8 : 14),
       ),
     );
     final close = TextButton(
@@ -27722,6 +29416,26 @@ class _TenantProfileDialogActions extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (onMoveOut != null) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(children: [
+                Expanded(child: SizedBox(height: 48, child: edit)),
+                const SizedBox(width: 8),
+                Expanded(child: SizedBox(height: 48, child: FilledButton.icon(
+                  onPressed: onMoveOut,
+                  icon: const Icon(Icons.logout_rounded),
+                  label: Text(tr(context, 'Initiate move-out'), textAlign: TextAlign.center),
+                  style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+                ))),
+              ]),
+              const SizedBox(height: 4),
+              close,
+            ],
+          );
+        }
         if (constraints.maxWidth < 520) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -27936,205 +29650,248 @@ void showTenantRequestAttachmentDialog(
   );
 }
 
-void showAddRequestDialog(BuildContext context) {
+const tenantRequestTypes = [
+  'Repair & Maintenance',
+  'Move-out',
+  'Access Card / Key',
+  'General Enquiry',
+];
+
+Future<void> showAddRequestDialog(BuildContext context) async {
   final store = RentalStoreScope.of(context);
   if (store.isCurrentTenantReadOnly) {
     showTenantToast(
-      context,
-      'Your tenancy is view-only. New requests are unavailable.',
-    );
+        context,
+        tr(context,
+            'Your tenancy is view-only. New requests are unavailable.'));
     return;
   }
-  const requestTypes = [
-    'Repair & Maintenance',
-    'Extend Tenancy',
-    'Early Move-out',
-    'Agreement / Document',
-    'Utility / Billing',
-    'Access Card / Key',
-    'Parking',
-    'Neighbor / Noise',
-    'General Enquiry',
-  ];
-  var requestType = requestTypes.first;
-  final title = TextEditingController();
-  final message = TextEditingController();
-  PickedImageData? attachment;
-
-  showDialog<void>(
+  final bank = TextEditingController();
+  final account = TextEditingController();
+  final requestTitle = TextEditingController();
+  final description = TextEditingController();
+  final form = GlobalKey<FormState>();
+  final tenantName = store.currentUser?.name ?? '';
+  final chinese = store.appLanguage == AppLanguage.chinese;
+  var requestType = tenantRequestTypes.first;
+  DateTime? moveOutDate;
+  bool sending = false;
+  TenantRequest? pendingRequest;
+  final submittedMoveOut = await showDialog<bool>(
     context: context,
     barrierDismissible: false,
-    builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-              title: Text(tr(context, 'Create New Request')),
-              content: SizedBox(
-                width: 580,
-                child: Column(
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, update) => AlertDialog(
+        title: Text(tr(context, 'Create New Request')),
+        content: SizedBox(
+            width: 580,
+            child: SingleChildScrollView(
+                child: Form(
+              key: form,
+              child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     DropdownButtonFormField<String>(
+                      key: const Key('request_type'),
                       value: requestType,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        labelText: 'Request Type',
-                      ),
-                      items: requestTypes
-                          .map((item) =>
-                              DropdownMenuItem(value: item, child: Text(item)))
+                      decoration: InputDecoration(
+                          labelText: tr(context, 'Request Type')),
+                      items: tenantRequestTypes
+                          .map((type) => DropdownMenuItem(
+                              enabled: type != 'Move-out' ||
+                                  !store.hasActiveMoveOutRequestFor(
+                                      store.currentUser?.id ?? ''),
+                              value: type,
+                              child: Text(tr(context, type))))
                           .toList(),
-                      onChanged: (value) => setDialogState(
-                        () => requestType = value ?? requestType,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    AppTextField(controller: title, label: 'Request Title'),
-                    TextField(
-                      controller: message,
-                      minLines: 5,
-                      maxLines: 8,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        labelText: 'Describe what you need',
-                        alignLabelWithHint: true,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: oceanCanvas,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFD7E1EF)),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            attachment == null
-                                ? Icons.add_photo_alternate_outlined
-                                : Icons.image_rounded,
-                            color: oceanDeep,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Request picture',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                Text(
-                                  attachment == null
-                                      ? 'Optional • maximum 1 picture • compressed below 2 MB'
-                                      : '${attachment!.name} • ${fileSizeLabel(attachment!.bytes.length)}',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: oceanMuted,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          OutlinedButton(
-                            onPressed: () async {
-                              try {
-                                final picked = await pickImageForUpload();
-                                if (picked == null) return;
-                                final compressed =
-                                    compressRequestPicture(picked);
-                                setDialogState(() => attachment = compressed);
-                                if (!context.mounted) return;
-                                final wasCompressed = compressed.bytes.length <
-                                    picked.bytes.length;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      wasCompressed
-                                          ? 'Picture compressed to ${fileSizeLabel(compressed.bytes.length)}.'
-                                          : 'Picture attached (${fileSizeLabel(compressed.bytes.length)}).',
-                                    ),
-                                  ),
-                                );
-                              } catch (error) {
-                                if (!context.mounted) return;
-                                showValidationMessage(
-                                  context,
-                                  error.toString().replaceFirst(
-                                        'Bad state: ',
-                                        '',
-                                      ),
-                                );
-                              }
-                            },
-                            child: Text(
-                              attachment == null ? 'Upload' : 'Replace',
-                            ),
-                          ),
-                          if (attachment != null)
-                            IconButton(
-                              tooltip: 'Remove picture',
-                              onPressed: () =>
-                                  setDialogState(() => attachment = null),
-                              icon: const Icon(Icons.close_rounded),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () async {
-                    if (title.text.trim().isEmpty) {
-                      showValidationMessage(
-                        context,
-                        'Request title is required.',
-                      );
-                      return;
-                    }
-                    if (message.text.trim().isEmpty) {
-                      showValidationMessage(
-                        context,
-                        'Please describe what you need.',
-                      );
-                      return;
-                    }
-                    final confirmed = await showActionConfirmation(
-                      context,
-                      title: 'Send this request?',
-                      message:
-                          'The owner will receive your $requestType request.',
-                      confirmLabel: 'Send Request',
-                    );
-                    if (!confirmed || !context.mounted) return;
-                    store.addTenantRequest(
-                      requestType: requestType,
-                      title: title.text,
-                      message: message.text,
-                      attachmentFileName: attachment?.name,
-                      attachmentBase64: attachment == null
+                      onChanged: sending || pendingRequest != null
                           ? null
-                          : base64Encode(attachment!.bytes),
-                      attachmentSizeBytes: attachment?.bytes.length,
-                    );
-                    Navigator.pop(context);
-                  },
-                  child: Text(tr(context, 'Submit')),
-                ),
-              ],
-            )),
+                          : (value) => update(() => requestType = value!),
+                    ),
+                    if (store.hasActiveMoveOutRequestFor(
+                            store.currentUser?.id ?? '') &&
+                        pendingRequest == null) ...[
+                      const SizedBox(height: 12),
+                      Text(tr(context,
+                          'You already have an active move-out request. Edit or withdraw it from Active requests.')),
+                    ],
+                    if (requestType != 'Move-out') ...[
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        key: const Key('request_title'),
+                        controller: requestTitle,
+                        enabled: !sending && pendingRequest == null,
+                        decoration: InputDecoration(
+                            labelText: tr(context, 'Request Title')),
+                        validator: (value) => (value ?? '').trim().isEmpty
+                            ? tr(context, 'Request title is required.')
+                            : null,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        key: const Key('request_description'),
+                        controller: description,
+                        enabled: !sending && pendingRequest == null,
+                        minLines: 5,
+                        maxLines: 8,
+                        decoration: InputDecoration(
+                            labelText: tr(context, 'Describe what you need'),
+                            alignLabelWithHint: true),
+                        validator: (value) => (value ?? '').trim().isEmpty
+                            ? tr(context, 'Please describe what you need.')
+                            : null,
+                      ),
+                    ],
+                    if (requestType == 'Move-out') ...[
+                      const SizedBox(height: 16),
+                      FormField<DateTime>(
+                        validator: (_) => moveOutDate == null
+                            ? tr(context, 'Choose your move-out date.')
+                            : null,
+                        builder: (field) => Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              OutlinedButton.icon(
+                                  key: const Key('request_move_out_date'),
+                                  icon:
+                                      const Icon(Icons.calendar_today_outlined),
+                                  label: Text(moveOutDate == null
+                                      ? tr(context, 'Move-out date')
+                                      : dateLabel(moveOutDate!)),
+                                  onPressed: sending || pendingRequest != null
+                                      ? null
+                                      : () async {
+                                          final now = DateTime.now();
+                                          final today = DateTime(
+                                              now.year, now.month, now.day);
+                                          final picked = await showDatePicker(
+                                              context: context,
+                                              initialDate: moveOutDate ?? today,
+                                              firstDate: today,
+                                              lastDate: DateTime(
+                                                  today.year + 10, 12, 31));
+                                          if (picked != null &&
+                                              context.mounted) {
+                                            update(() => moveOutDate = picked);
+                                            field.didChange(picked);
+                                          }
+                                        }),
+                              if (field.hasError)
+                                Text(field.errorText!,
+                                    style: const TextStyle(color: Colors.red)),
+                            ]),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                          key: const Key('request_bank'),
+                          controller: bank,
+                          enabled: !sending && pendingRequest == null,
+                          maxLength: 30,
+                          decoration:
+                              InputDecoration(labelText: tr(context, 'Bank')),
+                          validator: (value) => (value ?? '').trim().isEmpty
+                              ? tr(context, 'Bank is required.')
+                              : null),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                          key: const Key('request_bank_account'),
+                          controller: account,
+                          enabled: !sending && pendingRequest == null,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly
+                          ],
+                          maxLength: 30,
+                          decoration: InputDecoration(
+                              labelText: tr(context, 'Bank account number')),
+                          validator: (value) => (value ?? '').isEmpty
+                              ? tr(context, 'Bank account number is required.')
+                              : null),
+                      const SizedBox(height: 12),
+                      Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                              color: oceanSoft,
+                              borderRadius: BorderRadius.circular(12)),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.warning_amber_rounded,
+                                  color: Color(0xFFB7791F), size: 22),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                  child: Text(tr(context,
+                                      'Your deposit will be refunded by online transfer within 3 days after your move-out date, subject to inspection.'))),
+                            ],
+                          )),
+                    ],
+                  ]),
+            ))),
+        actions: [
+          TextButton(
+              onPressed: sending ? null : () => Navigator.pop(dialogContext),
+              child: Text(tr(context, 'Cancel'))),
+          FilledButton(
+              onPressed: sending
+                  ? null
+                  : () async {
+                      if (!form.currentState!.validate()) return;
+                      if (pendingRequest == null &&
+                          requestType == 'Move-out' &&
+                          store.hasActiveMoveOutRequestFor(
+                              store.currentUser?.id ?? '')) {
+                        showValidationMessage(
+                            context,
+                            tr(context,
+                                'You already have an active move-out request. Edit or withdraw it from Active requests.'));
+                        return;
+                      }
+                      update(() => sending = true);
+                      final moveOut = requestType == 'Move-out';
+                      final message = moveOut
+                          ? '${tr(context, 'Move-out date')}: ${dateLabel(moveOutDate!)}\n${tr(context, 'Bank')}: ${bank.text.trim()}\n${tr(context, 'Bank account number')}: ${account.text}'
+                          : description.text.trim();
+                      pendingRequest ??= store.addTenantRequest(
+                          requestType: requestType,
+                          title: moveOut
+                              ? tr(context, requestType)
+                              : requestTitle.text.trim(),
+                          message: message,
+                          requestedMoveOutDate: moveOut ? moveOutDate : null,
+                          bankName: moveOut ? bank.text.trim() : null,
+                          bankAccountNumber: moveOut ? account.text : null);
+                      try {
+                        if (pendingRequest == null)
+                          throw StateError('No active tenancy is available.');
+                        await store.confirmTenantRequestSaved(pendingRequest!);
+                      } catch (error) {
+                        if (!dialogContext.mounted) return;
+                        update(() => sending = false);
+                        showValidationMessage(
+                            dialogContext,
+                            tr(dialogContext,
+                                'Request not confirmed in cloud. Please retry; your draft is kept.'));
+                        return;
+                      }
+                      if (dialogContext.mounted)
+                        Navigator.pop(dialogContext, moveOut);
+                    },
+              child: Text(tr(context, 'Submit'))),
+        ],
+      ),
+    ),
   );
+  bank.dispose();
+  account.dispose();
+  requestTitle.dispose();
+  description.dispose();
+  if (submittedMoveOut == true && context.mounted) {
+    await Navigator.of(context).push<void>(MaterialPageRoute<void>(
+      builder: (_) =>
+          MoveOutThankYouPage(tenantName: tenantName, chinese: chinese),
+    ));
+  }
 }
 
 void showAvatarPickerDialog(BuildContext context) {
@@ -28722,6 +30479,9 @@ void showCreateObserverDialog(BuildContext context) {
 void showOwnerAccountSetupDialog(BuildContext context) {
   final store = RentalStoreScope.of(context);
   final user = store.currentUser!;
+  final originalEmail = user.email;
+  final passwordHintRole =
+      user.ownerAccessLevel == OwnerAccessLevel.observer ? 'observer' : 'owner';
   final name = TextEditingController(text: user.name);
   final email = TextEditingController(text: user.email);
   final phone = TextEditingController(text: user.phoneNumber);
@@ -28739,6 +30499,14 @@ void showOwnerAccountSetupDialog(BuildContext context) {
   final currentPassword = TextEditingController();
   final newPassword = TextEditingController();
   final confirmPassword = TextEditingController();
+  final passwordHint = TextEditingController(
+    text: store.passwordHintFor(
+      email: user.email,
+      roleKey: passwordHintRole,
+    ),
+  );
+  final passwordHintFieldKey = GlobalKey();
+  final originalPasswordHint = passwordHint.text.trim();
   var changePassword = false;
   var obscurePasswords = true;
   final originalPaymentQrBase64 = user.paymentQrBase64;
@@ -28930,6 +30698,24 @@ void showOwnerAccountSetupDialog(BuildContext context) {
                       ),
                 ),
                 const SizedBox(height: 8),
+                TextField(
+                  key: passwordHintFieldKey,
+                  controller: passwordHint,
+                  inputFormatters: const [PasswordHintWordLimitFormatter()],
+                  scrollPadding: const EdgeInsets.only(bottom: 140),
+                  onTap: () => keepDialogFieldVisible(passwordHintFieldKey),
+                  decoration: InputDecoration(
+                    labelText: tr(context, 'Password hint'),
+                    hintText:
+                        tr(context, 'Example: First home + favorite year'),
+                    helperText: tr(
+                      context,
+                      'Maximum 20 words. Never enter your actual password.',
+                    ),
+                    prefixIcon: const Icon(Icons.lightbulb_outline_rounded),
+                  ),
+                ),
+                const SizedBox(height: 6),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text(tr(context, 'Change password')),
@@ -29025,6 +30811,7 @@ void showOwnerAccountSetupDialog(BuildContext context) {
                       user.bankAccountNumber.trim() ||
                   bankBeneficiary.text.trim() != user.bankBeneficiary.trim() ||
                   nextQrBase64 != originalPaymentQrBase64 ||
+                  passwordHint.text.trim() != originalPasswordHint ||
                   changePassword;
               if (!hasChanges) {
                 showValidationMessage(
@@ -29065,6 +30852,13 @@ void showOwnerAccountSetupDialog(BuildContext context) {
                 );
                 return;
               }
+              if (!isPasswordHintWithinLimit(passwordHint.text)) {
+                showValidationMessage(
+                  dialogContext,
+                  tr(context, 'Password hint must be 20 words or fewer.'),
+                );
+                return;
+              }
               if (changePassword) {
                 if (currentPassword.text.isEmpty) {
                   showValidationMessage(
@@ -29087,6 +30881,16 @@ void showOwnerAccountSetupDialog(BuildContext context) {
                   );
                   return;
                 }
+                if (passwordHint.text.trim().isNotEmpty &&
+                    passwordHint.text
+                        .toLowerCase()
+                        .contains(newPassword.text.toLowerCase())) {
+                  showValidationMessage(
+                    dialogContext,
+                    'The password hint must not contain your actual password.',
+                  );
+                  return;
+                }
               }
               final confirmed = await showActionConfirmation(
                 dialogContext,
@@ -29098,12 +30902,14 @@ void showOwnerAccountSetupDialog(BuildContext context) {
               if (!confirmed || !dialogContext.mounted) return;
               if (changePassword) {
                 try {
-                  store.changeLocalAccountPassword(
-                    email: user.email,
-                    role: user.role,
+                  await store.changeCurrentAccountPassword(
                     currentPassword: currentPassword.text,
                     newPassword: newPassword.text,
                   );
+                } on AuthException catch (error) {
+                  if (!dialogContext.mounted) return;
+                  showValidationMessage(dialogContext, error.message);
+                  return;
                 } catch (error) {
                   if (!dialogContext.mounted) return;
                   showValidationMessage(
@@ -29114,20 +30920,23 @@ void showOwnerAccountSetupDialog(BuildContext context) {
                 }
               }
               try {
-                await store.updateOwnerAccount(
-                  name: name.text,
-                  email: email.text,
-                  phoneNumber: phone.text,
-                  originAddress: businessAddress.text,
-                  avatarStyle: user.avatarStyle,
-                  paymentReminderAfterDays: user.paymentReminderAfterDays,
-                  paymentReminderFrequencyDays:
-                      user.paymentReminderFrequencyDays,
-                  bankName: bankName.text,
-                  bankAccountNumber: bankAccountNumber.text,
-                  bankBeneficiary: bankBeneficiary.text,
-                  paymentQrName: paymentQr?.name,
-                  paymentQrBase64: nextQrBase64,
+                await store.runWithLoading(
+                  'Saving account details',
+                  () => store.updateOwnerAccount(
+                    name: name.text,
+                    email: email.text,
+                    phoneNumber: phone.text,
+                    originAddress: businessAddress.text,
+                    avatarStyle: user.avatarStyle,
+                    paymentReminderAfterDays: user.paymentReminderAfterDays,
+                    paymentReminderFrequencyDays:
+                        user.paymentReminderFrequencyDays,
+                    bankName: bankName.text,
+                    bankAccountNumber: bankAccountNumber.text,
+                    bankBeneficiary: bankBeneficiary.text,
+                    paymentQrName: paymentQr?.name,
+                    paymentQrBase64: nextQrBase64,
+                  ),
                 );
               } on AuthException catch (error) {
                 if (!dialogContext.mounted) return;
@@ -29141,6 +30950,12 @@ void showOwnerAccountSetupDialog(BuildContext context) {
                 );
                 return;
               }
+              store.updatePasswordHint(
+                previousEmail: originalEmail,
+                email: email.text,
+                roleKey: passwordHintRole,
+                hint: passwordHint.text,
+              );
               if (!dialogContext.mounted) return;
               Navigator.pop(dialogContext);
             },
@@ -29269,92 +31084,92 @@ Future<void> _prepareDataExport(BuildContext context, String format) async {
     confirmLabel: 'Prepare Export',
   );
   if (!confirmed || !context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text('Preparing $format export...')),
-  );
-  final now = DateTime.now();
-  final stamp =
-      '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
-  try {
-    if (format == 'Excel Backup') {
+  await store.runWithLoading('Preparing $format export', () async {
+    final now = DateTime.now();
+    final stamp =
+        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+    try {
+      if (format == 'Excel Backup') {
+        final fileName = tenantOnly
+            ? 'homeops_tenant_excel_backup_$stamp.xlsx'
+            : 'rental_manager_backup_summary_$stamp.xlsx';
+        await downloadBytesFile(
+          fileName: fileName,
+          mimeType:
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          bytes: tenantOnly
+              ? store.exportTenantExcelWorkbookXlsx()
+              : store.exportBackupExcelWorkbookXlsx(),
+        );
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$fileName downloaded.')),
+        );
+        return;
+      }
+      if (format == 'Excel') {
+        final fileName = tenantOnly
+            ? 'homeops_tenant_detailed_export_$stamp.xlsx'
+            : 'rental_manager_detailed_export_$stamp.xlsx';
+        await downloadBytesFile(
+          fileName: fileName,
+          mimeType:
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          bytes: tenantOnly
+              ? store.exportTenantExcelWorkbookXlsx()
+              : store.exportDetailedExcelWorkbookXlsx(),
+        );
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$fileName downloaded.')),
+        );
+        return;
+      }
+      if (format == 'CSV') {
+        final fileName = 'rental_manager_summary_$stamp.csv';
+        await downloadTextFile(
+          fileName: fileName,
+          mimeType: 'text/csv;charset=utf-8',
+          content: store.exportCsv(),
+        );
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$fileName downloaded.')),
+        );
+        return;
+      }
+      final backupJson = const JsonEncoder.withIndent('  ').convert(
+        tenantOnly ? store.exportTenantSnapshot() : store.exportSnapshot(),
+      );
+      if (format == 'Share') {
+        await Clipboard.setData(ClipboardData(text: backupJson));
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Backup copied. Paste it where needed.')),
+        );
+        return;
+      }
       final fileName = tenantOnly
-          ? 'homeops_tenant_excel_backup_$stamp.xlsx'
-          : 'rental_manager_backup_summary_$stamp.xlsx';
-      await downloadBytesFile(
-        fileName: fileName,
-        mimeType:
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        bytes: tenantOnly
-            ? store.exportTenantExcelWorkbookXlsx()
-            : store.exportBackupExcelWorkbookXlsx(),
-      );
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$fileName downloaded.')),
-      );
-      return;
-    }
-    if (format == 'Excel') {
-      final fileName = tenantOnly
-          ? 'homeops_tenant_detailed_export_$stamp.xlsx'
-          : 'rental_manager_detailed_export_$stamp.xlsx';
-      await downloadBytesFile(
-        fileName: fileName,
-        mimeType:
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        bytes: tenantOnly
-            ? store.exportTenantExcelWorkbookXlsx()
-            : store.exportDetailedExcelWorkbookXlsx(),
-      );
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$fileName downloaded.')),
-      );
-      return;
-    }
-    if (format == 'CSV') {
-      final fileName = 'rental_manager_summary_$stamp.csv';
+          ? 'homeops_tenant_backup_$stamp.sqlite.json'
+          : 'rental_manager_backup_$stamp.sqlite.json';
       await downloadTextFile(
         fileName: fileName,
-        mimeType: 'text/csv;charset=utf-8',
-        content: store.exportCsv(),
+        mimeType: 'application/json;charset=utf-8',
+        content: backupJson,
       );
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$fileName downloaded.')),
       );
-      return;
-    }
-    final backupJson = const JsonEncoder.withIndent('  ').convert(
-      tenantOnly ? store.exportTenantSnapshot() : store.exportSnapshot(),
-    );
-    if (format == 'Share') {
-      await Clipboard.setData(ClipboardData(text: backupJson));
+    } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Backup copied. Paste it where needed.')),
+      showValidationMessage(
+        context,
+        error.toString().replaceFirst('Unsupported operation: ', ''),
       );
-      return;
     }
-    final fileName = tenantOnly
-        ? 'homeops_tenant_backup_$stamp.sqlite.json'
-        : 'rental_manager_backup_$stamp.sqlite.json';
-    await downloadTextFile(
-      fileName: fileName,
-      mimeType: 'application/json;charset=utf-8',
-      content: backupJson,
-    );
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$fileName downloaded.')),
-    );
-  } catch (error) {
-    if (!context.mounted) return;
-    showValidationMessage(
-      context,
-      error.toString().replaceFirst('Unsupported operation: ', ''),
-    );
-  }
+  });
 }
 
 String _reportMoney(double value) => 'RM ${value.toStringAsFixed(2)}';
@@ -32641,30 +34456,7 @@ class AppTextField extends StatelessWidget {
       if (normalized.contains('usage')) {
         return [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))];
       }
-      return [
-        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-        TextInputFormatter.withFunction((oldValue, newValue) {
-          final text = newValue.text;
-          if ('.'.allMatches(text).length > 1) return oldValue;
-          final decimalIndex = text.indexOf('.');
-          if (decimalIndex >= 0 && text.length - decimalIndex - 1 > 2) {
-            return oldValue;
-          }
-          final normalizedText = normalizeMoneyInputText(text);
-          final removed = text.length - normalizedText.length;
-          final cursor = math.max(
-            0,
-            math.min(
-              normalizedText.length,
-              newValue.selection.end - removed,
-            ),
-          );
-          return TextEditingValue(
-            text: normalizedText,
-            selection: TextSelection.collapsed(offset: cursor),
-          );
-        }),
-      ];
+      return appMoneyInputFormatters();
     }
     if (normalized.contains('phone') || normalized.contains('whatsapp')) {
       return [FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-() ]'))];
@@ -33225,6 +35017,80 @@ String tr(BuildContext context, String key) {
   final language = RentalStoreScope.of(context).appLanguage;
   if (language == AppLanguage.english) return key;
   const chinese = <String, String>{
+    'Initiate move-out': '发起搬出结算',
+    'Move-out settlement invoice': '搬出结算发票',
+    'Refund payslip attached': '已附退款凭证',
+    'Refunded': '已退款',
+    'Complete refund': '完成退款',
+    'Moved-out tenants': '已搬出租户',
+    'View profile': '查看资料',
+    'View PDF': '查看 PDF',
+    'Preparing PDF...': '正在准备 PDF……',
+    'Unable to load cloud settlement. Tap to retry.': '无法加载云端结算，点击重试。',
+    'Saved securely in the cloud. Uploading a refund payslip confirms the refund. Complete refund records the tenancy ending.': '已安全保存至云端。上传退款凭证即确认已退款，点击完成退款将记录租约结束。',
+    'PDF ready. View it or download a copy. Use Back to return to the app.': 'PDF 已准备好，可查看或下载。查看后请返回应用。',
+    'Complete refund?': '确认完成退款？',
+    'Refund completed': '退款已完成',
+    'Unable to complete refund. Please refresh and try again.': '无法完成退款，请刷新后重试。',
+    'This completes the move-out request and ends the tenancy on the move-out date. Reactivation is available for one month after inactivation.': '此操作将完成搬出请求，并以搬出日期结束租约。停用后一个月内可重新激活。',
+    'Refund pending': '待退款',
+    'Amount refunded': '已退金额',
+    'Could not save refund confirmation. Please retry.': '无法保存退款确认，请重试。',
+    'Saved on this device. Uploading a refund payslip confirms the refund. Tenancy status is unchanged.': '仅保存在此设备。上传退款凭证即确认已退款，租约状态不变。',
+    'No refund payslip attached': '尚未附退款凭证',
+    'Unable to open settlement invoice. Please try again.': '无法打开发票，请重试。',
+    'Electricity usage': '用电量',
+    'Reading meter attachment...': '正在识别电表附件……',
+    'Detected automatically. Review and correct the usage if needed.': '已自动识别，请核对用电量，必要时修改。',
+    'Could not read the meter. Enter the usage or electricity amount manually.': '无法识别电表，请手动填写用电量或电费金额。',
+    'Move-out settlement': '搬出结算',
+    'Deposit to be refunded': '退还押金',
+    'Deposit held': '已收押金',
+    'Final charges': '最终费用',
+    'Water bill': '水费',
+    'Other charges': '其他费用',
+    'Other charges description': '其他费用说明',
+    'For example: Cleaning fee': '例如：清洁费',
+    'Describe the other charges.': '请填写其他费用说明。',
+    'Settlement summary': '结算摘要',
+    'Total deductions': '扣除总额',
+    'Balance to refund': '应退余额',
+    'Additional amount due': '需补付金额',
+    'Refund payslip': '退款凭证',
+    'Payslip attachment': '付款凭证附件',
+    'Final meter reading': '最终电表读数',
+    'Optional image attachment': '可选图片附件',
+    'PDF invoice': 'PDF 结算单',
+    'Generate PDF invoice': '生成 PDF 结算单',
+    'Download PDF': '下载 PDF',
+    'Send via WhatsApp': '通过 WhatsApp 发送',
+    'Generate the invoice first to download or share it.': '请先生成结算单，再下载或分享。',
+    'PDF ready. Choose WhatsApp in the share menu.': 'PDF 已就绪。请在分享菜单中选择 WhatsApp。',
+    'Draft saved on this device when generated. No refund or tenancy status is changed.': '生成时，草稿仅保存在此设备。不会更改退款或租约状态。',
+    'Direct file sharing is unavailable. Download the PDF, open WhatsApp, and attach it to the tenant chat.': '此设备无法直接分享文件。请下载 PDF 后，在 WhatsApp 租客聊天中添加附件。',
+    'The local draft could not be loaded.': '无法读取本地草稿。',
+    'Choose a readable image under 12 MB.': '请选择小于 12 MB 的有效图片。',
+    'Could not generate or save the invoice. Please retry.': '无法生成或保存结算单，请重试。',
+    'Download failed. Please retry.': '下载失败，请重试。',
+    'Enter a non-negative amount with up to 2 decimal places.': '请输入非负金额，最多两位小数。',
+    'Request Type': '请求类型',
+    'Request not confirmed in cloud. Please retry; your draft is kept.':
+        '云端尚未确认，请重试；您的草稿已保留。',
+    'Request Title': '请求标题',
+    'Describe what you need': '请描述您的需求',
+    'Request title is required.': '请填写请求标题。',
+    'Please describe what you need.': '请描述您的需求。',
+    'Move-out': '搬出',
+    'Access Card / Key': '门禁卡／钥匙',
+    'General Enquiry': '一般咨询',
+    'Move-out date': '搬出日期',
+    'Choose your move-out date.': '请选择搬出日期。',
+    'Bank': '银行',
+    'Bank is required.': '请填写银行。',
+    'Bank account number': '银行账号',
+    'Bank account number is required.': '请填写银行账号。',
+    'Your deposit will be refunded by online transfer within 3 days after your move-out date, subject to inspection.':
+        '押金将在搬出日期后的3天内通过网上转账退还，须通过检查。',
     'Home': '主页',
     'Properties': '房产',
     'Payments': '付款',
@@ -33313,6 +35179,62 @@ String tr(BuildContext context, String key) {
     'Not recorded': '尚未记录',
   };
   const malay = <String, String>{
+    'Initiate move-out': 'Mulakan penyelesaian keluar',
+    'Move-out settlement invoice': 'Invois penyelesaian keluar',
+    'Refund payslip attached': 'Bukti bayaran balik dilampirkan',
+    'Refunded': 'Telah dibayar balik',
+    'Complete refund': 'Selesaikan bayaran balik',
+    'Moved-out tenants': 'Penyewa telah keluar',
+    'View profile': 'Lihat profil',
+    'View PDF': 'Lihat PDF',
+    'Preparing PDF...': 'Menyediakan PDF...',
+    'Unable to load cloud settlement. Tap to retry.': 'Penyelesaian awan tidak dapat dimuatkan. Ketik untuk cuba lagi.',
+    'Saved securely in the cloud. Uploading a refund payslip confirms the refund. Complete refund records the tenancy ending.': 'Disimpan dengan selamat di awan. Bukti mengesahkan bayaran balik. Selesaikan bayaran balik merekodkan tamat penyewaan.',
+    'PDF ready. View it or download a copy. Use Back to return to the app.': 'PDF tersedia untuk dilihat atau dimuat turun. Gunakan Kembali untuk kembali ke aplikasi.',
+    'Complete refund?': 'Selesaikan bayaran balik?',
+    'Refund completed': 'Bayaran balik selesai',
+    'Unable to complete refund. Please refresh and try again.': 'Tidak dapat menyelesaikan bayaran balik. Muat semula dan cuba lagi.',
+    'This completes the move-out request and ends the tenancy on the move-out date. Reactivation is available for one month after inactivation.': 'Permintaan keluar diselesaikan dan penyewaan tamat pada tarikh keluar. Pengaktifan semula tersedia selama sebulan selepas dinyahaktifkan.',
+    'Refund pending': 'Menunggu bayaran balik',
+    'Amount refunded': 'Amaun dibayar balik',
+    'Could not save refund confirmation. Please retry.': 'Pengesahan bayaran balik tidak dapat disimpan. Sila cuba lagi.',
+    'Saved on this device. Uploading a refund payslip confirms the refund. Tenancy status is unchanged.': 'Disimpan pada peranti ini. Muat naik bukti mengesahkan bayaran balik. Status penyewaan tidak berubah.',
+    'No refund payslip attached': 'Tiada bukti bayaran balik dilampirkan',
+    'Unable to open settlement invoice. Please try again.': 'Invois tidak dapat dibuka. Sila cuba lagi.',
+    'Electricity usage': 'Penggunaan elektrik',
+    'Reading meter attachment...': 'Membaca lampiran meter...',
+    'Detected automatically. Review and correct the usage if needed.': 'Dikesan secara automatik. Semak dan betulkan penggunaan jika perlu.',
+    'Could not read the meter. Enter the usage or electricity amount manually.': 'Meter tidak dapat dibaca. Masukkan penggunaan atau amaun elektrik secara manual.',
+    'Move-out settlement': 'Penyelesaian keluar',
+    'Deposit to be refunded': 'Deposit untuk dipulangkan',
+    'Deposit held': 'Deposit dipegang',
+    'Final charges': 'Caj akhir',
+    'Water bill': 'Bil air',
+    'Other charges': 'Caj lain',
+    'Other charges description': 'Keterangan caj lain',
+    'For example: Cleaning fee': 'Contoh: Caj pembersihan',
+    'Describe the other charges.': 'Sila terangkan caj lain.',
+    'Settlement summary': 'Ringkasan penyelesaian',
+    'Total deductions': 'Jumlah potongan',
+    'Balance to refund': 'Baki untuk dipulangkan',
+    'Additional amount due': 'Bayaran tambahan',
+    'Refund payslip': 'Bukti pemulangan wang',
+    'Payslip attachment': 'Lampiran bukti pembayaran',
+    'Final meter reading': 'Bacaan meter akhir',
+    'Optional image attachment': 'Lampiran imej pilihan',
+    'PDF invoice': 'Invois PDF',
+    'Generate PDF invoice': 'Jana invois PDF',
+    'Download PDF': 'Muat turun PDF',
+    'Send via WhatsApp': 'Hantar melalui WhatsApp',
+    'Generate the invoice first to download or share it.': 'Jana invois dahulu untuk memuat turun atau berkongsi.',
+    'PDF ready. Choose WhatsApp in the share menu.': 'PDF sedia. Pilih WhatsApp dalam menu perkongsian.',
+    'Draft saved on this device when generated. No refund or tenancy status is changed.': 'Draf disimpan pada peranti ini apabila dijana. Status pemulangan wang dan sewaan tidak berubah.',
+    'Direct file sharing is unavailable. Download the PDF, open WhatsApp, and attach it to the tenant chat.': 'Perkongsian fail terus tidak tersedia. Muat turun PDF dan lampirkannya dalam sembang WhatsApp penyewa.',
+    'The local draft could not be loaded.': 'Draf tempatan tidak dapat dimuatkan.',
+    'Choose a readable image under 12 MB.': 'Pilih imej yang sah di bawah 12 MB.',
+    'Could not generate or save the invoice. Please retry.': 'Invois tidak dapat dijana atau disimpan. Cuba lagi.',
+    'Download failed. Please retry.': 'Muat turun gagal. Cuba lagi.',
+    'Enter a non-negative amount with up to 2 decimal places.': 'Masukkan amaun bukan negatif dengan maksimum 2 tempat perpuluhan.',
     'Home': 'Utama',
     'Properties': 'Hartanah',
     'Payments': 'Bayaran',
@@ -33606,6 +35528,15 @@ String tr(BuildContext context, String key) {
         '\u67e5\u770b\u8c01\u8d21\u732e\u4e86\u6536\u5165\u4ee5\u53ca\u652f\u51fa\u7528\u9014\u3002',
     'Previous year': '\u4e0a\u4e00\u5e74',
     'Next year': '\u4e0b\u4e00\u5e74',
+    'Sync payment status': '\u540c\u6b65\u4ed8\u6b3e\u72b6\u6001',
+    'Sync': '\u540c\u6b65',
+    'Syncing payment status': '正在同步付款状态',
+    'Payment status updated.':
+        '\u4ed8\u6b3e\u72b6\u6001\u5df2\u66f4\u65b0\u3002',
+    'Payment status is already up to date.':
+        '\u4ed8\u6b3e\u72b6\u6001\u5df2\u662f\u6700\u65b0\u3002',
+    'Unable to sync payment status. Please try again.':
+        '\u65e0\u6cd5\u540c\u6b65\u4ed8\u6b3e\u72b6\u6001\uff0c\u8bf7\u91cd\u8bd5\u3002',
     'Hide breakdown': '\u9690\u85cf\u660e\u7ec6',
     'No data': '暂无数据',
     'No collection or expense recorded for this month.': '本月没有租金收入或支出记录。',
@@ -33618,6 +35549,22 @@ String tr(BuildContext context, String key) {
     'New Facility': '新增房产',
     'View Attachment & Review': '查看附件并审核',
     'Enter & Upload': '填写并上传',
+    'Review & Send': '查看并发送',
+    'UTILITY FACILITIES': '水电房产',
+    'Expand facilities': '展开房产列表',
+    'Collapse facilities': '收起房产列表',
+    'No facilities': '暂无房产',
+    'Create a facility before entering utilities.': '请先创建房产，再填写水电读数。',
+    'No pending utility actions': '暂无待处理水电事项',
+    'All required utility entries have been submitted.': '所有需要的水电资料均已提交。',
+    'UTILITY ENTRY': '水电录入',
+    'PENDING BILLING': '待发送账单',
+    'Combined electricity': '综合电费',
+    'Air-con electricity only': '仅空调电费',
+    'Reading and attachment required': '需要填写读数并上传附件',
+    'Meter reading saved': '电表读数已保存',
+    'Review and send invoice': '查看并发送账单',
+    'No meter reading required': '无需填写电表读数',
     'Activity History': '操作记录',
     'Payment history': '付款记录',
     'New Request': '新增请求',
@@ -33721,8 +35668,22 @@ String tr(BuildContext context, String key) {
     'Beneficiary name': '收款人姓名',
     'Upload payment QR code': '上传付款二维码',
     'Security': '安全设置',
+    'Password hint': '密码提示',
+    'Example: First home + favorite year': '例如：第一间家 + 喜欢的年份',
+    'Maximum 20 words. Never enter your actual password.':
+        '最多 20 个词。请勿输入您的真实密码。',
+    'Password hint must be 20 words or fewer.': '密码提示不得超过 20 个词。',
     'Change password': '更改密码',
     'Update the password used on this device.': '更新此设备使用的密码。',
+    'Update your sign-in password securely.': '安全更新您的登录密码。',
+    'Current password': '当前密码',
+    'New password': '新密码',
+    'Confirm new password': '确认新密码',
+    'Enter your current password.': '请输入当前密码。',
+    'New password must be at least 8 characters.': '新密码必须至少包含 8 个字符。',
+    'New password and confirmation do not match.': '新密码与确认密码不一致。',
+    'The password hint must not contain your actual password.':
+        '密码提示不得包含您的真实密码。',
     'Save Setup': '保存设置',
     'Payment QR code': '付款二维码',
     'View QR code': '查看二维码',
@@ -33960,6 +35921,13 @@ String tr(BuildContext context, String key) {
         'Lihat siapa menyumbang kutipan dan ke mana perbelanjaan digunakan.',
     'Previous year': 'Tahun sebelumnya',
     'Next year': 'Tahun seterusnya',
+    'Sync payment status': 'Segerakkan status pembayaran',
+    'Sync': 'Segerak',
+    'Syncing payment status': 'Menyegerakkan status pembayaran',
+    'Payment status updated.': 'Status pembayaran telah dikemas kini.',
+    'Payment status is already up to date.': 'Status pembayaran sudah terkini.',
+    'Unable to sync payment status. Please try again.':
+        'Status pembayaran tidak dapat disegerakkan. Sila cuba lagi.',
     'Hide breakdown': 'Sembunyikan pecahan',
     'No data': 'Tiada data',
     'No collection or expense recorded for this month.':
@@ -33973,6 +35941,24 @@ String tr(BuildContext context, String key) {
     'New Facility': 'Hartanah baru',
     'View Attachment & Review': 'Lihat lampiran dan semak',
     'Enter & Upload': 'Isi dan muat naik',
+    'Review & Send': 'Semak dan hantar',
+    'UTILITY FACILITIES': 'HARTANAH UTILITI',
+    'Expand facilities': 'Kembangkan senarai hartanah',
+    'Collapse facilities': 'Kecilkan senarai hartanah',
+    'No facilities': 'Tiada hartanah',
+    'Create a facility before entering utilities.':
+        'Cipta hartanah sebelum memasukkan bacaan utiliti.',
+    'No pending utility actions': 'Tiada tindakan utiliti tertunggak',
+    'All required utility entries have been submitted.':
+        'Semua maklumat utiliti yang diperlukan telah dihantar.',
+    'UTILITY ENTRY': 'KEMASUKAN UTILITI',
+    'PENDING BILLING': 'BIL BELUM DIHANTAR',
+    'Combined electricity': 'Elektrik gabungan',
+    'Air-con electricity only': 'Elektrik penghawa dingin sahaja',
+    'Reading and attachment required': 'Bacaan dan lampiran diperlukan',
+    'Meter reading saved': 'Bacaan meter telah disimpan',
+    'Review and send invoice': 'Semak dan hantar invois',
+    'No meter reading required': 'Bacaan meter tidak diperlukan',
     'Activity History': 'Sejarah aktiviti',
     'Payment history': 'Sejarah pembayaran',
     'New Request': 'Permintaan baru',
@@ -34080,9 +36066,28 @@ String tr(BuildContext context, String key) {
     'Beneficiary name': 'Nama penerima',
     'Upload payment QR code': 'Muat naik kod QR bayaran',
     'Security': 'Keselamatan',
+    'Password hint': 'Petunjuk kata laluan',
+    'Example: First home + favorite year':
+        'Contoh: Rumah pertama + tahun kegemaran',
+    'Maximum 20 words. Never enter your actual password.':
+        'Maksimum 20 perkataan. Jangan masukkan kata laluan sebenar.',
+    'Password hint must be 20 words or fewer.':
+        'Petunjuk kata laluan mesti 20 perkataan atau kurang.',
     'Change password': 'Tukar kata laluan',
     'Update the password used on this device.':
         'Kemas kini kata laluan yang digunakan pada peranti ini.',
+    'Update your sign-in password securely.':
+        'Kemas kini kata laluan log masuk anda dengan selamat.',
+    'Current password': 'Kata laluan semasa',
+    'New password': 'Kata laluan baharu',
+    'Confirm new password': 'Sahkan kata laluan baharu',
+    'Enter your current password.': 'Masukkan kata laluan semasa anda.',
+    'New password must be at least 8 characters.':
+        'Kata laluan baharu mesti sekurang-kurangnya 8 aksara.',
+    'New password and confirmation do not match.':
+        'Kata laluan baharu dan pengesahan tidak sepadan.',
+    'The password hint must not contain your actual password.':
+        'Petunjuk kata laluan tidak boleh mengandungi kata laluan sebenar anda.',
     'Save Setup': 'Simpan tetapan',
     'Payment QR code': 'Kod QR bayaran',
     'View QR code': 'Lihat kod QR',
@@ -34114,6 +36119,17 @@ String tr(BuildContext context, String key) {
     'GROUP BY YEAR': '按年份分组',
     'Total Due': '应付总额',
     'Payment details': '付款详情',
+    'View payslip': '查看付款凭证',
+    'Withdraw': '撤回',
+    'You already have an active move-out request. Edit or withdraw it from Active requests.':
+        '您已有进行中的搬出请求。请在活跃请求中编辑或撤回。',
+    'Reject request': '拒绝请求',
+    'Rejection reason': '拒绝原因',
+    'Please enter a reason.': '请输入原因。',
+    'Withdrawn': '已撤回',
+    'Withdraw request?': '撤回请求？',
+    'The request will move to History and its calendar marker will be removed.':
+        '请求将移至历史记录，并移除日历标记。',
     'Uploaded slip': '已上传付款凭证',
     'Reject reason': '拒绝原因',
     'Help & Q&A': '帮助与问答',
@@ -34281,6 +36297,19 @@ String tr(BuildContext context, String key) {
     'GROUP BY YEAR': 'KUMPUL MENGIKUT TAHUN',
     'Total Due': 'Jumlah perlu dibayar',
     'Payment details': 'Butiran bayaran',
+    'View payslip': 'Lihat bukti bayaran',
+    'Withdraw': 'Tarik balik',
+    'Your deposit will be refunded by online transfer within 3 days after your move-out date, subject to inspection.':
+        'Deposit anda akan dipulangkan melalui pindahan dalam talian dalam masa 3 hari selepas tarikh keluar, tertakluk pada pemeriksaan.',
+    'You already have an active move-out request. Edit or withdraw it from Active requests.':
+        'Anda sudah mempunyai permintaan keluar aktif. Sila edit atau tarik balik dalam permintaan aktif.',
+    'Reject request': 'Tolak permintaan',
+    'Rejection reason': 'Sebab penolakan',
+    'Please enter a reason.': 'Sila masukkan sebab.',
+    'Withdrawn': 'Ditarik balik',
+    'Withdraw request?': 'Tarik balik permintaan?',
+    'The request will move to History and its calendar marker will be removed.':
+        'Permintaan akan dipindahkan ke Sejarah dan penanda kalendarnya akan dibuang.',
     'Uploaded slip': 'Slip dimuat naik',
     'Reject reason': 'Sebab ditolak',
     'Help & Q&A': 'Bantuan & Soal Jawab',
@@ -34626,7 +36655,7 @@ String fileSizeLabel(int bytes) {
 }
 
 bool isImageFileName(String? fileName) {
-  final lower = (fileName ?? '').toLowerCase();
+  final lower = (fileName ?? '').trim().toLowerCase();
   return lower.endsWith('.jpg') ||
       lower.endsWith('.jpeg') ||
       lower.endsWith('.png') ||
@@ -34706,8 +36735,33 @@ String localizedMonthShort(BuildContext context, int month) {
   return labels[(month - 1).clamp(0, 11)];
 }
 
-String localizedMonthYear(BuildContext context, DateTime date) =>
-    '${localizedMonthShort(context, date.month)} ${date.year}';
+String localizedMonthYear(BuildContext context, DateTime date) {
+  final language = RentalStoreScope.of(context).appLanguage;
+  if (language == AppLanguage.chinese) {
+    return '${date.year}年${localizedMonthShort(context, date.month)}';
+  }
+  return '${localizedMonthShort(context, date.month)} ${date.year}';
+}
+
+String localizedUtilityTariffDescription(
+  BuildContext context,
+  String facilityName,
+  String tariffSummary,
+) {
+  final language = RentalStoreScope.of(context).appLanguage;
+  final localizedSummary = switch (language) {
+    AppLanguage.chinese => tariffSummary.replaceAll('above', '以上'),
+    AppLanguage.malay => tariffSummary.replaceAll('above', 'ke atas'),
+    AppLanguage.english => tariffSummary,
+  };
+  return switch (language) {
+    AppLanguage.chinese => '$facilityName 的电费按以下电费阶梯计算：$localizedSummary。',
+    AppLanguage.malay =>
+      'Elektrik dikira menggunakan kadar tarif $facilityName: $localizedSummary.',
+    AppLanguage.english =>
+      'Electricity is calculated using $facilityName\'s tariff tiers: $localizedSummary.',
+  };
+}
 
 String packageText(UtilityPackage package) {
   return package == UtilityPackage.included ? 'Included' : 'Excluded';

@@ -1,0 +1,65 @@
+{
+  "sourcePptx": "C:\\Users\\User\\Documents\\Codex\\2026-06-16\\rental management\\rental_facility_management\\HomeOps360_Business_Model.pptx",
+  "workspace": "C:\\Users\\User\\Documents\\Codex\\2026-06-16\\rental management\\rental_facility_management\\.codex_tmp\\homeops_business_model_deck",
+  "outDir": "C:\\Users\\User\\Documents\\Codex\\2026-06-16\\rental management\\rental_facility_management\\.codex_tmp\\homeops_business_model_deck\\template-inspect",
+  "generatedAt": "2026-08-23T08:56:00.798Z",
+  "slideCount": 1,
+  "slideArtifacts": [
+    {
+      "slide": 1,
+      "previewPath": "C:\\Users\\User\\Documents\\Codex\\2026-06-16\\rental management\\rental_facility_management\\.codex_tmp\\homeops_business_model_deck\\template-inspect\\source-slides\\source-slide-01.png",
+      "previewRelativePath": "template-inspect/source-slides/source-slide-01.png",
+      "layoutPath": "C:\\Users\\User\\Documents\\Codex\\2026-06-16\\rental management\\rental_facility_management\\.codex_tmp\\homeops_business_model_deck\\template-inspect\\layouts\\source-slide-01.layout.json",
+      "layoutRelativePath": "template-inspect/layouts/source-slide-01.layout.json"
+    }
+  ],
+  "inspectPath": "C:\\Users\\User\\Documents\\Codex\\2026-06-16\\rental management\\rental_facility_management\\.codex_tmp\\homeops_business_model_deck\\template-inspect\\template-inspect.ndjson",
+  "inspectRelativePath": "template-inspect/template-inspect.ndjson",
+  "inspectTruncated": false,
+  "inspectMetadata": {
+    "revision": "z8oxwj",
+    "target": {
+      "id": "pr/uslbuh"
+    },
+    "kind": {
+      "requested": "slide,textbox,shape,image,table,chart",
+      "tokens": [
+        "slide",
+        "textbox",
+        "shape",
+        "image",
+        "table",
+        "chart"
+      ]
+    },
+    "include": {
+      "tokens": []
+    },
+    "exclude": {
+      "tokens": []
+    },
+    "notices": []
+  },
+  "extractedMedia": [
+    {
+      "entry": "ppt/media/image.png",
+      "path": "C:\\Users\\User\\Documents\\Codex\\2026-06-16\\rental management\\rental_facility_management\\.codex_tmp\\homeops_business_model_deck\\template-inspect\\assets\\ppt\\media\\image.png",
+      "relativePath": "template-inspect/assets/ppt/media/image.png",
+      "bytes": 96877
+    }
+  ],
+  "fonts": [
+    "+mj-lt",
+    "+mn-lt",
+    "Aptos",
+    "Aptos Display",
+    "Calibri",
+    "Calibri Light"
+  ],
+  "packageParts": {
+    "mediaCount": 1,
+    "slideXmlCount": 1,
+    "chartCount": 0,
+    "tableSlideCount": 0
+  }
+}

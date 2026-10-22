@@ -1,0 +1,2 @@
+@echo off
+"C:\Users\User\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" %*

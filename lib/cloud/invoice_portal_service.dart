@@ -91,6 +91,25 @@ class InvoicePortalService {
     });
   }
 
+  /// Submits proof for a signed-in tenant without depending on the temporary
+  /// WhatsApp portal token. The Edge Function still verifies the tenant role
+  /// and that the authenticated email matches the invoice assignment.
+  Future<void> submitPaymentForSignedInTenant({
+    required String invoiceId,
+    required String fileName,
+    required Uint8List bytes,
+    String? paymentReference,
+  }) async {
+    await _invoke({
+      'action': 'submit-payment-authenticated',
+      'invoiceId': invoiceId,
+      'fileName': fileName,
+      'mimeType': _mimeType(fileName),
+      'base64': base64Encode(bytes),
+      'paymentReference': paymentReference?.trim(),
+    });
+  }
+
   Future<void> reviewPayment({
     required String invoiceId,
     required bool approved,
