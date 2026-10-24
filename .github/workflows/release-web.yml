@@ -1,0 +1,48 @@
+name: Release web
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment target
+        required: true
+        type: choice
+        options: [uat, production]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  verify-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart run tool/check_release_readiness.dart
+      - run: flutter analyze
+      - run: flutter test
+      - run: flutter build web --release
+      - name: Deploy only after every gate passes
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy build/web --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }} --branch=${{ inputs.environment == 'production' && 'main' || 'uat' }}
+      - name: UAT smoke test
+        if: inputs.environment == 'uat'
+        env:
+          HOMEOPS_BASE_URL: ${{ vars.HOMEOPS_BASE_URL }}
+          HOMEOPS_SUPABASE_URL: ${{ vars.HOMEOPS_SUPABASE_URL }}
+          HOMEOPS_SUPABASE_KEY: ${{ secrets.HOMEOPS_SUPABASE_KEY }}
+          HOMEOPS_UAT_ACCESS_TOKEN: ${{ secrets.HOMEOPS_UAT_ACCESS_TOKEN }}
+        run: node tool/uat_smoke_test.mjs

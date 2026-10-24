@@ -1,17 +1,21 @@
 # HomeOps360
 
-A Flutter prototype for a rental management app with two roles:
+A Flutter and Supabase rental operations platform for owners, managers, tenants, and administrators:
 
 - Owner: create facilities, monitor rent/utilities, approve tenant payment slips, and view dashboard reports.
-- Tenant: view monthly bill, submit payment proof, and track approval status.
+- Tenant: review bills, submit payment proof, create requests, explore listings, and track move-out.
+- Administrator: manage access, subscriptions, operational issues, and API health.
 
-This first version uses local in-memory sample data so you can test the app flow before connecting Firebase.
+The current application uses Supabase Auth, Postgres with row-level security, Storage, Realtime, and Edge Functions. A local data mode remains available for development and automated tests.
 
 ## Run
 
 ```powershell
 cd "C:\Users\User\Documents\Codex\2026-06-16\rental management\rental_facility_management"
 flutter pub get
+dart run tool/check_release_readiness.dart
+flutter analyze
+flutter test
 flutter run
 ```
 
@@ -26,12 +30,12 @@ flutter create .
 flutter run
 ```
 
-## Next Backend Step
+## Release and operations
 
-For production, connect:
+Pull requests and changes to `main` run analysis, tests, security/configuration checks, and a release web build. Web releases are manually dispatched to the protected `uat` or `production` GitHub environment and deploy only after all gates pass.
 
-- Firebase Authentication for owner/tenant login
-- Cloud Firestore for facilities, tenancies, bills, payments, and expenses
-- Firebase Storage for payment slip images/PDFs
-- Firebase Cloud Messaging for push notifications
-- Cloud Functions for monthly bill generation and reminders
+- UAT: https://facility-billing-management.pages.dev
+- Production: https://homeops360.app
+- Release runbook: `docs/release-operations.md`
+- Security review: `docs/security-review-2026-10-24.md`
+- Pilot plan: `docs/pilot-test-plan.md`

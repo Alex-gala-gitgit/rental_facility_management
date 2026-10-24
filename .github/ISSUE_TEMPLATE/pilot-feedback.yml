@@ -1,0 +1,35 @@
+name: Pilot feedback
+description: Record a HomeOps360 pilot observation or defect
+title: "[Pilot] "
+labels: [pilot]
+body:
+  - type: dropdown
+    id: role
+    attributes:
+      label: User role
+      options: [Owner or manager, Tenant, Administrator]
+    validations:
+      required: true
+  - type: input
+    id: journey
+    attributes:
+      label: Journey being tested
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps and observed result
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options: [P0 - stop pilot, P1 - core journey blocked, P2 - workaround exists, P3 - minor]
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Device, browser and account

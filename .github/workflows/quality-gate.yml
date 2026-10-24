@@ -1,0 +1,37 @@
+name: Quality gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Check release configuration and security invariants
+        run: dart run tool/check_release_readiness.dart
+      - name: Static analysis
+        run: flutter analyze
+      - name: Tests
+        run: flutter test
+      - name: Production web build
+        run: flutter build web --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: homeops360-web-${{ github.sha }}
+          path: build/web
+          if-no-files-found: error
+          retention-days: 14
