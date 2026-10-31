@@ -22,6 +22,16 @@ For the scheduled production monitor, set repository secrets:
 
 The service-role key is used only by the GitHub runner to read restricted telemetry. Never expose it as a Flutter build argument, browser variable, repository variable, or log value.
 
+The `uat` environment values above also power the scheduled UAT Supabase
+keep-alive. It makes a read-only database request three times daily and fails
+the workflow if either value is missing. After setup, manually run **Keep UAT
+Supabase active** once from GitHub Actions and confirm it succeeds.
+
+This keep-alive reduces the chance that a lightly used Free project is paused,
+but Supabase does not guarantee that any fixed request count will prevent a
+pause. Upgrade the organization to Pro when continuous availability is
+required; paid projects are not paused for inactivity.
+
 ## Release procedure
 
 1. Merge only when **Quality gate** passes.

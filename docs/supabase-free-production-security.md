@@ -102,7 +102,11 @@ Use a test invoice and verify all of these:
 
 - Export a backup after every billing cycle and keep a second copy outside
   Supabase.
-- Log in regularly; inactive free projects can be paused.
+- Keep the `Keep UAT Supabase active` GitHub Actions workflow enabled and
+  review failed-run notifications. It records read-only database activity three
+  times daily; manually logging in after a warning also records activity.
+- Treat the keep-alive as a best-effort Free-plan safeguard, not an uptime
+  guarantee. Upgrade to Pro before continuous availability is required.
 - Review **Database > Security Advisor** after every schema change.
 - Upgrade before the app becomes business-critical or exceeds free quotas, so
   scheduled backups, higher email limits, and stronger operational support are

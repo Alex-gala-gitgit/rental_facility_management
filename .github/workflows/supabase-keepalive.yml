@@ -1,0 +1,29 @@
+name: Keep UAT Supabase active
+
+on:
+  schedule:
+    # Supabase says a few database requests per day are typically sufficient
+    # for a Free project. Use non-zero minutes to reduce scheduler congestion.
+    - cron: "17 0,8,16 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-keepalive-uat
+  cancel-in-progress: true
+
+jobs:
+  keep-uat-active:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: uat
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record read-only UAT database activity
+        env:
+          SUPABASE_PROJECT_NAME: HomeOps360 UAT
+          SUPABASE_URL: ${{ vars.HOMEOPS_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.HOMEOPS_SUPABASE_KEY }}
+        run: node tool/keep_supabase_active.mjs
