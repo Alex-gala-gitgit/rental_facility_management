@@ -102,9 +102,10 @@ Use a test invoice and verify all of these:
 
 - Export a backup after every billing cycle and keep a second copy outside
   Supabase.
-- Keep the `Keep UAT Supabase active` GitHub Actions workflow enabled and
-  review failed-run notifications. It records read-only database activity three
-  times daily; manually logging in after a warning also records activity.
+- Keep the `Keep Supabase projects active` GitHub Actions workflow enabled and
+  review failed-run notifications. It records read-only database activity for
+  both UAT and production three times daily; manually logging in after a
+  warning also records activity.
 - Treat the keep-alive as a best-effort Free-plan safeguard, not an uptime
   guarantee. Upgrade to Pro before continuous availability is required.
 - Review **Database > Security Advisor** after every schema change.

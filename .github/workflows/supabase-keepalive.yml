@@ -1,4 +1,4 @@
-name: Keep UAT Supabase active
+name: Keep Supabase projects active
 
 on:
   schedule:
@@ -11,19 +11,31 @@ permissions:
   contents: read
 
 concurrency:
-  group: supabase-keepalive-uat
+  group: supabase-keepalive
   cancel-in-progress: true
 
 jobs:
-  keep-uat-active:
+  keep-active:
+    name: Keep ${{ matrix.project.name }} active
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    environment: uat
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - name: HomeOps360 UAT
+            url: https://yvyvbjtgfmpvvbnmzinq.supabase.co
+            publishable_key: sb_publishable_0rPCSgL94fhHr9gVgAzqQQ_FHuFtwvD
+          - name: HomeOps360 production
+            url: https://poftsyskfuyeznbzxpow.supabase.co
+            publishable_key: sb_publishable_n4Hudhh3uiUNxaYLkV8XKQ_UWUbIrB0
     steps:
       - uses: actions/checkout@v4
-      - name: Record read-only UAT database activity
+      - name: Record read-only database activity
         env:
-          SUPABASE_PROJECT_NAME: HomeOps360 UAT
-          SUPABASE_URL: ${{ vars.HOMEOPS_SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.HOMEOPS_SUPABASE_KEY }}
+          SUPABASE_PROJECT_NAME: ${{ matrix.project.name }}
+          SUPABASE_URL: ${{ matrix.project.url }}
+          # Publishable keys identify public clients and contain no service
+          # privileges. Row-level security still applies to every query.
+          SUPABASE_PUBLISHABLE_KEY: ${{ matrix.project.publishable_key }}
         run: node tool/keep_supabase_active.mjs
