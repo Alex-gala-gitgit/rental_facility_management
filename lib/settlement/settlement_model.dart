@@ -34,22 +34,44 @@ class MoveOutSettlement {
     required this.parking,
     required this.other,
     required this.otherDescription,
+    this.bankName = '',
+    this.bankAccountNumber = '',
+    this.monthlyRent = 0,
+    this.proratedStayDays = 0,
+    this.isFinalInvoice = false,
     this.meter,
     this.payslip,
     this.electricityUsageKwh,
   });
-  final String tenantName, propertyName, unitName, otherDescription;
+  final String tenantName,
+      propertyName,
+      unitName,
+      otherDescription,
+      bankName,
+      bankAccountNumber;
   final DateTime moveOutDate;
-  final int deposit, electricity, water, internet, parking, other;
+  final int deposit,
+      electricity,
+      water,
+      internet,
+      parking,
+      other,
+      monthlyRent,
+      proratedStayDays;
+  final bool isFinalInvoice;
   final SettlementAttachment? meter, payslip;
   final double? electricityUsageKwh;
   bool get isRefunded => payslip != null;
-  int get deductions => electricity + water + internet + parking + other;
+  int get proratedStay => (monthlyRent * proratedStayDays / 30).round();
+  int get deductions =>
+      proratedStay + electricity + water + internet + parking + other;
   int get balance => deposit - deductions;
   String get otherLabel => otherDescription.trim().isEmpty
       ? 'Other charges'
       : 'Other charges - ${otherDescription.trim()}';
   List<(String, int)> get charges => [
+        ('Prorated stay ($proratedStayDays day${proratedStayDays == 1 ? '' : 's'})',
+            proratedStay),
         ('Electricity', electricity),
         ('Water bill', water),
         ('Internet', internet),
@@ -71,6 +93,11 @@ class MoveOutSettlement {
         'parking': parking,
         'other': other,
         'otherDescription': otherDescription,
+        'bankName': bankName,
+        'bankAccountNumber': bankAccountNumber,
+        'monthlyRent': monthlyRent,
+        'proratedStayDays': proratedStayDays,
+        'isFinalInvoice': isFinalInvoice,
         'meter': meter?.toJson(),
         'payslip': payslip?.toJson(),
         'electricityUsageKwh': electricityUsageKwh,
@@ -88,6 +115,11 @@ class MoveOutSettlement {
         parking: j['parking'] as int,
         other: j['other'] as int,
         otherDescription: j['otherDescription'] as String? ?? '',
+        bankName: j['bankName'] as String? ?? '',
+        bankAccountNumber: j['bankAccountNumber'] as String? ?? '',
+        monthlyRent: (j['monthlyRent'] as num?)?.toInt() ?? 0,
+        proratedStayDays: (j['proratedStayDays'] as num?)?.toInt() ?? 0,
+        isFinalInvoice: j['isFinalInvoice'] as bool? ?? false,
         electricityUsageKwh: (j['electricityUsageKwh'] as num?)?.toDouble(),
         meter: j['meter'] == null
             ? null
@@ -97,5 +129,27 @@ class MoveOutSettlement {
             ? null
             : SettlementAttachment.fromJson(
                 Map<String, dynamic>.from(j['payslip'])),
+      );
+
+  MoveOutSettlement asFinalInvoice() => MoveOutSettlement(
+        tenantName: tenantName,
+        propertyName: propertyName,
+        unitName: unitName,
+        moveOutDate: moveOutDate,
+        deposit: deposit,
+        electricity: electricity,
+        water: water,
+        internet: internet,
+        parking: parking,
+        other: other,
+        otherDescription: otherDescription,
+        bankName: bankName,
+        bankAccountNumber: bankAccountNumber,
+        monthlyRent: monthlyRent,
+        proratedStayDays: proratedStayDays,
+        isFinalInvoice: true,
+        meter: meter,
+        payslip: payslip,
+        electricityUsageKwh: electricityUsageKwh,
       );
 }

@@ -42,7 +42,7 @@ Future<Uint8List> buildSettlementPdf(MoveOutSettlement settlement) async {
             style: pw.TextStyle(fontSize: 8, color: muted)),
       ]);
   pw.Widget row(String label, String amount, {bool bold = false}) => pw.Padding(
-        padding: const pw.EdgeInsets.symmetric(vertical: 9),
+        padding: const pw.EdgeInsets.symmetric(vertical: 6),
         child:
             pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
           pw.Expanded(
@@ -63,25 +63,45 @@ Future<Uint8List> buildSettlementPdf(MoveOutSettlement settlement) async {
       );
   doc.addPage(pw.MultiPage(
     pageFormat: PdfPageFormat.a4,
-    margin: const pw.EdgeInsets.fromLTRB(50, 24, 50, 26),
+    margin: const pw.EdgeInsets.fromLTRB(50, 24, 50, 40),
     footer: (context) => pw.Text(
         'HomeOps360 | ${context.pageNumber} / ${context.pagesCount}',
         style: pw.TextStyle(fontSize: 8, color: muted)),
     build: (_) => [
-      brandHeader(),
-      pw.SizedBox(height: 34),
-      pw.Text('MOVE-OUT SETTLEMENT INVOICE',
+      pw.SizedBox(height: 28, child: brandHeader()),
+      pw.SizedBox(height: 14),
+      pw.Text(
+          settlement.isFinalInvoice
+              ? 'MOVE-OUT SETTLEMENT INVOICE'
+              : 'TEMPORARY MOVE-OUT SETTLEMENT',
           style: pw.TextStyle(
               fontSize: 18, color: blue, fontWeight: pw.FontWeight.bold)),
-      pw.SizedBox(height: 22),
+      if (!settlement.isFinalInvoice) ...[
+        pw.SizedBox(height: 8),
+        pw.Container(
+          padding: const pw.EdgeInsets.all(10),
+          color: PdfColor.fromHex('#FFF3CD'),
+          child: pw.Text(
+            'Temporary invoice - final utility bills and charges are still pending. A completed invoice will be issued after the final settlement and refund are confirmed.',
+            style: pw.TextStyle(fontSize: 9, color: blue),
+          ),
+        ),
+      ],
+      pw.SizedBox(height: 18),
       pw.Text(settlement.tenantName),
       pw.Text('${settlement.propertyName} | Unit ${settlement.unitName}'),
       pw.Text('Move-out date: ${settlement.dateLabel}'),
+      pw.Text('Refund bank: ${settlement.bankName.isEmpty ? '-' : settlement.bankName}'),
+      pw.Text(
+          'Refund account: ${settlement.bankAccountNumber.isEmpty ? '-' : settlement.bankAccountNumber}'),
       pw.SizedBox(height: 20),
       pw.Text('Settlement summary',
           style: pw.TextStyle(
               fontSize: 12, color: blue, fontWeight: pw.FontWeight.bold)),
       row('Deposit held', settlementMoney(settlement.deposit), bold: true),
+      row('Monthly rent', settlementMoney(settlement.monthlyRent)),
+      row('Daily rent (monthly rent / 30)',
+          settlementMoney((settlement.monthlyRent / 30).round())),
       pw.Divider(color: line),
       for (final charge in settlement.charges)
         row(charge.$1,

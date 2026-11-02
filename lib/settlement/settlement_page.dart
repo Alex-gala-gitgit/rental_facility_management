@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image/image.dart' as images;
 import 'package:printing/printing.dart';
 import '../file_download/file_downloader.dart';
@@ -24,15 +25,23 @@ class MoveOutSettlementPage extends StatefulWidget {
       required this.initialDate,
       required this.translate,
       required this.calculateElectricityCharge,
+      this.bankName = '',
+      this.bankAccountNumber = '',
+      this.monthlyRent = 0,
       this.readMeter,
       this.pickImage,
+      this.onInvoiceGenerated,
       this.onCompleteRefund,
       this.tenantId,
       this.tenancyId,
       this.facilityId,
       this.persistence});
   final Future<void> Function(MoveOutSettlement settlement)? onCompleteRefund;
+  final Future<void> Function(MoveOutSettlement settlement, Uint8List pdf,
+      bool isFinal)? onInvoiceGenerated;
   final String tenantName, propertyName, unitName, draftKey;
+  final String bankName, bankAccountNumber;
+  final double monthlyRent;
   final String? tenantId, tenancyId, facilityId;
   final DateTime initialDate;
   final String Function(String) translate;
@@ -60,6 +69,7 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
   };
   final _description = TextEditingController();
   final _usage = TextEditingController();
+  late final TextEditingController _proratedDays;
   String? _readingStatus;
   late DateTime _date;
   AppPersistence? _persistence;
@@ -73,6 +83,7 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
   void initState() {
     super.initState();
     _date = widget.initialDate;
+    _proratedDays = TextEditingController(text: '${widget.initialDate.day}');
     _load();
   }
 
@@ -90,8 +101,8 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
       }
       _persistence = persistence;
       if (saved != null) {
-        final value = MoveOutSettlement.fromJson(
-            Map<String, dynamic>.from(jsonDecode(saved)));
+        final savedJson = Map<String, dynamic>.from(jsonDecode(saved));
+        final value = MoveOutSettlement.fromJson(savedJson);
         _date = value.moveOutDate;
         _meter = value.meter;
         _payslip = value.payslip;
@@ -109,6 +120,9 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
         }
         _description.text = value.otherDescription;
         _usage.text = value.electricityUsageKwh?.toStringAsFixed(2) ?? '';
+        _proratedDays.text = savedJson.containsKey('proratedStayDays')
+            ? '${value.proratedStayDays}'
+            : '${value.moveOutDate.day}';
       }
     } catch (_) {
       if (!mounted) {
@@ -126,6 +140,7 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
     }
     _description.dispose();
     _usage.dispose();
+    _proratedDays.dispose();
     // Native persistence uses the app's shared SQLite connection. Closing it
     // from a child route would also close the main store's database.
     super.dispose();
@@ -147,6 +162,10 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
         parking: settlementCents(_amounts['Parking']!.text) ?? 0,
         other: settlementCents(_amounts['Other charges']!.text) ?? 0,
         otherDescription: _description.text.trim(),
+        bankName: widget.bankName,
+        bankAccountNumber: widget.bankAccountNumber,
+        monthlyRent: (widget.monthlyRent * 100).round(),
+        proratedStayDays: int.tryParse(_proratedDays.text) ?? 0,
         meter: _meter,
         payslip: _payslip,
         electricityUsageKwh: double.tryParse(_usage.text),
@@ -248,11 +267,8 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
     try {
       final settlement = _value;
       final bytes = await buildSettlementPdf(settlement);
-      // Separate, owner/tenancy-scoped local draft. Does not change tenant
-      // lifecycle, refund state, monthly bills, or cloud request records.
-      final persistence = _persistence;
-      if (persistence == null) throw StateError('Draft storage unavailable');
-      await persistence.writeSnapshot(jsonEncode(settlement.toJson()));
+      await _savePreparedSettlement(settlement, bytes);
+      await widget.onInvoiceGenerated?.call(settlement, bytes, false);
       if (mounted) setState(() => _pdf = bytes);
     } catch (_) {
       if (mounted)
@@ -260,6 +276,18 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
             t('Could not generate or save the invoice. Please retry.'));
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _savePreparedSettlement(
+      MoveOutSettlement settlement, Uint8List bytes) async {
+    final persistence = _persistence;
+    if (persistence == null) throw StateError('Draft storage unavailable');
+    final snapshot = jsonEncode(settlement.toJson());
+    if (persistence is SettlementCloudPersistence) {
+      await persistence.writePreparedSnapshot(snapshot, bytes);
+    } else {
+      await persistence.writeSnapshot(snapshot);
     }
   }
 
@@ -289,10 +317,10 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
       _error = null;
     });
     try {
-      final settlement = _value;
-      final persistence = _persistence;
-      if (persistence == null) throw StateError('Storage unavailable');
-      await persistence.writeSnapshot(jsonEncode(settlement.toJson()));
+      final settlement = _value.asFinalInvoice();
+      final bytes = await buildSettlementPdf(settlement);
+      await _savePreparedSettlement(settlement, bytes);
+      await widget.onInvoiceGenerated?.call(settlement, bytes, true);
       await widget.onCompleteRefund!(settlement);
       if (mounted) setState(() => _completed = true);
     } catch (_) {
@@ -476,6 +504,7 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
                                           lastDate: DateTime(2100));
                                       if (date != null && mounted) {
                                         _date = date;
+                                        _proratedDays.text = '${date.day}';
                                         _changed();
                                       }
                                     },
@@ -484,6 +513,42 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
                                   '${t('Move-out date')}: ${value.dateLabel}')),
                           _panel('Deposit to be refunded',
                               [_amount('Deposit held')]),
+                          _panel('Refund bank details', [
+                            const SizedBox(height: 10),
+                            _row(t('Bank'), widget.bankName.isEmpty ? '-' : widget.bankName),
+                            _row(t('Bank account number'),
+                                widget.bankAccountNumber.isEmpty ? '-' : widget.bankAccountNumber),
+                          ]),
+                          _panel('Prorated stay', [
+                            const SizedBox(height: 10),
+                            _row(t('Monthly rent'),
+                                settlementMoney((widget.monthlyRent * 100).round())),
+                            _row(t('Daily rent (monthly rent / 30)'),
+                                settlementMoney((widget.monthlyRent * 100 / 30).round())),
+                            const SizedBox(height: 10),
+                            TextFormField(
+                              key: const ValueKey('settlement-prorated-days'),
+                              controller: _proratedDays,
+                              enabled: !_busy,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                              decoration: InputDecoration(
+                                labelText: t('Prorated stay days'),
+                                helperText: t('Calculated as monthly rent / 30 x days stayed.'),
+                                border: const OutlineInputBorder(),
+                              ),
+                              onChanged: (_) => _changed(),
+                              validator: (text) {
+                                final days = int.tryParse(text ?? '');
+                                return days == null || days < 0 || days > 30
+                                    ? t('Enter a day count from 0 to 30.')
+                                    : null;
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                            _row(t('Prorated stay deduction'),
+                                settlementMoney(value.proratedStay), bold: true),
+                          ]),
                           _panel('Final charges', [
                             Padding(
                                 padding: const EdgeInsets.only(top: 12),

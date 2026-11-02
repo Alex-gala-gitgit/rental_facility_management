@@ -37,6 +37,11 @@ class DraftMemory implements AppPersistence {
 MoveOutSettlement example(
         {int water = 2000,
         int deposit = 290000,
+        int monthlyRent = 0,
+        int proratedStayDays = 0,
+        String bankName = '',
+        String bankAccountNumber = '',
+        bool isFinalInvoice = false,
         SettlementAttachment? meter,
         SettlementAttachment? payslip}) =>
     MoveOutSettlement(
@@ -51,6 +56,11 @@ MoveOutSettlement example(
       parking: 10000,
       other: 1000,
       otherDescription: 'Cleaning fee',
+      monthlyRent: monthlyRent,
+      proratedStayDays: proratedStayDays,
+      bankName: bankName,
+      bankAccountNumber: bankAccountNumber,
+      isFinalInvoice: isFinalInvoice,
       meter: meter,
       payslip: payslip,
     );
@@ -115,6 +125,41 @@ void main() {
     final reviewed = request.reviewedAt;
     store.completeMoveOutRefund(tenancy, value);
     expect(request.reviewedAt, reviewed);
+    store.dispose();
+  });
+  test('generated move-out invoice changes request to in progress', () async {
+    final store = app.RentalStore();
+    store.currentUser =
+        store.users.firstWhere((user) => user.role == app.UserRole.owner);
+    final tenancy = store.tenancies.first;
+    final request = app.TenantRequest(
+      id: 'invoice-progress-test',
+      tenantId: tenancy.tenantId,
+      facilityId: tenancy.facilityId,
+      title: 'Move-out',
+      message: '',
+      createdAt: DateTime.now(),
+      requestType: 'Move-out',
+      bankName: 'Example Bank',
+      bankAccountNumber: '00123456',
+    );
+    store.tenantRequests.add(request);
+    final settlement = example(
+      bankName: request.bankName!,
+      bankAccountNumber: request.bankAccountNumber!,
+      monthlyRent: 120000,
+      proratedStayDays: 10,
+    );
+    await store.recordMoveOutInvoice(
+      request,
+      settlement,
+      Uint8List.fromList([37, 80, 68, 70]),
+      isFinal: false,
+    );
+    expect(request.status, 'In Progress');
+    expect(request.hasMoveOutInvoice, isTrue);
+    expect(request.moveOutInvoiceIsFinal, isFalse);
+    expect(store.hasActiveMoveOutRequestFor(tenancy.tenantId), isTrue);
     store.dispose();
   });
   testWidgets('saved invoice row is hidden without a generated settlement',
@@ -328,6 +373,27 @@ void main() {
     expect(value.otherLabel, 'Other charges - Cleaning fee');
     expect(example(deposit: 1000).balance, -31550);
   });
+  test('prorated stay uses monthly rent divided by 30 and is deducted', () {
+    final value = example(monthlyRent: 120000, proratedStayDays: 10);
+    expect(value.proratedStay, 40000);
+    expect(value.deductions, 72550);
+    expect(value.balance, 217450);
+    expect(value.charges.first.$1, 'Prorated stay (10 days)');
+  });
+  test('bank details and invoice stage survive settlement persistence', () {
+    final original = example(
+      bankName: 'Example Bank',
+      bankAccountNumber: '00123456',
+      monthlyRent: 120000,
+      proratedStayDays: 15,
+    ).asFinalInvoice();
+    final restored =
+        MoveOutSettlement.fromJson(jsonDecode(jsonEncode(original.toJson())));
+    expect(restored.bankName, 'Example Bank');
+    expect(restored.bankAccountNumber, '00123456');
+    expect(restored.isFinalInvoice, isTrue);
+    expect(restored.proratedStay, 60000);
+  });
   test('draft round trip retains date, description and both attachments', () {
     final attachment =
         SettlementAttachment('proof.png', Uint8List.fromList([1, 2, 3]));
@@ -342,8 +408,15 @@ void main() {
     images.fill(image, color: images.ColorRgb8(229, 240, 252));
     final attachment = SettlementAttachment(
         'sample-proof.png', Uint8List.fromList(images.encodePng(image)));
-    final bytes = await buildSettlementPdf(
-        example(meter: attachment, payslip: attachment));
+    final bytes = await buildSettlementPdf(example(
+      meter: attachment,
+      payslip: attachment,
+      bankName: 'Example Bank',
+      bankAccountNumber: '00123456',
+      monthlyRent: 120000,
+      proratedStayDays: 20,
+      isFinalInvoice: true,
+    ));
     expect(ascii.decode(bytes.take(4).toList()), '%PDF');
     // Design QA output, never a live invoice or a write to tenant records.
     final output = File('test_artifacts/move-out-settlement-qa.pdf');

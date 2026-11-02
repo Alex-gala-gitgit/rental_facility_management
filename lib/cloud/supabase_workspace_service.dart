@@ -360,7 +360,10 @@ Map<String, dynamic> preserveTenantRequests(
       merged.addAll({
         'status': row['status'],
         'reviewedAt': row['reviewedAt'],
-        'rejectionReason': row['rejectionReason']
+        'rejectionReason': row['rejectionReason'],
+        'moveOutInvoiceFileName': row['moveOutInvoiceFileName'],
+        'moveOutInvoiceBase64': row['moveOutInvoiceBase64'],
+        'moveOutInvoiceIsFinal': row['moveOutInvoiceIsFinal'],
       });
     }
     if (previous['status'] == 'Withdrawn' ||

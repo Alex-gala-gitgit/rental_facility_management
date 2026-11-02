@@ -20,6 +20,7 @@ import 'settlement/settlement_page.dart';
 import 'settlement/saved_settlement_invoice.dart';
 import 'settlement/settlement_model.dart';
 import 'settlement/money_input.dart';
+import 'settlement/settlement_opener.dart';
 import 'branding/homeops_loading.dart';
 import 'admin/admin_app.dart';
 import 'cloud/supabase_config.dart';
@@ -1304,6 +1305,9 @@ void mergeTenantRequestRecord(
     'reviewedAt': request.reviewedAt?.toIso8601String(),
     'rejectionReason': request.rejectionReason,
     'status': request.status,
+    'moveOutInvoiceFileName': request.moveOutInvoiceFileName,
+    'moveOutInvoiceBase64': request.moveOutInvoiceBase64,
+    'moveOutInvoiceIsFinal': request.moveOutInvoiceIsFinal,
   };
   final merged = (preserveTenantRequests({
     'tenantRequests': [saved]
@@ -1321,6 +1325,9 @@ void mergeTenantRequestRecord(
         DateTime.tryParse(merged['tenantEditedAt'] as String? ?? '')
     ..reviewedAt = DateTime.tryParse(merged['reviewedAt'] as String? ?? '')
     ..rejectionReason = merged['rejectionReason'] as String?
+    ..moveOutInvoiceFileName = merged['moveOutInvoiceFileName'] as String?
+    ..moveOutInvoiceBase64 = merged['moveOutInvoiceBase64'] as String?
+    ..moveOutInvoiceIsFinal = merged['moveOutInvoiceIsFinal'] as bool? ?? false
     ..status = merged['status'] as String;
 }
 
@@ -1343,6 +1350,9 @@ class TenantRequest {
     this.rejectionReason,
     this.bankName,
     this.bankAccountNumber,
+    this.moveOutInvoiceFileName,
+    this.moveOutInvoiceBase64,
+    this.moveOutInvoiceIsFinal = false,
   });
 
   final String id;
@@ -1363,6 +1373,12 @@ class TenantRequest {
   String? rejectionReason;
   String? bankName;
   String? bankAccountNumber;
+  String? moveOutInvoiceFileName;
+  String? moveOutInvoiceBase64;
+  bool moveOutInvoiceIsFinal;
+
+  bool get hasMoveOutInvoice =>
+      (moveOutInvoiceBase64 ?? '').trim().isNotEmpty;
 
   bool get hasAttachment =>
       (attachmentFileName ?? '').trim().isNotEmpty ||
@@ -3519,6 +3535,9 @@ class RentalStore extends ChangeNotifier {
                 'rejectionReason': request.rejectionReason,
                 'bankName': request.bankName,
                 'bankAccountNumber': request.bankAccountNumber,
+                'moveOutInvoiceFileName': request.moveOutInvoiceFileName,
+                'moveOutInvoiceBase64': request.moveOutInvoiceBase64,
+                'moveOutInvoiceIsFinal': request.moveOutInvoiceIsFinal,
                 'attachmentFileName': request.attachmentFileName,
                 'attachmentBase64': request.attachmentBase64,
                 'status': request.status,
@@ -5583,7 +5602,7 @@ class RentalStore extends ChangeNotifier {
       tenantRequests.any((request) =>
           request.tenantId == tenantId &&
           request.requestType == 'Move-out' &&
-          request.status == 'Open');
+          (request.status == 'Open' || request.status == 'In Progress'));
 
   TenantRequest? addTenantRequest({
     required String requestType,
@@ -5714,7 +5733,9 @@ class RentalStore extends ChangeNotifier {
     final requests = tenantRequests.where((request) =>
         request.tenantId == tenancy.tenantId && request.facilityId == tenancy.facilityId &&
         request.requestType == 'Move-out' &&
-        (request.status == 'Open' || request.status == 'Accepted')).toList();
+        (request.status == 'Open' ||
+            request.status == 'Accepted' ||
+            request.status == 'In Progress')).toList();
     if (requests.isEmpty && tenancy.inactiveRemark ==
         'Triggered by system because deposit refund completed.') return;
     if (requests.any((request) => request.requestedMoveOutDate != null &&
@@ -5735,6 +5756,33 @@ class RentalStore extends ChangeNotifier {
     _applyDueTenancyLifecycleTransitions();
     _notify('${userFor(tenancy.tenantId).name} deposit refund completed. Tenancy ending recorded.');
     notifyListeners();
+  }
+
+  Future<void> recordMoveOutInvoice(
+    TenantRequest request,
+    MoveOutSettlement settlement,
+    Uint8List pdf, {
+    required bool isFinal,
+  }) async {
+    if (!isOwner || !canManage || isReadOnlyObserver ||
+        request.requestType != 'Move-out' ||
+        !tenantRequests.contains(request) ||
+        pdf.isEmpty) {
+      throw StateError('Move-out invoice update is not allowed.');
+    }
+    request
+      ..status = isFinal ? request.status : 'In Progress'
+      ..reviewedAt = DateTime.now().toUtc()
+      ..moveOutInvoiceFileName =
+          'move-out-settlement-${settlement.moveOutDate.year}-${settlement.moveOutDate.month.toString().padLeft(2, '0')}-${settlement.moveOutDate.day.toString().padLeft(2, '0')}.pdf'
+      ..moveOutInvoiceBase64 = base64Encode(pdf)
+      ..moveOutInvoiceIsFinal = isFinal;
+    _notify(isFinal
+        ? '${userFor(request.tenantId).name} final move-out invoice is ready.'
+        : '${userFor(request.tenantId).name} move-out settlement is in progress.');
+    notifyListeners();
+    await flushPersistence();
+    await flushCloudPersistence(rethrowOnError: true);
   }
 
   void addAdditionalIncome({
@@ -6676,6 +6724,10 @@ class RentalStore extends ChangeNotifier {
             rejectionReason: item['rejectionReason'] as String?,
             bankName: item['bankName'] as String?,
             bankAccountNumber: item['bankAccountNumber'] as String?,
+            moveOutInvoiceFileName: item['moveOutInvoiceFileName'] as String?,
+            moveOutInvoiceBase64: item['moveOutInvoiceBase64'] as String?,
+            moveOutInvoiceIsFinal:
+                item['moveOutInvoiceIsFinal'] as bool? ?? false,
             attachmentFileName: item['attachmentFileName'] as String?,
             attachmentBase64: item['attachmentBase64'] as String?,
             attachmentSizeBytes: (item['attachmentSizeBytes'] as num?)?.toInt(),
@@ -7054,6 +7106,11 @@ class RentalStore extends ChangeNotifier {
                   'rejectionReason': request.rejectionReason,
                   'bankName': request.bankName,
                   'bankAccountNumber': request.bankAccountNumber,
+                  'moveOutInvoiceFileName': request.moveOutInvoiceFileName,
+                  'moveOutInvoiceBase64': includeBinaryData
+                      ? request.moveOutInvoiceBase64
+                      : null,
+                  'moveOutInvoiceIsFinal': request.moveOutInvoiceIsFinal,
                   'attachmentFileName': request.attachmentFileName,
                   'attachmentBase64':
                       includeBinaryData ? request.attachmentBase64 : null,
@@ -7508,6 +7565,10 @@ class RentalStore extends ChangeNotifier {
             rejectionReason: item['rejectionReason'] as String?,
             bankName: item['bankName'] as String?,
             bankAccountNumber: item['bankAccountNumber'] as String?,
+            moveOutInvoiceFileName: item['moveOutInvoiceFileName'] as String?,
+            moveOutInvoiceBase64: item['moveOutInvoiceBase64'] as String?,
+            moveOutInvoiceIsFinal:
+                item['moveOutInvoiceIsFinal'] as bool? ?? false,
             attachmentFileName: item['attachmentFileName'] as String?,
             attachmentBase64: item['attachmentBase64'] as String?,
             attachmentSizeBytes: (item['attachmentSizeBytes'] as num?)?.toInt(),
@@ -16678,9 +16739,15 @@ class _OwnerRequestsFeedTabState extends State<OwnerRequestsFeedTab>
     final requests = store.tenantRequests
         .where((item) => item.facilityId == facility.id)
         .toList();
-    final pending = requests.where((item) => item.status == 'Open').toList()
+    final pending = requests
+        .where((item) =>
+            item.status == 'Open' || item.status == 'In Progress')
+        .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    final history = requests.where((item) => item.status != 'Open').toList()
+    final history = requests
+        .where((item) =>
+            item.status != 'Open' && item.status != 'In Progress')
+        .toList()
       ..sort((a, b) =>
           (b.reviewedAt ?? b.createdAt).compareTo(a.reviewedAt ?? a.createdAt));
 
@@ -16737,7 +16804,9 @@ class _OwnerRequestsFeedTabState extends State<OwnerRequestsFeedTab>
           selectedFacility: facility,
           badgeCount: (item) => store.tenantRequests
               .where((request) =>
-                  request.facilityId == item.id && request.status == 'Open')
+                  request.facilityId == item.id &&
+                  (request.status == 'Open' ||
+                      request.status == 'In Progress'))
               .length,
           onSelected: (value) {
             selectFacility(facilities, value);
@@ -16904,7 +16973,9 @@ class _OwnerRequestList extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      if (request.status == 'Open')
+                      if (request.status == 'Open' ||
+                          (request.requestType == 'Move-out' &&
+                              request.status == 'In Progress'))
                         FilledButton.icon(
                           onPressed: () async {
                             if (request.requestType == 'Move-out') {
@@ -16926,7 +16997,25 @@ class _OwnerRequestList extends StatelessWidget {
                                   propertyName: facility.name,
                                   unitName: tenancy.unitName,
                                   draftKey: '${store.currentUser!.id}_${tenancy.id}',
-                                  onCompleteRefund: (settlement) async => store.completeMoveOutRefund(tenancy, settlement),
+                                  bankName: request.bankName ?? '',
+                                  bankAccountNumber:
+                                      request.bankAccountNumber ?? '',
+                                  monthlyRent: tenancy.monthlyRent,
+                                  onInvoiceGenerated:
+                                      (settlement, pdf, isFinal) =>
+                                          store.recordMoveOutInvoice(
+                                            request,
+                                            settlement,
+                                            pdf,
+                                            isFinal: isFinal,
+                                          ),
+                                  onCompleteRefund: (settlement) async {
+                                    store.completeMoveOutRefund(
+                                        tenancy, settlement);
+                                    await store.flushPersistence();
+                                    await store.flushCloudPersistence(
+                                        rethrowOnError: true);
+                                  },
                                   tenantId: tenant.id, tenancyId: tenancy.id, facilityId: facility.id,
                                   initialDate: request.requestedMoveOutDate ??
                                       tenancy.lastActiveDate ?? DateTime.now(),
@@ -16952,7 +17041,10 @@ class _OwnerRequestList extends StatelessWidget {
                           icon: Icon(request.requestType == 'Move-out'
                               ? Icons.logout_rounded : Icons.check_rounded),
                           label: Text(tr(context, request.requestType == 'Move-out'
-                              ? 'Initiate move-out' : 'Accept')),
+                              ? (request.status == 'In Progress'
+                                  ? 'Continue move-out'
+                                  : 'Initiate move-out')
+                              : 'Accept')),
                         ),
                       OutlinedButton.icon(
                         onPressed: () async {
@@ -20196,10 +20288,14 @@ class TenantRequestsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
     final requests = store.currentTenantRequests;
-    final active =
-        requests.where((request) => request.status == 'Open').toList();
-    final history =
-        requests.where((request) => request.status != 'Open').toList();
+    final active = requests
+        .where((request) =>
+            request.status == 'Open' || request.status == 'In Progress')
+        .toList();
+    final history = requests
+        .where((request) =>
+            request.status != 'Open' && request.status != 'In Progress')
+        .toList();
     return DefaultTabController(
       length: 2,
       child: ColoredBox(
@@ -20271,28 +20367,113 @@ class _TenantRequestList extends StatelessWidget {
       children: requests.map((request) {
         final facility = store.facilityFor(request.facilityId);
         return Card(
-          child: ListTile(
-            onTap: request.requestType == 'Move-out' &&
-                    request.status == 'Open' &&
-                    !store.isCurrentTenantReadOnly
-                ? () => showEditMoveOutRequestDialog(context, request)
-                : null,
-            leading: const Icon(Icons.chat_bubble_outline_rounded),
-            title: Text(request.title),
-            subtitle: Text(
-              '${tr(context, request.requestType)} • ${facility.name}\n${request.message}\n${dateLabel(request.createdAt)}${request.rejectionReason == null ? '' : '\n${tr(context, 'Rejection reason')}: ${request.rejectionReason}'}',
-            ),
-            isThreeLine: true,
-            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              StatusChipText(label: tr(context, request.status)),
-              if (request.requestType == 'Move-out' &&
-                  request.status == 'Open' &&
-                  !store.isCurrentTenantReadOnly)
-                const Icon(Icons.chevron_right_rounded),
-            ]),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ListTile(
+                onTap: request.requestType == 'Move-out' &&
+                        request.status == 'Open' &&
+                        !store.isCurrentTenantReadOnly
+                    ? () => showEditMoveOutRequestDialog(context, request)
+                    : null,
+                leading: const Icon(Icons.chat_bubble_outline_rounded),
+                title: Text(request.title),
+                subtitle: Text(
+                  '${tr(context, request.requestType)} • ${facility.name}\n${request.message}\n${dateLabel(request.createdAt)}${request.rejectionReason == null ? '' : '\n${tr(context, 'Rejection reason')}: ${request.rejectionReason}'}',
+                ),
+                isThreeLine: true,
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  StatusChipText(label: tr(context, request.status)),
+                  if (request.requestType == 'Move-out' &&
+                      request.status == 'Open' &&
+                      !store.isCurrentTenantReadOnly)
+                    const Icon(Icons.chevron_right_rounded),
+                ]),
+              ),
+              if (request.hasMoveOutInvoice)
+                _TenantMoveOutInvoicePreview(request: request),
+            ],
           ),
         );
       }).toList(),
+    );
+  }
+}
+
+class _TenantMoveOutInvoicePreview extends StatelessWidget {
+  const _TenantMoveOutInvoicePreview({required this.request});
+
+  final TenantRequest request;
+
+  Uint8List? get bytes {
+    try {
+      return Uint8List.fromList(base64Decode(request.moveOutInvoiceBase64!));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pdf = bytes;
+    final isFinal = request.moveOutInvoiceIsFinal;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isFinal ? const Color(0xFFEAF7F0) : const Color(0xFFFFF7DD),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            tr(context, isFinal
+                ? 'Final move-out invoice'
+                : 'Temporary move-out invoice'),
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 4),
+          Text(tr(context, isFinal
+              ? 'The final settlement invoice is ready.'
+              : 'The owner is preparing the final utility bills and charges. This temporary invoice may change.')),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              FilledButton.icon(
+                onPressed: pdf == null
+                    ? null
+                    : () async {
+                        try {
+                          await openSettlementPdf(pdf);
+                        } catch (_) {
+                          if (context.mounted) {
+                            showValidationMessage(context,
+                                tr(context, 'Unable to open settlement invoice. Please try again.'));
+                          }
+                        }
+                      },
+                icon: const Icon(Icons.picture_as_pdf_outlined),
+                label: Text(tr(context, 'Preview invoice')),
+              ),
+              OutlinedButton.icon(
+                onPressed: pdf == null
+                    ? null
+                    : () => downloadBytesFile(
+                          fileName: request.moveOutInvoiceFileName ??
+                              'move-out-settlement.pdf',
+                          mimeType: 'application/pdf',
+                          bytes: pdf,
+                        ),
+                icon: const Icon(Icons.download_rounded),
+                label: Text(tr(context, 'Download PDF')),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -28774,11 +28955,15 @@ void showTenantProfileDialog(
   final moveOutRequests = store.tenantRequests.where((request) =>
       request.tenantId == tenant.id && request.facilityId == facility.id &&
       request.requestedMoveOutDate != null &&
-      (request.status == 'Open' || request.status == 'Accepted')).toList()
+      (request.status == 'Open' ||
+          request.status == 'Accepted' ||
+          request.status == 'In Progress')).toList()
     ..sort((a, b) => (b.tenantEditedAt ?? b.createdAt).compareTo(a.tenantEditedAt ?? a.createdAt));
   final settlementDate = moveOutRequests.isEmpty
       ? tenancy.lastActiveDate ?? DateTime.now()
       : moveOutRequests.first.requestedMoveOutDate!;
+  final moveOutRequest =
+      moveOutRequests.isEmpty ? null : moveOutRequests.first;
   final paymentHistory = store
       .billsForTenant(tenant.id)
       .where((bill) =>
@@ -29373,7 +29558,25 @@ void showTenantProfileDialog(
                       propertyName: facility.name,
                       unitName: tenancy.unitName,
                       draftKey: '${store.currentUser!.id}_${tenancy.id}',
-                      onCompleteRefund: (settlement) async => store.completeMoveOutRefund(tenancy, settlement),
+                      bankName: moveOutRequest?.bankName ?? '',
+                      bankAccountNumber:
+                          moveOutRequest?.bankAccountNumber ?? '',
+                      monthlyRent: tenancy.monthlyRent,
+                      onInvoiceGenerated: moveOutRequest == null
+                          ? null
+                          : (settlement, pdf, isFinal) =>
+                              store.recordMoveOutInvoice(
+                                moveOutRequest,
+                                settlement,
+                                pdf,
+                                isFinal: isFinal,
+                              ),
+                      onCompleteRefund: (settlement) async {
+                        store.completeMoveOutRefund(tenancy, settlement);
+                        await store.flushPersistence();
+                        await store.flushCloudPersistence(
+                            rethrowOnError: true);
+                      },
                       tenantId: tenant.id, tenancyId: tenancy.id, facilityId: facility.id,
                       initialDate: settlementDate,
                       calculateElectricityCharge: (usage) => store.calculateElectricityChargeForFacility(facility, usage),
@@ -35052,6 +35255,19 @@ String tr(BuildContext context, String key) {
     'Detected automatically. Review and correct the usage if needed.': '已自动识别，请核对用电量，必要时修改。',
     'Could not read the meter. Enter the usage or electricity amount manually.': '无法识别电表，请手动填写用电量或电费金额。',
     'Move-out settlement': '搬出结算',
+    'Refund bank details': '退款银行资料',
+    'Prorated stay': '按日住宿费',
+    'Daily rent (monthly rent / 30)': '每日租金（月租 / 30）',
+    'Prorated stay days': '按日住宿天数',
+    'Calculated as monthly rent / 30 x days stayed.': '计算方式：月租 / 30 × 住宿天数。',
+    'Enter a day count from 0 to 30.': '请输入 0 至 30 天。',
+    'Prorated stay deduction': '按日住宿费扣除',
+    'Temporary move-out invoice': '临时搬出结算单',
+    'Final move-out invoice': '最终搬出结算单',
+    'The final settlement invoice is ready.': '最终结算单已准备好。',
+    'The owner is preparing the final utility bills and charges. This temporary invoice may change.': '业主正在准备最终水电账单和费用，此临时结算单可能会更改。',
+    'Preview invoice': '预览结算单',
+    'Continue move-out': '继续搬出结算',
     'Deposit to be refunded': '退还押金',
     'Deposit held': '已收押金',
     'Final charges': '最终费用',
@@ -35214,6 +35430,19 @@ String tr(BuildContext context, String key) {
     'Detected automatically. Review and correct the usage if needed.': 'Dikesan secara automatik. Semak dan betulkan penggunaan jika perlu.',
     'Could not read the meter. Enter the usage or electricity amount manually.': 'Meter tidak dapat dibaca. Masukkan penggunaan atau amaun elektrik secara manual.',
     'Move-out settlement': 'Penyelesaian keluar',
+    'Refund bank details': 'Butiran bank bayaran balik',
+    'Prorated stay': 'Penginapan prorata',
+    'Daily rent (monthly rent / 30)': 'Sewa harian (sewa bulanan / 30)',
+    'Prorated stay days': 'Hari penginapan prorata',
+    'Calculated as monthly rent / 30 x days stayed.': 'Dikira sebagai sewa bulanan / 30 x hari menginap.',
+    'Enter a day count from 0 to 30.': 'Masukkan bilangan hari dari 0 hingga 30.',
+    'Prorated stay deduction': 'Potongan penginapan prorata',
+    'Temporary move-out invoice': 'Invois keluar sementara',
+    'Final move-out invoice': 'Invois keluar akhir',
+    'The final settlement invoice is ready.': 'Invois penyelesaian akhir sudah tersedia.',
+    'The owner is preparing the final utility bills and charges. This temporary invoice may change.': 'Pemilik sedang menyediakan bil utiliti dan caj akhir. Invois sementara ini mungkin berubah.',
+    'Preview invoice': 'Pratonton invois',
+    'Continue move-out': 'Teruskan proses keluar',
     'Deposit to be refunded': 'Deposit untuk dipulangkan',
     'Deposit held': 'Deposit dipegang',
     'Final charges': 'Caj akhir',
