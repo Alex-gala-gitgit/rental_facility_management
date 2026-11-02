@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as images;
@@ -438,9 +439,15 @@ void main() {
       otherDescription: '清洁费',
     );
     final bytes = await buildSettlementPdf(value);
-    await File('test_artifacts/move-out-settlement-cjk-qa.pdf')
-        .writeAsBytes(bytes);
+    if (!kIsWeb) {
+      await File('test_artifacts/move-out-settlement-cjk-qa.pdf')
+          .writeAsBytes(bytes);
+    }
     expect(bytes.length, greaterThan(1000));
+  });
+  test('PDF generates an English settlement in a browser-safe path', () async {
+    final bytes = await buildSettlementPdf(example());
+    expect(ascii.decode(bytes.take(4).toList()), '%PDF');
   });
   testWidgets('form has water and description; summary reflects input',
       (tester) async {

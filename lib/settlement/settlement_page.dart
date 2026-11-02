@@ -270,7 +270,13 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
       await _savePreparedSettlement(settlement, bytes);
       await widget.onInvoiceGenerated?.call(settlement, bytes, false);
       if (mounted) setState(() => _pdf = bytes);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'move-out settlement',
+        context: ErrorDescription('while generating and saving an invoice'),
+      ));
       if (mounted)
         setState(() => _error =
             t('Could not generate or save the invoice. Please retry.'));

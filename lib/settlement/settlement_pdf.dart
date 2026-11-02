@@ -1,22 +1,44 @@
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../branding/homeops_brand.dart';
 import 'settlement_model.dart';
+import 'settlement_text_rasterizer.dart';
 
 Future<Uint8List> buildSettlementPdf(MoveOutSettlement settlement) async {
-  final data = await rootBundle.load('assets/fonts/Manrope-PdfRegular.ttf');
-  final font = pw.Font.ttf(data);
-  final boldFont =
-      pw.Font.ttf(await rootBundle.load('assets/fonts/Manrope-PdfBold.ttf'));
+  final font = kIsWeb
+      ? pw.Font.helvetica()
+      : pw.Font.ttf(
+          await rootBundle.load('assets/fonts/Manrope-PdfRegular.ttf'));
+  final boldFont = kIsWeb
+      ? pw.Font.helveticaBold()
+      : pw.Font.ttf(await rootBundle.load('assets/fonts/Manrope-PdfBold.ttf'));
   final hasNonLatin = RegExp(r'[^\x00-\xFF]').hasMatch(
       '${settlement.tenantName}${settlement.propertyName}${settlement.unitName}${settlement.otherDescription}${settlement.meter?.name ?? ''}${settlement.payslip?.name ?? ''}');
-  final fallback = hasNonLatin
+  final fallback = hasNonLatin && !kIsWeb
       ? [
           pw.Font.ttf(
-              await rootBundle.load('assets/fonts/NotoSansSC-Variable.ttf'))
+              await rootBundle.load('assets/fonts/NotoSansSC-PdfCommon.ttf'))
         ]
       : <pw.Font>[];
+  final rasterText = <String, Uint8List>{};
+  if (kIsWeb && hasNonLatin) {
+    final values = <String>{
+      settlement.tenantName,
+      '${settlement.propertyName} | Unit ${settlement.unitName}',
+      'Refund bank: ${settlement.bankName.isEmpty ? '-' : settlement.bankName}',
+      'Refund account: ${settlement.bankAccountNumber.isEmpty ? '-' : settlement.bankAccountNumber}',
+      for (final charge in settlement.charges) charge.$1,
+      '${settlement.tenantName} | ${settlement.propertyName} | ${settlement.unitName}',
+      if (settlement.meter != null) settlement.meter!.name,
+      if (settlement.payslip != null) settlement.payslip!.name,
+    };
+    for (final value in values) {
+      final bytes = await rasterizeSettlementText(value);
+      if (bytes != null) rasterText[value] = bytes;
+    }
+  }
   final doc = pw.Document(
       theme: pw.ThemeData.withFont(
           base: font,
@@ -29,6 +51,20 @@ Future<Uint8List> buildSettlementPdf(MoveOutSettlement settlement) async {
   final line = PdfColor.fromHex('#CCD6E5');
   final green = PdfColor.fromHex('#E8F7F1');
   final refundColor = PdfColor.fromHex('#167457');
+  pw.Widget text(String value,
+      {double fontSize = 11,
+      PdfColor? color,
+      pw.FontWeight fontWeight = pw.FontWeight.normal}) {
+    final raster = rasterText[value];
+    if (raster == null) {
+      return pw.Text(value,
+          style: pw.TextStyle(
+              fontSize: fontSize, color: color, fontWeight: fontWeight));
+    }
+    return pw.Image(pw.MemoryImage(raster),
+        height: fontSize * 1.35, fit: pw.BoxFit.scaleDown);
+  }
+
   pw.Widget brandHeader() => pw.Row(children: [
         pw.SvgImage(svg: homeOps360IconSvg, width: 28, height: 28),
         pw.SizedBox(width: 8),
@@ -46,12 +82,11 @@ Future<Uint8List> buildSettlementPdf(MoveOutSettlement settlement) async {
         child:
             pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
           pw.Expanded(
-              child: pw.Text(label,
-                  style: pw.TextStyle(
-                      fontSize: 11,
-                      color: blue,
-                      fontWeight:
-                          bold ? pw.FontWeight.bold : pw.FontWeight.normal))),
+              child: text(label,
+                  fontSize: 11,
+                  color: blue,
+                  fontWeight:
+                      bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
           pw.SizedBox(width: 16),
           pw.Text(amount,
               style: pw.TextStyle(
@@ -88,11 +123,12 @@ Future<Uint8List> buildSettlementPdf(MoveOutSettlement settlement) async {
         ),
       ],
       pw.SizedBox(height: 18),
-      pw.Text(settlement.tenantName),
-      pw.Text('${settlement.propertyName} | Unit ${settlement.unitName}'),
+      text(settlement.tenantName),
+      text('${settlement.propertyName} | Unit ${settlement.unitName}'),
       pw.Text('Move-out date: ${settlement.dateLabel}'),
-      pw.Text('Refund bank: ${settlement.bankName.isEmpty ? '-' : settlement.bankName}'),
-      pw.Text(
+      text(
+          'Refund bank: ${settlement.bankName.isEmpty ? '-' : settlement.bankName}'),
+      text(
           'Refund account: ${settlement.bankAccountNumber.isEmpty ? '-' : settlement.bankAccountNumber}'),
       pw.SizedBox(height: 20),
       pw.Text('Settlement summary',
@@ -162,12 +198,11 @@ Future<Uint8List> buildSettlementPdf(MoveOutSettlement settlement) async {
                   pw.Text(item.$1,
                       style: pw.TextStyle(fontSize: 19, color: blue)),
                   pw.SizedBox(height: 8),
-                  pw.Text(
+                  text(
                       '${settlement.tenantName} | ${settlement.propertyName} | ${settlement.unitName}',
-                      style: const pw.TextStyle(fontSize: 10)),
+                      fontSize: 10),
                   pw.SizedBox(height: 6),
-                  pw.Text(attachment.name,
-                      style: const pw.TextStyle(fontSize: 9)),
+                  text(attachment.name, fontSize: 9),
                   pw.SizedBox(height: 18),
                   pw.Expanded(
                       child: pw.Center(
