@@ -264,22 +264,61 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
       _pdf = null;
       _error = null;
     });
+    late final MoveOutSettlement settlement;
+    late final Uint8List bytes;
     try {
-      final settlement = _value;
-      final bytes = await buildSettlementPdf(settlement);
-      await _savePreparedSettlement(settlement, bytes);
-      await widget.onInvoiceGenerated?.call(settlement, bytes, false);
+      settlement = _value;
+      bytes = await buildSettlementPdf(settlement);
       if (mounted) setState(() => _pdf = bytes);
     } catch (error, stackTrace) {
       FlutterError.reportError(FlutterErrorDetails(
         exception: error,
         stack: stackTrace,
         library: 'move-out settlement',
-        context: ErrorDescription('while generating and saving an invoice'),
+        context: ErrorDescription('while creating an invoice PDF'),
       ));
-      if (mounted)
-        setState(() => _error =
-            t('Could not generate or save the invoice. Please retry.'));
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = t(
+              'Could not create the PDF on this device. Please refresh and retry.');
+        });
+      }
+      return;
+    }
+
+    try {
+      await _savePreparedSettlement(settlement, bytes);
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'move-out settlement',
+        context: ErrorDescription('while saving an invoice to the cloud'),
+      ));
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = t(
+              'PDF ready on this device, but cloud saving failed. Sign in again, then tap Generate PDF invoice to retry.');
+        });
+      }
+      return;
+    }
+
+    try {
+      await widget.onInvoiceGenerated?.call(settlement, bytes, false);
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'move-out settlement',
+        context: ErrorDescription('while updating the move-out request'),
+      ));
+      if (mounted) {
+        setState(() => _error = t(
+            'PDF saved, but the request status could not be updated. Tap Generate PDF invoice to retry.'));
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

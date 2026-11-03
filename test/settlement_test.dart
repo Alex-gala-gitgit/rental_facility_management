@@ -46,6 +46,12 @@ class RetryReadMemory extends DraftMemory {
   }
 }
 
+class FailingReadMemory extends DraftMemory {
+  @override
+  Future<String?> readSnapshot() async =>
+      throw StateError('cloud session unavailable');
+}
+
 MoveOutSettlement example(
         {int water = 2000,
         int deposit = 290000,
@@ -485,6 +491,38 @@ void main() {
     expect(persistence.reads, 2);
     expect(persistence.saved, isNotNull);
     expect(find.text('PDF ready. Choose WhatsApp in the share menu.'),
+        findsOneWidget);
+  });
+  testWidgets('cloud failure keeps the generated PDF available to the owner',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+        home: MoveOutSettlementPage(
+      tenantName: 'Test',
+      propertyName: 'Test property',
+      unitName: '1A',
+      draftKey: 'offline-test',
+      initialDate: DateTime(2026, 11, 3),
+      calculateElectricityCharge: (usage) => usage,
+      translate: (key) => key,
+      persistence: FailingReadMemory(),
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Generate PDF invoice'));
+    await tester.tap(find.text('Generate PDF invoice'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isA<StateError>());
+
+    expect(find.text('Download PDF'), findsOneWidget);
+    final enabledOutlinedButtons = tester
+        .widgetList<Widget>(
+            find.byWidgetPredicate((widget) => widget is OutlinedButton))
+        .whereType<OutlinedButton>()
+        .where((button) => button.onPressed != null);
+    expect(enabledOutlinedButtons, isNotEmpty);
+    expect(
+        find.text(
+            'PDF ready on this device, but cloud saving failed. Sign in again, then tap Generate PDF invoice to retry.'),
         findsOneWidget);
   });
   testWidgets('form has water and description; summary reflects input',
