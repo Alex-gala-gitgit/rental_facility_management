@@ -18,7 +18,7 @@ Future<bool> shareSettlementPdf(Uint8List bytes, String filename) async {
     'files': [file],
     'title': 'Move-out settlement invoice',
     'text':
-        'This is a temporary move-out settlement invoice. The final invoice will be issued after the move-out date, once all final charges have been calculated. Please let me know if you have any questions.'
+        'This is a temporary move-out settlement invoice. The final invoice will be issued after the move-out date, once all final charges have been calculated. Please let me know if you have any questions. Thank you.'
   });
   final data = js.callMethod<bool>(navigator, 'canShare', [captionedData]) == true
       ? captionedData
