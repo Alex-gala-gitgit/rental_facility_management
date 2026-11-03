@@ -19,11 +19,14 @@ Future<void> downloadBytesFile({
   required String fileName,
   required String mimeType,
   required Uint8List bytes,
+  bool openInNewTab = false,
 }) async {
   final blob = html.Blob([bytes], mimeType);
   final url = html.Url.createObjectUrlFromBlob(blob);
   final anchor = html.AnchorElement(href: url)
     ..download = fileName
+    ..target = openInNewTab ? '_blank' : ''
+    ..rel = openInNewTab ? 'noopener' : ''
     ..style.display = 'none';
   html.document.body?.append(anchor);
   anchor.click();

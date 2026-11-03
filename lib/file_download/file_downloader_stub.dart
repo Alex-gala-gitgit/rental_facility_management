@@ -14,6 +14,7 @@ Future<void> downloadBytesFile({
   required String fileName,
   required String mimeType,
   required Uint8List bytes,
+  bool openInNewTab = false,
 }) async {
   throw UnsupportedError(
     'Direct file download is only available in the web build. Use Share backup to copy the export content.',

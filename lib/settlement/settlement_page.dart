@@ -399,7 +399,10 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
     try {
       if (kIsWeb) {
         await downloadBytesFile(
-            fileName: _filename, mimeType: 'application/pdf', bytes: bytes);
+            fileName: _filename,
+            mimeType: 'application/pdf',
+            bytes: bytes,
+            openInNewTab: true);
       } else {
         await Printing.sharePdf(bytes: bytes, filename: _filename);
       }
@@ -732,6 +735,11 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
                             Text(t(_pdf == null
                                 ? 'Generate the invoice first to download or share it.'
                                 : 'PDF ready. Choose WhatsApp in the share menu.')),
+                            if (_pdf != null) ...[
+                              const SizedBox(height: 8),
+                              Text(t(
+                                  'On iPhone, close the PDF tab or return to Safari after sharing. This settlement page stays open.')),
+                            ],
                             const SizedBox(height: 8),
                             Text(t(
                                 'Saved securely in the cloud. Uploading a refund payslip confirms the refund. Complete refund records the tenancy ending.')),

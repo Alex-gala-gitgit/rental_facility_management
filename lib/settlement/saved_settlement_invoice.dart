@@ -83,7 +83,8 @@ class _SavedSettlementInvoiceState extends State<SavedSettlementInvoice> {
         await downloadBytesFile(
             fileName: 'move-out-settlement.pdf',
             bytes: bytes,
-            mimeType: 'application/pdf');
+            mimeType: 'application/pdf',
+            openInNewTab: true);
       } else {
         await Printing.sharePdf(
             bytes: bytes, filename: 'move-out-settlement.pdf');
