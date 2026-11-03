@@ -9,7 +9,6 @@ import 'package:rental_facility_management/persistence/persistence_contract.dart
 import 'package:rental_facility_management/settlement/settlement_model.dart';
 import 'package:rental_facility_management/settlement/settlement_page.dart';
 import 'package:rental_facility_management/settlement/settlement_pdf.dart';
-import 'package:rental_facility_management/settlement/settlement_whatsapp.dart';
 import 'package:rental_facility_management/settlement/saved_settlement_invoice.dart';
 import 'package:rental_facility_management/settlement/money_input.dart';
 import 'package:rental_facility_management/cloud/meter_reading_service.dart';
@@ -466,17 +465,6 @@ void main() {
   test('PDF generates an English settlement in a browser-safe path', () async {
     final bytes = await buildSettlementPdf(example());
     expect(ascii.decode(bytes.take(4).toList()), '%PDF');
-  });
-  test('temporary settlement WhatsApp link targets the registered tenant', () {
-    final uri = tenantSettlementWhatsAppUri(
-      tenantName: 'Alex Lau',
-      tenantPhone: '+60 12-345 6789',
-    );
-    expect(uri.host, 'wa.me');
-    expect(uri.path, '/60123456789');
-    expect(uri.queryParameters['text'], contains('Hi Alex Lau'));
-    expect(uri.queryParameters['text'], contains('Thank you.'));
-    expect(uri.queryParameters['text'], contains('https://homeops360.app'));
   });
   testWidgets('invoice generation retries an initial persistence read failure',
       (tester) async {

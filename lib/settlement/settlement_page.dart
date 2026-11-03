@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as images;
 import 'package:printing/printing.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../file_download/file_downloader.dart';
 import '../file_upload/image_file_picker.dart';
 import '../cloud/meter_reading_service.dart';
@@ -14,7 +13,6 @@ import '../persistence/persistence_contract.dart';
 import 'settlement_model.dart';
 import 'settlement_pdf.dart';
 import 'settlement_share.dart';
-import 'settlement_whatsapp.dart';
 import 'money_input.dart';
 
 class MoveOutSettlementPage extends StatefulWidget {
@@ -29,7 +27,6 @@ class MoveOutSettlementPage extends StatefulWidget {
       required this.calculateElectricityCharge,
       this.bankName = '',
       this.bankAccountNumber = '',
-      this.tenantPhone = '',
       this.monthlyRent = 0,
       this.readMeter,
       this.pickImage,
@@ -44,7 +41,6 @@ class MoveOutSettlementPage extends StatefulWidget {
       bool isFinal)? onInvoiceGenerated;
   final String tenantName, propertyName, unitName, draftKey;
   final String bankName, bankAccountNumber;
-  final String tenantPhone;
   final double monthlyRent;
   final String? tenantId, tenancyId, facilityId;
   final DateTime initialDate;
@@ -418,29 +414,6 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
   Future<void> _share() async {
     final bytes = _pdf;
     if (bytes == null) return;
-    if (hasTenantWhatsAppNumber(widget.tenantPhone)) {
-      try {
-        final uri = tenantSettlementWhatsAppUri(
-          tenantName: widget.tenantName,
-          tenantPhone: widget.tenantPhone,
-        );
-        final opened = await launchUrl(
-          uri,
-          mode: kIsWeb
-              ? LaunchMode.platformDefault
-              : LaunchMode.externalApplication,
-          webOnlyWindowName: kIsWeb ? '_blank' : null,
-        );
-        if (!opened) throw StateError('WhatsApp could not be opened.');
-        return;
-      } catch (_) {
-        if (mounted) {
-          setState(() => _error = t(
-              'Could not open the registered tenant WhatsApp chat. Please retry.'));
-        }
-        return;
-      }
-    }
     var supported = false;
     try {
       supported = await shareSettlementPdf(bytes, _filename);
@@ -761,9 +734,7 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
                             const SizedBox(height: 12),
                             Text(t(_pdf == null
                                 ? 'Generate the invoice first to download or share it.'
-                                : hasTenantWhatsAppNumber(widget.tenantPhone)
-                                    ? 'PDF ready. Send via WhatsApp opens the registered tenant chat.'
-                                    : 'PDF ready. Choose WhatsApp in the share menu.')),
+                                : 'PDF ready. Choose WhatsApp in the share menu.')),
                             if (_pdf != null) ...[
                               const SizedBox(height: 8),
                               Text(t(

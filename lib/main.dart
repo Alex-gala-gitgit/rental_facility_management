@@ -17000,7 +17000,6 @@ class _OwnerRequestList extends StatelessWidget {
                                   bankName: request.bankName ?? '',
                                   bankAccountNumber:
                                       request.bankAccountNumber ?? '',
-                                  tenantPhone: tenant.phoneNumber,
                                   monthlyRent: tenancy.monthlyRent,
                                   onInvoiceGenerated:
                                       (settlement, pdf, isFinal) =>
@@ -29562,7 +29561,6 @@ void showTenantProfileDialog(
                       bankName: moveOutRequest?.bankName ?? '',
                       bankAccountNumber:
                           moveOutRequest?.bankAccountNumber ?? '',
-                      tenantPhone: tenant.phoneNumber,
                       monthlyRent: tenancy.monthlyRent,
                       onInvoiceGenerated: moveOutRequest == null
                           ? null
