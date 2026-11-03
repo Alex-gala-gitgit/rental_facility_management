@@ -35,6 +35,17 @@ class DraftMemory implements AppPersistence {
   String get storageDescription => 'memory';
 }
 
+class RetryReadMemory extends DraftMemory {
+  var reads = 0;
+
+  @override
+  Future<String?> readSnapshot() async {
+    reads += 1;
+    if (reads == 1) throw StateError('temporary read failure');
+    return super.readSnapshot();
+  }
+}
+
 MoveOutSettlement example(
         {int water = 2000,
         int deposit = 290000,
@@ -448,6 +459,33 @@ void main() {
   test('PDF generates an English settlement in a browser-safe path', () async {
     final bytes = await buildSettlementPdf(example());
     expect(ascii.decode(bytes.take(4).toList()), '%PDF');
+  });
+  testWidgets('invoice generation retries an initial persistence read failure',
+      (tester) async {
+    final persistence = RetryReadMemory();
+    await tester.pumpWidget(MaterialApp(
+        home: MoveOutSettlementPage(
+      tenantName: 'Test',
+      propertyName: 'Test property',
+      unitName: '1A',
+      draftKey: 'retry-test',
+      initialDate: DateTime(2026, 11, 3),
+      calculateElectricityCharge: (usage) => usage,
+      translate: (key) => key,
+      persistence: persistence,
+    )));
+    await tester.pumpAndSettle();
+    expect(find.text('Unable to load cloud settlement. Tap to retry.'),
+        findsOneWidget);
+
+    await tester.ensureVisible(find.text('Generate PDF invoice'));
+    await tester.tap(find.text('Generate PDF invoice'));
+    await tester.pumpAndSettle();
+
+    expect(persistence.reads, 2);
+    expect(persistence.saved, isNotNull);
+    expect(find.text('PDF ready. Choose WhatsApp in the share menu.'),
+        findsOneWidget);
   });
   testWidgets('form has water and description; summary reflects input',
       (tester) async {

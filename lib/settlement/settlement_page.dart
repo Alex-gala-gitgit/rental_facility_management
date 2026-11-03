@@ -287,14 +287,30 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
 
   Future<void> _savePreparedSettlement(
       MoveOutSettlement settlement, Uint8List bytes) async {
-    final persistence = _persistence;
-    if (persistence == null) throw StateError('Draft storage unavailable');
+    final persistence = await _ensurePersistenceReady();
     final snapshot = jsonEncode(settlement.toJson());
     if (persistence is SettlementCloudPersistence) {
       await persistence.writePreparedSnapshot(snapshot, bytes);
     } else {
       await persistence.writeSnapshot(snapshot);
     }
+  }
+
+  Future<AppPersistence> _ensurePersistenceReady() async {
+    final ready = _persistence;
+    if (ready != null) return ready;
+
+    final persistence = widget.persistence ??
+        await createSettlementPersistence(widget.draftKey,
+            tenantId: widget.tenantId,
+            tenancyId: widget.tenancyId,
+            facilityId: widget.facilityId);
+    // A failed initial read leaves cloud persistence without its revision state.
+    // Retry it at the moment the owner generates the invoice rather than making
+    // the page permanently unsaveable until it is reopened.
+    await persistence.readSnapshot();
+    _persistence = persistence;
+    return persistence;
   }
 
   Future<void> _completeRefund() async {
