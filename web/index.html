@@ -35,7 +35,9 @@
   <title>HomeOps360</title>
   <link rel="manifest" href="manifest.json">
   <script>
-    if (window.location.pathname.toLowerCase().replace(/\/+$/, '') === '/splitz') {
+    const appPath = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+    const appHost = window.location.hostname.toLowerCase();
+    if (appHost === 'splitzbill.homeops360.app' || appPath === '/splitz' || appPath === '/splitebill') {
       document.title = 'Splitz | HomeOps360';
       const description = document.querySelector('meta[name="description"]');
       if (description) {

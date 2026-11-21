@@ -1,5 +1,8 @@
 /customize /assets/web/customize/index.html 200
 /customize/ /assets/web/customize/index.html 200
+/apps/splitzbill https://splitzbill.homeops360.app 301
+/apps/splitzbill/ https://splitzbill.homeops360.app 301
+/apps/splitzbill/* https://splitzbill.homeops360.app/:splat 301
 /splitz /index.html 200
 /splitz/ /index.html 200
 /splitz/* /index.html 200

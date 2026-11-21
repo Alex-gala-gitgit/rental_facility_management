@@ -471,11 +471,11 @@ class SplitBillStore extends ChangeNotifier {
   Uri shareEventUri(Uri baseUri, SplitBillEvent event) =>
       _shareUri(baseUri, {'kind': 'split_bill_event', 'event': event.toJson()});
 
-  Uri _shareUri(Uri baseUri, Map<String, dynamic> payload) {
+  Uri _shareUri(Uri _, Map<String, dynamic> payload) {
     final encoded =
         base64UrlEncode(utf8.encode(jsonEncode(payload))).replaceAll('=', '');
-    return baseUri.replace(
-      path: '/splitz/',
+    return Uri.parse('https://splitzbill.homeops360.app').replace(
+      path: '/',
       queryParameters: {'import': encoded},
       fragment: '',
     );

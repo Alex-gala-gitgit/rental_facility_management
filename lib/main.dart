@@ -319,7 +319,9 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final normalizedPath =
       Uri.base.path.toLowerCase().replaceFirst(RegExp(r'/+$'), '');
-  if (normalizedPath.endsWith('/splitz') ||
+  final normalizedHost = Uri.base.host.toLowerCase();
+  if (normalizedHost == 'splitzbill.homeops360.app' ||
+      normalizedPath.endsWith('/splitz') ||
       normalizedPath.endsWith('/splitebill')) {
     final splitBillPersistence =
         await createAppPersistence(namespace: 'split_bill');

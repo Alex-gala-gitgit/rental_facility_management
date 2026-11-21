@@ -120,11 +120,10 @@ void main() {
     expect(event.balances[dd.id], -25);
     expect(event.settlements.fold<double>(0, (sum, item) => sum + item.amount),
         55);
-    expect(
-        store
-            .shareBillUri(Uri.parse('https://homeops360.app/'), event, bill!)
-            .path,
-        '/splitz/');
+    final shareUri = store.shareBillUri(
+        Uri.parse('https://homeops360.app/'), event, bill!);
+    expect(shareUri.host, 'splitzbill.homeops360.app');
+    expect(shareUri.path, '/');
   });
 
   test('different breakfast values use exact shares', () async {
