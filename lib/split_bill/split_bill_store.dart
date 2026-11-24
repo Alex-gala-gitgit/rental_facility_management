@@ -50,6 +50,8 @@ class SplitBillEntry {
     Map<String, double>? participantShares,
     required this.createdAt,
     required this.payerConfirmed,
+    this.attachmentName,
+    this.attachmentBase64,
   })  : payerContributions = Map<String, double>.unmodifiable(
           payerContributions ?? <String, double>{payerId: amount},
         ),
@@ -67,6 +69,11 @@ class SplitBillEntry {
   final Map<String, double> participantShares;
   final DateTime createdAt;
   final bool payerConfirmed;
+  final String? attachmentName;
+  final String? attachmentBase64;
+
+  bool get hasAttachment =>
+      (attachmentName ?? '').isNotEmpty && (attachmentBase64 ?? '').isNotEmpty;
 
   SplitBillEntry copyWith({bool? payerConfirmed}) => SplitBillEntry(
         id: id,
@@ -79,9 +86,11 @@ class SplitBillEntry {
         participantShares: participantShares,
         createdAt: createdAt,
         payerConfirmed: payerConfirmed ?? this.payerConfirmed,
+        attachmentName: attachmentName,
+        attachmentBase64: attachmentBase64,
       );
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson({bool includeAttachment = true}) => {
         'id': id,
         'description': description,
         'amount': amount,
@@ -92,6 +101,8 @@ class SplitBillEntry {
         'participantShares': participantShares,
         'createdAt': createdAt.toIso8601String(),
         'payerConfirmed': payerConfirmed,
+        'attachmentName': includeAttachment ? attachmentName : null,
+        'attachmentBase64': includeAttachment ? attachmentBase64 : null,
       };
 
   factory SplitBillEntry.fromJson(Map<String, dynamic> json) {
@@ -117,6 +128,8 @@ class SplitBillEntry {
           : _equalShares(amount, participantIds),
       createdAt: DateTime.parse(json['createdAt'] as String),
       payerConfirmed: json['payerConfirmed'] as bool? ?? false,
+      attachmentName: json['attachmentName'] as String?,
+      attachmentBase64: json['attachmentBase64'] as String?,
     );
   }
 }
@@ -200,14 +213,16 @@ class SplitBillEvent {
       bills.isNotEmpty &&
       settlements.every((item) => clearedSettlementKeys.contains(item.key));
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson({bool includeAttachments = true}) => {
         'id': id,
         'name': name,
         'date': date.toIso8601String(),
         'createdAt': createdAt.toIso8601String(),
         'localParticipantId': localParticipantId,
         'participants': participants.map((item) => item.toJson()).toList(),
-        'bills': bills.map((item) => item.toJson()).toList(),
+        'bills': bills
+            .map((item) => item.toJson(includeAttachment: includeAttachments))
+            .toList(),
         'clearedSettlementKeys': clearedSettlementKeys.toList(),
         'closedAt': closedAt?.toIso8601String(),
       };
@@ -273,7 +288,7 @@ class SplitBillStore extends ChangeNotifier {
   SplitBillStore({required AppPersistence persistence})
       : _persistence = persistence;
 
-  static const _schemaVersion = 3;
+  static const _schemaVersion = 4;
   final AppPersistence _persistence;
   final List<SplitBillEvent> _events = <SplitBillEvent>[];
   SplitBillLanguage language = SplitBillLanguage.english;
@@ -378,6 +393,8 @@ class SplitBillStore extends ChangeNotifier {
     Map<String, double>? payerContributions,
     required List<String> participantIds,
     Map<String, double>? participantShares,
+    String? attachmentName,
+    String? attachmentBase64,
   }) async {
     final contributions = (payerContributions ??
             <String, double>{payerId: amount})
@@ -390,7 +407,8 @@ class SplitBillStore extends ChangeNotifier {
       ..removeWhere((key, value) => value <= 0);
     final splitTotal =
         _money(shares.values.fold<double>(0, (sum, value) => sum + value));
-    if (event.isClosed ||
+    if (!_events.contains(event) ||
+        event.isClosed ||
         description.trim().isEmpty ||
         amount <= 0 ||
         contributions.isEmpty ||
@@ -416,12 +434,61 @@ class SplitBillStore extends ChangeNotifier {
       participantShares: shares,
       createdAt: DateTime.now(),
       payerConfirmed: contributions.containsKey(event.localParticipantId),
+      attachmentName: attachmentName,
+      attachmentBase64: attachmentBase64,
     );
+    final previousSettlementKeys =
+        Set<String>.from(event.clearedSettlementKeys);
     event.bills.add(bill);
     event.clearedSettlementKeys.clear();
     notifyListeners();
-    await _save();
+    try {
+      await _save();
+    } catch (_) {
+      event.bills.removeWhere((item) => item.id == bill.id);
+      event.clearedSettlementKeys.addAll(previousSettlementKeys);
+      notifyListeners();
+      rethrow;
+    }
     return bill;
+  }
+
+  Future<bool> removeBill(SplitBillEvent event, String billId) async {
+    if (!_events.contains(event)) return false;
+    final index = event.bills.indexWhere((bill) => bill.id == billId);
+    if (index < 0) return false;
+    final removed = event.bills.removeAt(index);
+    final previousSettlementKeys =
+        Set<String>.from(event.clearedSettlementKeys);
+    event.clearedSettlementKeys.clear();
+    notifyListeners();
+    try {
+      await _save();
+    } catch (_) {
+      event.bills.insert(index, removed);
+      event.clearedSettlementKeys.addAll(previousSettlementKeys);
+      notifyListeners();
+      rethrow;
+    }
+    return true;
+  }
+
+  Future<bool> deleteEvent(String eventId) async {
+    final index = _events.indexWhere((event) => event.id == eventId);
+    if (index < 0 || !_events[index].isClosed) return false;
+    final removed = _events.removeAt(index);
+    final previousActiveEventId = activeEventId;
+    if (activeEventId == eventId) activeEventId = null;
+    notifyListeners();
+    try {
+      await _save();
+    } catch (_) {
+      _events.insert(index, removed);
+      activeEventId = previousActiveEventId;
+      notifyListeners();
+      rethrow;
+    }
+    return true;
   }
 
   Future<void> confirmBill(SplitBillEvent event, String billId) async {
@@ -463,13 +530,15 @@ class SplitBillStore extends ChangeNotifier {
         'participants':
             event.participants.map((item) => item.toJson()).toList(),
       },
-      'bill': bill.toJson(),
+      'bill': bill.toJson(includeAttachment: false),
     };
     return _shareUri(baseUri, payload);
   }
 
-  Uri shareEventUri(Uri baseUri, SplitBillEvent event) =>
-      _shareUri(baseUri, {'kind': 'split_bill_event', 'event': event.toJson()});
+  Uri shareEventUri(Uri baseUri, SplitBillEvent event) => _shareUri(baseUri, {
+        'kind': 'split_bill_event',
+        'event': event.toJson(includeAttachments: false),
+      });
 
   Uri _shareUri(Uri _, Map<String, dynamic> payload) {
     final encoded =

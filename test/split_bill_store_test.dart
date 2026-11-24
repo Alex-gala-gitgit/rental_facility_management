@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rental_facility_management/persistence/persistence_contract.dart';
@@ -120,8 +122,8 @@ void main() {
     expect(event.balances[dd.id], -25);
     expect(event.settlements.fold<double>(0, (sum, item) => sum + item.amount),
         55);
-    final shareUri = store.shareBillUri(
-        Uri.parse('https://homeops360.app/'), event, bill!);
+    final shareUri =
+        store.shareBillUri(Uri.parse('https://homeops360.app/'), event, bill!);
     expect(shareUri.host, 'splitzbill.homeops360.app');
     expect(shareUri.path, '/');
   });
@@ -179,6 +181,46 @@ void main() {
     expect(event.bills.single.payerConfirmed, isTrue);
   });
 
+  test('bill picture persists and settled records can be removed', () async {
+    final persistence = _MemoryPersistence();
+    final store = SplitBillStore(persistence: persistence);
+    await store.initialize();
+    final event = await store.createEvent(
+      name: 'Holiday',
+      ownerName: 'Alex',
+      date: DateTime(2026, 11, 24),
+    );
+    await store.addParticipant(event, 'Mei');
+    final bill = await store.addBill(
+      event: event,
+      description: 'Hotel',
+      amount: 100,
+      payerId: event.participants.first.id,
+      participantIds: event.participants.map((item) => item.id).toList(),
+      attachmentName: 'receipt.png',
+      attachmentBase64: base64Encode([1, 2, 3, 4]),
+    );
+
+    expect(bill, isNotNull);
+    expect(bill!.hasAttachment, isTrue);
+    await store.markSettlementPaid(event, event.settlements.single);
+    expect(await store.closeEvent(event), isTrue);
+
+    final restored = SplitBillStore(persistence: persistence);
+    await restored.initialize();
+    final restoredEvent = restored.events.single;
+    expect(restoredEvent.bills.single.attachmentName, 'receipt.png');
+    expect(restoredEvent.bills.single.attachmentBase64,
+        base64Encode([1, 2, 3, 4]));
+
+    expect(
+        await restored.removeBill(restoredEvent, restoredEvent.bills.single.id),
+        isTrue);
+    expect(restoredEvent.bills, isEmpty);
+    expect(await restored.deleteEvent(restoredEvent.id), isTrue);
+    expect(restored.events, isEmpty);
+  });
+
   testWidgets('first event can be created on a mobile screen', (tester) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -188,6 +230,8 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('Start splitting'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Create event').first);
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -199,5 +243,60 @@ void main() {
 
     expect(find.text('Dinner'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('bill saves to a newly selected event', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final persistence = _MemoryPersistence();
+    final seed = SplitBillStore(persistence: persistence);
+    await seed.initialize();
+    await seed.createEvent(
+      name: 'Old event',
+      ownerName: 'You',
+      date: DateTime(2026, 11, 23),
+    );
+
+    await tester.pumpWidget(SplitBillApp(
+      persistence: persistence,
+      launchUri: Uri.parse('https://splitzbill.homeops360.app/'),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue to my events'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Events').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.add).first);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Event name'), 'New event');
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Your name on this device'), 'You');
+    await tester.tap(find.widgetWithText(FilledButton, 'Create'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Description'), 'Coffee');
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Amount (MYR)'), '10');
+    final fields =
+        tester.widgetList<TextField>(find.byType(TextField)).toList();
+    expect(fields, hasLength(3));
+    await tester.enterText(find.byType(TextField).at(2), '10');
+    final saveBill = find.text('Save bill');
+    await tester.ensureVisible(saveBill);
+    await tester.tap(saveBill);
+    await tester.pumpAndSettle();
+
+    final snapshot = jsonDecode(persistence.value!) as Map<String, dynamic>;
+    final events = (snapshot['events'] as List).cast<Map<String, dynamic>>();
+    final oldEvent = events.singleWhere((item) => item['name'] == 'Old event');
+    final newEvent = events.singleWhere((item) => item['name'] == 'New event');
+    expect(oldEvent['bills'], isEmpty);
+    expect(newEvent['bills'], hasLength(1));
+    expect((newEvent['bills'] as List).single['description'], 'Coffee');
   });
 }

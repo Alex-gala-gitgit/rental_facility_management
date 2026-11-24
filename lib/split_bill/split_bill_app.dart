@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
+import '../file_upload/image_file_picker.dart';
 import '../persistence/persistence_contract.dart';
 import 'nearby_share.dart';
 import 'split_bill_store.dart';
@@ -122,6 +125,7 @@ class SplitBillHome extends StatefulWidget {
 
 class _SplitBillHomeState extends State<SplitBillHome> {
   late int selectedIndex;
+  late bool showLanding;
 
   SplitBillStore get store => widget.store;
   SplitBillText get text => SplitBillText(store.language);
@@ -130,6 +134,7 @@ class _SplitBillHomeState extends State<SplitBillHome> {
   void initState() {
     super.initState();
     selectedIndex = store.activeEvent == null ? 4 : 0;
+    showLanding = store.importMessage == null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final message = store.importMessage;
       if (message != null && mounted) {
@@ -147,9 +152,21 @@ class _SplitBillHomeState extends State<SplitBillHome> {
     return AnimatedBuilder(
       animation: store,
       builder: (context, _) {
+        if (showLanding) {
+          return _SplitzLandingPage(
+            store: store,
+            onStart: () => setState(() {
+              selectedIndex = store.activeEvent == null ? 4 : 0;
+              showLanding = false;
+            }),
+          );
+        }
         final pages = <Widget>[
           _BillsPage(store: store, goTo: goTo),
-          _AddBillPage(store: store, onSaved: () => goTo(0)),
+          _AddBillPage(
+              key: ValueKey(store.activeEvent?.id),
+              store: store,
+              onSaved: () => goTo(0)),
           _BalancesPage(store: store),
           _SettlePage(store: store, startNew: _closeAndStartNew),
           _EventsPage(store: store, openEvent: () => goTo(0)),
@@ -265,6 +282,132 @@ class _Page extends StatelessWidget {
   Widget build(BuildContext context) => SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
         child: SizedBox(width: double.infinity, child: child),
+      );
+}
+
+class _SplitzLandingPage extends StatelessWidget {
+  const _SplitzLandingPage({required this.store, required this.onStart});
+
+  final SplitBillStore store;
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = SplitBillText(store.language);
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 620),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(children: [
+                    const _SplitzMark(),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(text('Splitz'),
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w800)),
+                    ),
+                    SegmentedButton<SplitBillLanguage>(
+                      showSelectedIcon: false,
+                      segments: const [
+                        ButtonSegment(
+                            value: SplitBillLanguage.english,
+                            label: Text('EN')),
+                        ButtonSegment(
+                            value: SplitBillLanguage.chinese, label: Text('中')),
+                      ],
+                      selected: {store.language},
+                      onSelectionChanged: (selection) =>
+                          store.setLanguage(selection.first),
+                    ),
+                  ]),
+                  const SizedBox(height: 72),
+                  Text(
+                    text('Split bills. See who paid. Settle clearly.'),
+                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          height: 1.08,
+                          color: _splitInk,
+                        ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    text(
+                        'Create an event, add each bill, and instantly see who owes whom.'),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: _splitInk.withOpacity(.72),
+                          height: 1.45,
+                        ),
+                  ),
+                  const SizedBox(height: 30),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _LandingFeature(
+                          icon: Icons.receipt_long_outlined,
+                          label: text('Record bills')),
+                      _LandingFeature(
+                          icon: Icons.groups_2_outlined,
+                          label: text('Split by person')),
+                      _LandingFeature(
+                          icon: Icons.handshake_outlined,
+                          label: text('Track payments')),
+                    ],
+                  ),
+                  const SizedBox(height: 34),
+                  FilledButton.icon(
+                    onPressed: onStart,
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    label: Text(text(store.events.isEmpty
+                        ? 'Start splitting'
+                        : 'Continue to my events')),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(54),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    text('No login · saved on this device'),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LandingFeature extends StatelessWidget {
+  const _LandingFeature({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: const Color(0xFFDCE7DF)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 20, color: _splitGreen),
+          const SizedBox(width: 8),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+        ]),
       );
 }
 
@@ -442,6 +585,10 @@ class _BillCard extends StatelessWidget {
                     Text('${text('Added by')} $addedBy',
                         style: Theme.of(context).textTheme.bodySmall),
                   const SizedBox(height: 7),
+                  if (bill.hasAttachment) ...[
+                    _BillAttachment(bill: bill),
+                    const SizedBox(height: 7),
+                  ],
                   if (bill.payerConfirmed)
                     _Status(text: text('Confirmed'), good: true)
                   else if (canConfirm)
@@ -461,6 +608,11 @@ class _BillCard extends StatelessWidget {
                   tooltip: text('Share transaction'),
                   onPressed: () => _shareBill(context, store, event, bill),
                   icon: const Icon(Icons.bluetooth_connected)),
+              IconButton(
+                  tooltip: text('Delete bill'),
+                  onPressed: () =>
+                      _confirmRemoveBill(context, store, event, bill),
+                  icon: const Icon(Icons.delete_outline, color: _splitPink)),
             ]),
           ],
         ),
@@ -469,8 +621,56 @@ class _BillCard extends StatelessWidget {
   }
 }
 
+class _BillAttachment extends StatelessWidget {
+  const _BillAttachment({required this.bill});
+
+  final SplitBillEntry bill;
+
+  @override
+  Widget build(BuildContext context) {
+    try {
+      final bytes = base64Decode(bill.attachmentBase64!);
+      return InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => showDialog<void>(
+          context: context,
+          builder: (_) => Dialog(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720, maxHeight: 720),
+              child: InteractiveViewer(
+                child: Image.memory(bytes, fit: BoxFit.contain),
+              ),
+            ),
+          ),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: _splitCanvas,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(7),
+              child:
+                  Image.memory(bytes, width: 48, height: 48, fit: BoxFit.cover),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(bill.attachmentName!,
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          ]),
+        ),
+      );
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
+  }
+}
+
 class _AddBillPage extends StatefulWidget {
-  const _AddBillPage({required this.store, required this.onSaved});
+  const _AddBillPage({super.key, required this.store, required this.onSaved});
   final SplitBillStore store;
   final VoidCallback onSaved;
 
@@ -486,6 +686,8 @@ class _AddBillPageState extends State<_AddBillPage> {
   final payerAmounts = <String, TextEditingController>{};
   final shareAmounts = <String, TextEditingController>{};
   final selectedPeople = <String>{};
+  PickedImageData? attachment;
+  bool pickingAttachment = false;
   _SplitMode splitMode = _SplitMode.equal;
 
   @override
@@ -554,6 +756,35 @@ class _AddBillPageState extends State<_AddBillPage> {
                 onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
                     labelText: text('Amount (MYR)'), prefixText: 'RM ')),
+            const SizedBox(height: 12),
+            if (attachment == null)
+              OutlinedButton.icon(
+                onPressed: event.isClosed || pickingAttachment
+                    ? null
+                    : _pickAttachment,
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                label: Text(text(pickingAttachment
+                    ? 'Choosing picture...'
+                    : 'Attach picture (optional)')),
+              )
+            else
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const CircleAvatar(
+                  child: Icon(Icons.image_outlined),
+                ),
+                title: Text(attachment!.name,
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle:
+                    Text('${(attachment!.bytes.length / 1024).ceil()} KB'),
+                trailing: IconButton(
+                  tooltip: text('Remove picture'),
+                  onPressed: event.isClosed
+                      ? null
+                      : () => setState(() => attachment = null),
+                  icon: const Icon(Icons.close),
+                ),
+              ),
             const SizedBox(height: 12),
             Text(text('Who paid and how much'),
                 style: Theme.of(context)
@@ -744,15 +975,32 @@ class _AddBillPageState extends State<_AddBillPage> {
         return;
       }
     }
-    final bill = await widget.store.addBill(
-        event: event,
-        description: description.text,
-        amount: parsedAmount,
-        payerId: contributions.keys.first,
-        payerContributions: contributions,
-        participantIds: selectedPeople.toList(),
-        participantShares: participantShares);
-    if (!mounted || bill == null) return;
+    SplitBillEntry? bill;
+    try {
+      bill = await widget.store.addBill(
+          event: event,
+          description: description.text,
+          amount: parsedAmount,
+          payerId: contributions.keys.first,
+          payerContributions: contributions,
+          participantIds: selectedPeople.toList(),
+          participantShares: participantShares,
+          attachmentName: attachment?.name,
+          attachmentBase64:
+              attachment == null ? null : base64Encode(attachment!.bytes));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(text('Bill could not be saved. Please try again.'))));
+      }
+      return;
+    }
+    if (!mounted) return;
+    if (bill == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(text('Bill could not be saved to this event.'))));
+      return;
+    }
     description.clear();
     amount.clear();
     for (final controller in payerAmounts.values) {
@@ -762,9 +1010,35 @@ class _AddBillPageState extends State<_AddBillPage> {
       controller.clear();
     }
     splitMode = _SplitMode.equal;
+    attachment = null;
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(text('Bill saved.'))));
     widget.onSaved();
+  }
+
+  Future<void> _pickAttachment() async {
+    setState(() => pickingAttachment = true);
+    try {
+      final selected = await pickImageForUpload();
+      if (!mounted || selected == null) return;
+      if (selected.bytes.length > 2 * 1024 * 1024) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(SplitBillText(widget.store.language)(
+              'Picture must be 2 MB or smaller.')),
+        ));
+        return;
+      }
+      setState(() => attachment = selected);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(SplitBillText(widget.store.language)(
+              'Picture could not be attached.')),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => pickingAttachment = false);
+    }
   }
 }
 
@@ -975,7 +1249,17 @@ class _EventsPage extends StatelessWidget {
                       IconButton.filledTonal(
                           tooltip: text('Share event'),
                           onPressed: () => _shareEvent(context, store, event),
-                          icon: const Icon(Icons.ios_share))
+                          icon: const Icon(Icons.ios_share)),
+                      if (event.isClosed) ...[
+                        const SizedBox(width: 8),
+                        IconButton.filledTonal(
+                          tooltip: text('Delete settled event'),
+                          onPressed: () =>
+                              _confirmDeleteEvent(context, store, event),
+                          icon: const Icon(Icons.delete_outline,
+                              color: _splitPink),
+                        ),
+                      ],
                     ]),
                   ]),
             )))),
@@ -1137,6 +1421,73 @@ Future<void> _addPerson(
       context: context,
       builder: (_) => _AddPersonDialog(store: store, event: event),
     );
+
+Future<void> _confirmRemoveBill(BuildContext context, SplitBillStore store,
+    SplitBillEvent event, SplitBillEntry bill) async {
+  final text = SplitBillText(store.language);
+  final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(text('Delete bill?')),
+          content: Text(text(
+              'This bill will be removed and the event balances will be recalculated.')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(text('Cancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(text('Delete')),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+  if (!confirmed || !context.mounted) return;
+  try {
+    await store.removeBill(event, bill.id);
+  } catch (_) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(text('Bill could not be deleted. Please try again.'))));
+    }
+  }
+}
+
+Future<void> _confirmDeleteEvent(
+    BuildContext context, SplitBillStore store, SplitBillEvent event) async {
+  final text = SplitBillText(store.language);
+  final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(text('Delete settled event?')),
+          content: Text(text(
+              'This removes the event and all of its bills from this device.')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(text('Cancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(text('Delete')),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+  if (!confirmed || !context.mounted) return;
+  try {
+    await store.deleteEvent(event.id);
+  } catch (_) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content:
+              Text(text('Event could not be deleted. Please try again.'))));
+    }
+  }
+}
 
 class _CreateEventDialog extends StatefulWidget {
   const _CreateEventDialog({required this.store});
