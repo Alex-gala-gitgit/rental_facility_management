@@ -86,6 +86,61 @@ MoveOutSettlement example(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  testWidgets('completed request can leave the list while settlement stays open',
+      (tester) async {
+    final store = app.RentalStore(now: DateTime(2026, 11, 28));
+    store.loginAs(app.UserRole.owner);
+    addTearDown(store.dispose);
+    final facility = store.ownerFacilities.first;
+    final tenancy = store.tenancies.firstWhere(
+      (item) => item.facilityId == facility.id,
+    );
+    final settlement = example(
+      payslip: SettlementAttachment('receipt.png', Uint8List.fromList([1])),
+    );
+    final request = app.TenantRequest(
+      id: 'refund-route',
+      tenantId: tenancy.tenantId,
+      facilityId: facility.id,
+      title: 'Move-out regression',
+      message: '',
+      createdAt: DateTime(2026, 10, 1),
+      requestType: 'Move-out',
+      requestedMoveOutDate: settlement.moveOutDate,
+    );
+    store.tenantRequests
+      ..clear()
+      ..add(request);
+    await tester.pumpWidget(app.RentalStoreScope(
+      store: store,
+      child: const MaterialApp(
+        home: Scaffold(body: app.OwnerRequestsFeedTab()),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    final open = find.text('Initiate move-out');
+    await tester.ensureVisible(open);
+    await tester.tap(open);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    final page = tester.widget<MoveOutSettlementPage>(
+      find.byType(MoveOutSettlementPage),
+    );
+
+    await page.onCompleteRefund!(settlement);
+    await tester.pump();
+    // The page rebuilds to show the completion status after this callback.
+    tester.element(find.byType(MoveOutSettlementPage)).markNeedsBuild();
+    await tester.pump();
+
+    expect(request.status, 'Completed');
+    expect(tester.takeException(), isNull);
+    expect(find.text('Move-out settlement'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('No pending requests'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
   test('WhatsApp caption confirms an issued refund', () {
     expect(
       settlementShareMessage(refundIssued: true),

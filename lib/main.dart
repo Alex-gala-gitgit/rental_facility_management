@@ -17026,7 +17026,8 @@ class _OwnerRequestList extends StatelessWidget {
                                       tenancy.lastActiveDate ?? DateTime.now(),
                                   calculateElectricityCharge: (usage) =>
                                       store.calculateElectricityChargeForFacility(facility, usage),
-                                  translate: (key) => tr(context, key),
+                                  translate: (key) =>
+                                      _translateForLanguage(store.appLanguage, key),
                                 ),
                               ));
                               return;
@@ -29587,7 +29588,8 @@ void showTenantProfileDialog(
                       tenantId: tenant.id, tenancyId: tenancy.id, facilityId: facility.id,
                       initialDate: settlementDate,
                       calculateElectricityCharge: (usage) => store.calculateElectricityChargeForFacility(facility, usage),
-                      translate: (key) => tr(context, key),
+                      translate: (key) =>
+                          _translateForLanguage(store.appLanguage, key),
                     ),
                   ))
                 : null,
@@ -35231,8 +35233,10 @@ String money(double value) {
   return moneyExact(value);
 }
 
-String tr(BuildContext context, String key) {
-  final language = RentalStoreScope.of(context).appLanguage;
+String tr(BuildContext context, String key) =>
+    _translateForLanguage(RentalStoreScope.of(context).appLanguage, key);
+
+String _translateForLanguage(AppLanguage language, String key) {
   if (language == AppLanguage.english) return key;
   const chinese = <String, String>{
     'Initiate move-out': '发起搬出结算',
