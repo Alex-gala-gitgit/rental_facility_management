@@ -33,14 +33,19 @@ class MoveOutSettlementPage extends StatefulWidget {
       this.onInvoiceGenerated,
       this.onCompleteRefund,
       this.refundAlreadyCompleted,
+      this.readOnly = false,
+      this.expectedReviewDate,
       this.tenantId,
       this.tenancyId,
       this.facilityId,
       this.persistence});
   final Future<void> Function(MoveOutSettlement settlement)? onCompleteRefund;
   final bool? refundAlreadyCompleted;
-  final Future<void> Function(MoveOutSettlement settlement, Uint8List pdf,
-      bool isFinal)? onInvoiceGenerated;
+  final bool readOnly;
+  final DateTime? expectedReviewDate;
+  final Future<void> Function(
+          MoveOutSettlement settlement, Uint8List pdf, bool isFinal)?
+      onInvoiceGenerated;
   final String tenantName, propertyName, unitName, draftKey;
   final String bankName, bankAccountNumber;
   final double monthlyRent;
@@ -76,11 +81,13 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
   late DateTime _date;
   AppPersistence? _persistence;
   SettlementAttachment? _meter, _payslip;
+  MoveOutSettlement? _reviewSnapshot;
   Uint8List? _pdf;
   bool _busy = false, _loading = true;
   String? _error;
   bool _completed = false;
   String t(String key) => widget.translate(key);
+  bool get _canEdit => !_busy && !widget.readOnly;
   @override
   void initState() {
     super.initState();
@@ -98,7 +105,9 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
               tenantId: widget.tenantId,
               tenancyId: widget.tenancyId,
               facilityId: widget.facilityId);
-      final saved = await persistence.readSnapshot();
+      final saved = widget.readOnly && persistence is SettlementCloudPersistence
+          ? await persistence.readSnapshot(migrateLegacy: false)
+          : await persistence.readSnapshot();
       if (!mounted) {
         return;
       }
@@ -106,6 +115,15 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
       if (saved != null) {
         final savedJson = Map<String, dynamic>.from(jsonDecode(saved));
         final value = MoveOutSettlement.fromJson(savedJson);
+        if (widget.readOnly) {
+          if (widget.expectedReviewDate != null &&
+              !DateUtils.isSameDay(
+                  widget.expectedReviewDate, value.moveOutDate)) {
+            setState(() => _loading = false);
+            return;
+          }
+          _reviewSnapshot = value;
+        }
         _date = value.moveOutDate;
         _meter = value.meter;
         _payslip = value.payslip;
@@ -127,6 +145,14 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
         _proratedDays.text = savedJson.containsKey('proratedStayDays')
             ? '${value.proratedStayDays}'
             : '${value.moveOutDate.day}';
+        if (widget.readOnly && persistence is SettlementCloudPersistence) {
+          try {
+            final pdf = await persistence.readPdf(fromLoadedSnapshot: true);
+            if (mounted) _pdf = pdf;
+          } catch (_) {
+            // The saved details remain available if the PDF download fails.
+          }
+        }
       }
     } catch (_) {
       if (!mounted) {
@@ -154,7 +180,9 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
         _pdf = null;
         _error = null;
       });
-  MoveOutSettlement get _value => MoveOutSettlement(
+  MoveOutSettlement get _value =>
+      _reviewSnapshot ??
+      MoveOutSettlement(
         tenantName: widget.tenantName,
         propertyName: widget.propertyName,
         unitName: widget.unitName,
@@ -481,7 +509,7 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
           child: TextFormField(
             key: ValueKey('settlement-$label'),
             controller: _amounts[label],
-            enabled: !_busy,
+            enabled: _canEdit,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: appMoneyInputFormatters(),
             decoration: InputDecoration(
@@ -517,25 +545,28 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
               title:
                   Text(t(meter ? 'Final meter reading' : 'Payslip attachment')),
               subtitle: Text(file?.name ?? t('Optional image attachment')),
-              trailing: OutlinedButton(
-                  onPressed: _busy ? null : () => _upload(meter),
-                  child: Text(t(file == null ? 'Upload' : 'Replace')))),
+              trailing: widget.readOnly
+                  ? null
+                  : OutlinedButton(
+                      onPressed: _busy ? null : () => _upload(meter),
+                      child: Text(t(file == null ? 'Upload' : 'Replace')))),
           if (file != null) ...[
             Image.memory(file.bytes, height: 120, fit: BoxFit.contain),
-            TextButton(
-                onPressed: _busy
-                    ? null
-                    : () => setState(() {
-                          if (meter) {
-                            _meter = null;
-                            _usage.clear();
-                            _readingStatus = null;
-                          } else {
-                            _payslip = null;
-                          }
-                          _pdf = null;
-                        }),
-                child: Text(t('Remove'))),
+            if (!widget.readOnly)
+              TextButton(
+                  onPressed: _busy
+                      ? null
+                      : () => setState(() {
+                            if (meter) {
+                              _meter = null;
+                              _usage.clear();
+                              _readingStatus = null;
+                            } else {
+                              _payslip = null;
+                            }
+                            _pdf = null;
+                          }),
+                  child: Text(t('Remove'))),
           ],
         ]));
   }
@@ -556,8 +587,22 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
   @override
   Widget build(BuildContext context) {
     final value = _value;
+    final appBar = AppBar(title: Text(t('Move-out settlement')));
+    if (!_loading && widget.readOnly && _reviewSnapshot == null) {
+      return Scaffold(
+        appBar: appBar,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(t(_error == null
+                ? 'No saved settlement details are available.'
+                : 'Unable to open settlement invoice. Please try again.')),
+          ),
+        ),
+      );
+    }
     return Scaffold(
-      appBar: AppBar(title: Text(t('Move-out settlement'))),
+      appBar: appBar,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Center(
@@ -571,10 +616,11 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                              '${widget.tenantName} · ${widget.propertyName} · ${widget.unitName}'),
+                              '${value.tenantName} · ${value.propertyName} · ${value.unitName}'),
+                          if (widget.readOnly) Text(t('Refund completed')),
                           const SizedBox(height: 16),
                           OutlinedButton.icon(
-                              onPressed: _busy
+                              onPressed: !_canEdit
                                   ? null
                                   : () async {
                                       final date = await showDatePicker(
@@ -595,26 +641,35 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
                               [_amount('Deposit held')]),
                           _panel('Refund bank details', [
                             const SizedBox(height: 10),
-                            _row(t('Bank'), widget.bankName.isEmpty ? '-' : widget.bankName),
-                            _row(t('Bank account number'),
-                                widget.bankAccountNumber.isEmpty ? '-' : widget.bankAccountNumber),
+                            _row(t('Bank'),
+                                value.bankName.isEmpty ? '-' : value.bankName),
+                            _row(
+                                t('Bank account number'),
+                                value.bankAccountNumber.isEmpty
+                                    ? '-'
+                                    : value.bankAccountNumber),
                           ]),
                           _panel('Prorated stay', [
                             const SizedBox(height: 10),
                             _row(t('Monthly rent'),
-                                settlementMoney((widget.monthlyRent * 100).round())),
-                            _row(t('Daily rent (monthly rent / 30)'),
-                                settlementMoney((widget.monthlyRent * 100 / 30).round())),
+                                settlementMoney(value.monthlyRent)),
+                            _row(
+                                t('Daily rent (monthly rent / 30)'),
+                                settlementMoney(
+                                    (value.monthlyRent / 30).round())),
                             const SizedBox(height: 10),
                             TextFormField(
                               key: const ValueKey('settlement-prorated-days'),
                               controller: _proratedDays,
-                              enabled: !_busy,
+                              enabled: _canEdit,
                               keyboardType: TextInputType.number,
-                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly
+                              ],
                               decoration: InputDecoration(
                                 labelText: t('Prorated stay days'),
-                                helperText: t('Calculated as monthly rent / 30 x days stayed.'),
+                                helperText: t(
+                                    'Calculated as monthly rent / 30 x days stayed.'),
                                 border: const OutlineInputBorder(),
                               ),
                               onChanged: (_) => _changed(),
@@ -627,7 +682,8 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
                             ),
                             const SizedBox(height: 10),
                             _row(t('Prorated stay deduction'),
-                                settlementMoney(value.proratedStay), bold: true),
+                                settlementMoney(value.proratedStay),
+                                bold: true),
                           ]),
                           _panel('Final charges', [
                             Padding(
@@ -636,7 +692,7 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
                                   key: const ValueKey(
                                       'settlement-electricity-usage'),
                                   controller: _usage,
-                                  enabled: !_busy,
+                                  enabled: _canEdit,
                                   keyboardType:
                                       const TextInputType.numberWithOptions(
                                           decimal: true),
@@ -667,7 +723,7 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
                                 key: const ValueKey(
                                     'settlement-other-description'),
                                 controller: _description,
-                                enabled: !_busy,
+                                enabled: _canEdit,
                                 maxLength: 120,
                                 maxLines: 2,
                                 decoration: InputDecoration(
@@ -713,7 +769,8 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
                               'Refund payslip',
                               [
                                 _attachment(false),
-                                if (widget.onCompleteRefund != null) ...[
+                                if (!widget.readOnly &&
+                                    widget.onCompleteRefund != null) ...[
                                   const SizedBox(height: 12),
                                   if (_completed) ...[
                                     Row(children: [
@@ -745,10 +802,12 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
                               color: Colors.white),
                           _panel('PDF invoice', [
                             const SizedBox(height: 12),
-                            FilledButton.icon(
-                                onPressed: _busy ? null : _generate,
-                                icon: const Icon(Icons.picture_as_pdf_outlined),
-                                label: Text(t('Generate PDF invoice'))),
+                            if (!widget.readOnly)
+                              FilledButton.icon(
+                                  onPressed: _busy ? null : _generate,
+                                  icon:
+                                      const Icon(Icons.picture_as_pdf_outlined),
+                                  label: Text(t('Generate PDF invoice'))),
                             const SizedBox(height: 10),
                             Wrap(spacing: 10, runSpacing: 8, children: [
                               OutlinedButton.icon(
@@ -764,7 +823,9 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
                             ]),
                             const SizedBox(height: 12),
                             Text(t(_pdf == null
-                                ? 'Generate the invoice first to download or share it.'
+                                ? (widget.readOnly
+                                    ? 'The saved PDF is unavailable.'
+                                    : 'Generate the invoice first to download or share it.')
                                 : 'PDF ready. Choose WhatsApp in the share menu.')),
                             if (_pdf != null) ...[
                               const SizedBox(height: 8),
@@ -772,8 +833,9 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
                                   'On iPhone, close the PDF tab or return to Safari after sharing. This settlement page stays open.')),
                             ],
                             const SizedBox(height: 8),
-                            Text(t(
-                                'Saved securely in the cloud. Uploading a refund payslip confirms the refund. Complete refund records the tenancy ending.')),
+                            if (!widget.readOnly)
+                              Text(t(
+                                  'Saved securely in the cloud. Uploading a refund payslip confirms the refund. Complete refund records the tenancy ending.')),
                           ]),
                           if (_busy)
                             const Padding(

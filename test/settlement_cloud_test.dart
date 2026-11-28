@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rental_facility_management/settlement/settlement_cloud_persistence.dart';
+import 'package:rental_facility_management/settlement/settlement_page.dart';
 import 'settlement_test.dart' show DraftMemory, example;
 
 class RemoteMemory implements SettlementRemote {
@@ -37,6 +39,61 @@ void main() {
   final pdf = Uint8List.fromList([37, 80, 68, 70]);
   SettlementCloudPersistence adapter(RemoteMemory remote, DraftMemory local) =>
       SettlementCloudPersistence(remote, local, buildPdf: (_) async => pdf);
+  testWidgets(
+      'archived settlement shows saved values and leaves writes disabled',
+      (tester) async {
+    final remote = RemoteMemory()
+      ..row = {
+        'payload': example(
+          isFinalInvoice: true,
+          bankName: 'Archived bank',
+          monthlyRent: 120000,
+          proratedStayDays: 10,
+        ).toJson(),
+        'revision': 1,
+        'pdf_path': 'private/archived.pdf',
+      }
+      ..bytes = pdf;
+    await tester.pumpWidget(MaterialApp(
+      home: MoveOutSettlementPage(
+        tenantName: 'Tenant',
+        propertyName: 'Property',
+        unitName: 'Unit',
+        draftKey: 'archived',
+        initialDate: DateTime(2026, 10, 30),
+        translate: (key) => key,
+        calculateElectricityCharge: (usage) => usage,
+        readOnly: true,
+        bankName: 'Current bank',
+        monthlyRent: 1800,
+        persistence: adapter(remote, DraftMemory()),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Archived bank'), findsOneWidget);
+    expect(find.text('RM 1200.00'), findsOneWidget);
+    expect(find.text('Current bank'), findsNothing);
+    expect(find.text('Refund completed'), findsOneWidget);
+    expect(find.text('Generate PDF invoice'), findsNothing);
+    expect(find.text('Complete refund'), findsNothing);
+    expect(find.text('Upload'), findsNothing);
+    expect(tester.widgetList<TextField>(find.byType(TextField)), isNotEmpty);
+    expect(
+        tester.widgetList<TextField>(find.byType(TextField)),
+        everyElement(isA<TextField>()
+            .having((field) => field.enabled, 'enabled', false)));
+    expect(find.text('PDF ready. Choose WhatsApp in the share menu.'),
+        findsOneWidget);
+    expect(remote.saves, 0);
+  });
+  test('archive lookup does not promote an old local draft to the cloud',
+      () async {
+    final remote = RemoteMemory();
+    final local = DraftMemory()..saved = jsonEncode(example().toJson());
+    final cloud = adapter(remote, local);
+    expect(await cloud.readSnapshot(migrateLegacy: false), isNull);
+    expect(remote.saves, 0);
+  });
   test('legacy settlement migrates once without deleting local record',
       () async {
     final local = DraftMemory()..saved = jsonEncode(example().toJson());

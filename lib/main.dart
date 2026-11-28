@@ -16848,6 +16848,63 @@ class _OwnerRequestList extends StatelessWidget {
   final bool pending;
   final VoidCallback? onActionCompleted;
 
+  Future<void> _openSettlement(BuildContext context, RentalStore store,
+      TenantRequest request, AppUser tenant, {required bool readOnly}) async {
+    final matches = store.tenancies
+        .where((item) =>
+            item.tenantId == request.tenantId &&
+            item.facilityId == request.facilityId)
+        .toList()
+      ..sort((a, b) => b.leaseStart.compareTo(a.leaseStart));
+    if (readOnly && matches.length > 1) {
+      matches.retainWhere((item) =>
+          item.lastActiveDate != null &&
+          DateUtils.isSameDay(item.lastActiveDate, request.requestedMoveOutDate));
+    }
+    if (matches.isEmpty || (readOnly && matches.length != 1)) {
+      showValidationMessage(context, tr(context, 'Unable to find tenancy.'));
+      return;
+    }
+    final tenancy = matches.first;
+    final facility = store.facilityFor(request.facilityId);
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => MoveOutSettlementPage(
+        tenantName: tenant.name,
+        propertyName: facility.name,
+        unitName: tenancy.unitName,
+        draftKey: '${store.currentUser!.id}_${tenancy.id}',
+        bankName: request.bankName ?? '',
+        bankAccountNumber: request.bankAccountNumber ?? '',
+        monthlyRent: tenancy.monthlyRent,
+        readOnly: readOnly,
+        onInvoiceGenerated: readOnly
+            ? null
+            : (settlement, pdf, isFinal) => store.recordMoveOutInvoice(
+                  request, settlement, pdf, isFinal: isFinal),
+        refundAlreadyCompleted: readOnly ||
+            tenancy.inactiveRemark ==
+                'Triggered by system because deposit refund completed.',
+        onCompleteRefund: readOnly
+            ? null
+            : (settlement) async {
+                store.completeMoveOutRefund(tenancy, settlement);
+                await store.flushPersistence();
+                await store.flushCloudPersistence(rethrowOnError: true);
+              },
+        tenantId: tenant.id,
+        tenancyId: tenancy.id,
+        facilityId: facility.id,
+        initialDate: request.requestedMoveOutDate ??
+            tenancy.lastActiveDate ??
+            DateTime.now(),
+        expectedReviewDate: request.requestedMoveOutDate,
+        calculateElectricityCharge: (usage) =>
+            store.calculateElectricityChargeForFacility(facility, usage),
+        translate: (key) => _translateForLanguage(store.appLanguage, key),
+      ),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = RentalStoreScope.of(context);
@@ -16867,8 +16924,10 @@ class _OwnerRequestList extends StatelessWidget {
       itemBuilder: (context, index) {
         final request = requests[index];
         final tenant = store.userFor(request.tenantId);
-        return Card(
-          child: Padding(
+        final canReview = !pending &&
+            request.requestType == 'Move-out' &&
+            request.status == 'Completed';
+        final content = Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -16884,6 +16943,7 @@ class _OwnerRequestList extends StatelessWidget {
                     ),
                     const Spacer(),
                     StatusChipText(label: request.status),
+                    if (canReview) const Icon(Icons.chevron_right),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -16981,54 +17041,8 @@ class _OwnerRequestList extends StatelessWidget {
                         FilledButton.icon(
                           onPressed: () async {
                             if (request.requestType == 'Move-out') {
-                              final matches = store.tenancies.where((item) =>
-                                  item.tenantId == request.tenantId &&
-                                  item.facilityId == request.facilityId).toList()
-                                ..sort((a, b) => b.leaseStart.compareTo(a.leaseStart));
-                              if (matches.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(tr(context, 'Unable to find tenancy.'))),
-                                );
-                                return;
-                              }
-                              final tenancy = matches.first;
-                              final facility = store.facilityFor(request.facilityId);
-                              await Navigator.of(context).push(MaterialPageRoute<void>(
-                                builder: (_) => MoveOutSettlementPage(
-                                  tenantName: tenant.name,
-                                  propertyName: facility.name,
-                                  unitName: tenancy.unitName,
-                                  draftKey: '${store.currentUser!.id}_${tenancy.id}',
-                                  bankName: request.bankName ?? '',
-                                  bankAccountNumber:
-                                      request.bankAccountNumber ?? '',
-                                  monthlyRent: tenancy.monthlyRent,
-                                  onInvoiceGenerated:
-                                      (settlement, pdf, isFinal) =>
-                                          store.recordMoveOutInvoice(
-                                            request,
-                                            settlement,
-                                            pdf,
-                                            isFinal: isFinal,
-                                          ),
-                                  refundAlreadyCompleted:
-                                      tenancy.inactiveRemark ==
-                                          'Triggered by system because deposit refund completed.',
-                                  onCompleteRefund: (settlement) async {
-                                    store.completeMoveOutRefund(
-                                        tenancy, settlement);
-                                    await store.flushPersistence();
-                                    await store.flushCloudPersistence(
-                                        rethrowOnError: true);
-                                  },
-                                  tenantId: tenant.id, tenancyId: tenancy.id, facilityId: facility.id,
-                                  initialDate: request.requestedMoveOutDate ??
-                                      tenancy.lastActiveDate ?? DateTime.now(),
-                                  calculateElectricityCharge: (usage) =>
-                                      store.calculateElectricityChargeForFacility(facility, usage),
-                                  translate: (key) => tr(context, key),
-                                ),
-                              ));
+                              await _openSettlement(context, store, request,
+                                  tenant, readOnly: false);
                               return;
                             }
                             final confirmed = await showActionConfirmation(
@@ -17069,7 +17083,15 @@ class _OwnerRequestList extends StatelessWidget {
                 ],
               ],
             ),
-          ),
+        );
+        return Card(
+          child: canReview
+              ? InkWell(
+                  onTap: () => _openSettlement(context, store, request,
+                      tenant, readOnly: true),
+                  child: content,
+                )
+              : content,
         );
       },
     );
@@ -29587,7 +29609,8 @@ void showTenantProfileDialog(
                       tenantId: tenant.id, tenancyId: tenancy.id, facilityId: facility.id,
                       initialDate: settlementDate,
                       calculateElectricityCharge: (usage) => store.calculateElectricityChargeForFacility(facility, usage),
-                      translate: (key) => tr(context, key),
+                      translate: (key) =>
+                          _translateForLanguage(store.appLanguage, key),
                     ),
                   ))
                 : null,
@@ -35231,12 +35254,16 @@ String money(double value) {
   return moneyExact(value);
 }
 
-String tr(BuildContext context, String key) {
-  final language = RentalStoreScope.of(context).appLanguage;
+String tr(BuildContext context, String key) =>
+    _translateForLanguage(RentalStoreScope.of(context).appLanguage, key);
+
+String _translateForLanguage(AppLanguage language, String key) {
   if (language == AppLanguage.english) return key;
   const chinese = <String, String>{
     'Initiate move-out': '发起搬出结算',
     'Move-out settlement invoice': '搬出结算发票',
+    'No saved settlement details are available.': '没有可查看的已保存结算详情。',
+    'The saved PDF is unavailable.': '无法获取已保存的 PDF。',
     'Refund payslip attached': '已附退款凭证',
     'Refunded': '已退款',
     'Complete refund': '完成退款',
@@ -35414,6 +35441,9 @@ String tr(BuildContext context, String key) {
   const malay = <String, String>{
     'Initiate move-out': 'Mulakan penyelesaian keluar',
     'Move-out settlement invoice': 'Invois penyelesaian keluar',
+    'No saved settlement details are available.':
+        'Tiada butiran penyelesaian yang disimpan.',
+    'The saved PDF is unavailable.': 'PDF yang disimpan tidak tersedia.',
     'Refund payslip attached': 'Bukti bayaran balik dilampirkan',
     'Refunded': 'Telah dibayar balik',
     'Complete refund': 'Selesaikan bayaran balik',
