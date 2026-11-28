@@ -49,8 +49,7 @@ class SupabaseSettlementRemote implements SettlementRemote {
     _checkSession();
     // A 32-bit shift wraps to zero when Dart is compiled to JavaScript.
     final nonce = Random.secure().nextInt(4294967296);
-    final suffix =
-        '${DateTime.now().microsecondsSinceEpoch}_$nonce';
+    final suffix = '${DateTime.now().microsecondsSinceEpoch}_$nonce';
     final path = '$ownerId/${base64Url.encode(utf8.encode(key))}/$suffix.pdf';
     final bucket = client.storage.from('move-out-settlements');
     await bucket.uploadBinary(path, pdf,
@@ -104,7 +103,7 @@ class SettlementCloudPersistence implements AppPersistence {
   String? _pdfPath;
   bool _loaded = false;
   @override
-  Future<String?> readSnapshot() async {
+  Future<String?> readSnapshot({bool migrateLegacy = true}) async {
     final row = await remote.read();
     _loaded = true;
     if (row != null) {
@@ -112,6 +111,7 @@ class SettlementCloudPersistence implements AppPersistence {
       _pdfPath = row['pdf_path'] as String;
       return jsonEncode(row['payload']);
     }
+    if (!migrateLegacy) return null;
     final legacy = await local.readSnapshot();
     if (legacy != null) {
       await writeSnapshot(legacy);
@@ -143,7 +143,8 @@ class SettlementCloudPersistence implements AppPersistence {
     } catch (_) {}
   }
 
-  Future<Uint8List> readPdf() async {
+  Future<Uint8List> readPdf({bool fromLoadedSnapshot = false}) async {
+    if (fromLoadedSnapshot && _pdfPath != null) return remote.pdf(_pdfPath!);
     final row = await remote.read();
     if (row == null) throw StateError('Cloud invoice unavailable.');
     _pdfPath = row['pdf_path'] as String;

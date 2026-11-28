@@ -139,6 +139,17 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.text('No pending requests'), findsOneWidget);
+    await tester.tap(find.text('History (1)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Move-out regression'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    final review = tester.widget<MoveOutSettlementPage>(
+      find.byType(MoveOutSettlementPage),
+    );
+    expect(review.readOnly, isTrue);
+    expect(review.onCompleteRefund, isNull);
+    expect(review.onInvoiceGenerated, isNull);
     await tester.pumpWidget(const SizedBox());
   });
   test('WhatsApp caption confirms an issued refund', () {
