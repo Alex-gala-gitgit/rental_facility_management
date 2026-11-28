@@ -32,11 +32,13 @@ class MoveOutSettlementPage extends StatefulWidget {
       this.pickImage,
       this.onInvoiceGenerated,
       this.onCompleteRefund,
+      this.refundAlreadyCompleted,
       this.tenantId,
       this.tenancyId,
       this.facilityId,
       this.persistence});
   final Future<void> Function(MoveOutSettlement settlement)? onCompleteRefund;
+  final bool? refundAlreadyCompleted;
   final Future<void> Function(MoveOutSettlement settlement, Uint8List pdf,
       bool isFinal)? onInvoiceGenerated;
   final String tenantName, propertyName, unitName, draftKey;
@@ -83,6 +85,7 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
   void initState() {
     super.initState();
     _date = widget.initialDate;
+    _completed = widget.refundAlreadyCompleted ?? false;
     _proratedDays = TextEditingController(text: '${widget.initialDate.day}');
     _load();
   }
@@ -106,6 +109,7 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
         _date = value.moveOutDate;
         _meter = value.meter;
         _payslip = value.payslip;
+        _completed = widget.refundAlreadyCompleted ?? value.isFinalInvoice;
         final values = [
           value.deposit,
           value.electricity,
@@ -169,6 +173,7 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
         meter: _meter,
         payslip: _payslip,
         electricityUsageKwh: double.tryParse(_usage.text),
+        isFinalInvoice: _completed,
       );
   String get _filename =>
       'move-out-settlement-${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}.pdf';
@@ -307,7 +312,8 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
     }
 
     try {
-      await widget.onInvoiceGenerated?.call(settlement, bytes, false);
+      await widget.onInvoiceGenerated
+          ?.call(settlement, bytes, settlement.isFinalInvoice);
     } catch (error, stackTrace) {
       FlutterError.reportError(FlutterErrorDetails(
         exception: error,
@@ -353,10 +359,12 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
   }
 
   Future<void> _completeRefund() async {
-    if (_busy ||
-        _completed ||
-        _payslip == null ||
-        !_form.currentState!.validate()) return;
+    if (_busy || _completed || _payslip == null) return;
+    if (!_form.currentState!.validate()) {
+      setState(() => _error = t(
+          'Please review the highlighted fields before completing the refund.'));
+      return;
+    }
     final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -383,7 +391,15 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
       await _savePreparedSettlement(settlement, bytes);
       await widget.onInvoiceGenerated?.call(settlement, bytes, true);
       await widget.onCompleteRefund!(settlement);
-      if (mounted) setState(() => _completed = true);
+      if (mounted) {
+        setState(() {
+          _completed = true;
+          _pdf = bytes;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t('Refund completed'))),
+        );
+      }
     } catch (_) {
       if (mounted)
         setState(() => _error =
@@ -416,7 +432,7 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
     if (bytes == null) return;
     var supported = false;
     try {
-      supported = await shareSettlementPdf(bytes, _filename);
+      supported = await shareSettlementPdf(bytes, _filename, _payslip != null);
     } catch (_) {
       // Keep the PDF available for download when the platform share fails.
     }
@@ -699,6 +715,21 @@ class _MoveOutSettlementPageState extends State<MoveOutSettlementPage> {
                                 _attachment(false),
                                 if (widget.onCompleteRefund != null) ...[
                                   const SizedBox(height: 12),
+                                  if (_completed) ...[
+                                    Row(children: [
+                                      Icon(Icons.check_circle,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                          child: Text(t('Refund completed'),
+                                              style: const TextStyle(
+                                                  fontWeight:
+                                                      FontWeight.w700))),
+                                    ]),
+                                    const SizedBox(height: 12),
+                                  ],
                                   FilledButton.icon(
                                     onPressed:
                                         _busy || _completed || _payslip == null

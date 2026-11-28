@@ -9,6 +9,7 @@ import 'package:rental_facility_management/persistence/persistence_contract.dart
 import 'package:rental_facility_management/settlement/settlement_model.dart';
 import 'package:rental_facility_management/settlement/settlement_page.dart';
 import 'package:rental_facility_management/settlement/settlement_pdf.dart';
+import 'package:rental_facility_management/settlement/settlement_share_message.dart';
 import 'package:rental_facility_management/settlement/saved_settlement_invoice.dart';
 import 'package:rental_facility_management/settlement/money_input.dart';
 import 'package:rental_facility_management/cloud/meter_reading_service.dart';
@@ -85,6 +86,16 @@ MoveOutSettlement example(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test('WhatsApp caption confirms an issued refund', () {
+    expect(
+      settlementShareMessage(refundIssued: true),
+      'Refund has been issued. Thank you and wish you have a nice day.',
+    );
+    expect(
+      settlementShareMessage(refundIssued: false),
+      contains('temporary move-out settlement invoice'),
+    );
+  });
   testWidgets('invoice click prepares PDF and offers preview and download without blank route', (tester) async {
     final persistence = DraftMemory()..saved = jsonEncode(example().toJson());
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: SavedSettlementInvoice(
@@ -225,6 +236,36 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Refunded'), findsOneWidget);
     expect(example().isRefunded, isFalse);
+  });
+  testWidgets('completed refund status is restored after reload',
+      (tester) async {
+    var completionCalls = 0;
+    final persistence = DraftMemory()
+      ..saved = jsonEncode(example(
+        isFinalInvoice: true,
+        payslip: SettlementAttachment(
+            'refund.png',
+            Uint8List.fromList(
+                images.encodePng(images.Image(width: 1, height: 1)))),
+      ).toJson());
+    await tester.pumpWidget(MaterialApp(
+        home: MoveOutSettlementPage(
+      tenantName: 'Miki',
+      propertyName: 'Skyawani 2',
+      unitName: '3903',
+      draftKey: 'completed-refund-test',
+      initialDate: DateTime(2026, 10, 30),
+      translate: (key) => key,
+      persistence: persistence,
+      calculateElectricityCharge: (usage) => usage,
+      onCompleteRefund: (_) async => completionCalls += 1,
+    )));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Refund completed').first);
+    expect(find.text('Refund completed'), findsNWidgets(2));
+    await tester.tap(find.text('Refund completed').last);
+    await tester.pump();
+    expect(completionCalls, 0);
   });
   test(
       'shared app money formatter limits decimals and normalizes leading zeros',

@@ -17011,6 +17011,9 @@ class _OwnerRequestList extends StatelessWidget {
                                             pdf,
                                             isFinal: isFinal,
                                           ),
+                                  refundAlreadyCompleted:
+                                      tenancy.inactiveRemark ==
+                                          'Triggered by system because deposit refund completed.',
                                   onCompleteRefund: (settlement) async {
                                     store.completeMoveOutRefund(
                                         tenancy, settlement);
@@ -29573,6 +29576,8 @@ void showTenantProfileDialog(
                                 pdf,
                                 isFinal: isFinal,
                               ),
+                      refundAlreadyCompleted: tenancy.inactiveRemark ==
+                          'Triggered by system because deposit refund completed.',
                       onCompleteRefund: (settlement) async {
                         store.completeMoveOutRefund(tenancy, settlement);
                         await store.flushPersistence();
@@ -35245,6 +35250,8 @@ String tr(BuildContext context, String key) {
     'Complete refund?': '确认完成退款？',
     'Refund completed': '退款已完成',
     'Unable to complete refund. Please refresh and try again.': '无法完成退款，请刷新后重试。',
+    'Please review the highlighted fields before completing the refund.':
+        '完成退款前，请检查标示的字段。',
     'This completes the move-out request and ends the tenancy on the move-out date. Reactivation is available for one month after inactivation.': '此操作将完成搬出请求，并以搬出日期结束租约。停用后一个月内可重新激活。',
     'Refund pending': '待退款',
     'Amount refunded': '已退金额',
@@ -35420,6 +35427,8 @@ String tr(BuildContext context, String key) {
     'Complete refund?': 'Selesaikan bayaran balik?',
     'Refund completed': 'Bayaran balik selesai',
     'Unable to complete refund. Please refresh and try again.': 'Tidak dapat menyelesaikan bayaran balik. Muat semula dan cuba lagi.',
+    'Please review the highlighted fields before completing the refund.':
+        'Sila semak ruangan yang ditandakan sebelum menyelesaikan bayaran balik.',
     'This completes the move-out request and ends the tenancy on the move-out date. Reactivation is available for one month after inactivation.': 'Permintaan keluar diselesaikan dan penyewaan tamat pada tarikh keluar. Pengaktifan semula tersedia selama sebulan selepas dinyahaktifkan.',
     'Refund pending': 'Menunggu bayaran balik',
     'Amount refunded': 'Amaun dibayar balik',
