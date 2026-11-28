@@ -28,6 +28,8 @@ jobs:
         run: flutter analyze
       - name: Tests
         run: flutter test
+      - name: Settlement upload in Chrome
+        run: flutter test --platform chrome test/settlement_remote_test.dart
       - name: Production web build
         run: flutter build web --release
       - uses: actions/upload-artifact@v4
