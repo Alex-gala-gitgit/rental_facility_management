@@ -47,8 +47,10 @@ class SupabaseSettlementRemote implements SettlementRemote {
   Future<void> save(
       String snapshot, Uint8List pdf, int? expectedRevision) async {
     _checkSession();
+    // A 32-bit shift wraps to zero when Dart is compiled to JavaScript.
+    final nonce = Random.secure().nextInt(4294967296);
     final suffix =
-        '${DateTime.now().microsecondsSinceEpoch}_${Random.secure().nextInt(1 << 32)}';
+        '${DateTime.now().microsecondsSinceEpoch}_$nonce';
     final path = '$ownerId/${base64Url.encode(utf8.encode(key))}/$suffix.pdf';
     final bucket = client.storage.from('move-out-settlements');
     await bucket.uploadBinary(path, pdf,
